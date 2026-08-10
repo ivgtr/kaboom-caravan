@@ -32,8 +32,15 @@ Simulationは描画方式を知らず、Presentation SnapshotとCombat Eventだ�
 - 透明素材は生成時に単色Chroma Key背景を使い、ローカル処理でAlphaへ変換する
 - Runtime素材は表示解像度へ縮小・圧縮し、生成Masterとは分離する
 - 車体、武器、ModuleはAttachment Point相当の2D Anchor座標で合成する
+- Risk Zoneは矩形の色面で区切らず、低彩度の楕円状Dust Washを重ね、
+  Radial Gradientで境界を道路へ溶かす
+- Frontlineは画面を縦断する点線を使わず、短いCheckpoint Pennantと
+  接地した曲線Paintで正確な位置を示す
 - 通常Animationは位置、回転、Scale、反動、点滅、Sprite Sheetで表現する
 - 複雑なBone Animationと3D物理はMVP対象外とする
+
+Runtime review:
+`artifacts/world/review/road_frontline_1440x900_v001.png`
 
 ## 理由
 

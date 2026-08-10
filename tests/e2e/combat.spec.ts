@@ -231,6 +231,11 @@ for (const viewport of [
       escape: page.getByRole('button', { name: '緊急離脱' }),
     };
     await expect(controls.main).toBeVisible();
+    if (process.env.CAPTURE_WORLD_REVIEW && viewport.width === 844) {
+      await page.screenshot({
+        path: 'artifacts/world/review/road_frontline_844x390_v001.png',
+      });
+    }
 
     const boxes = Object.fromEntries(
       await Promise.all(

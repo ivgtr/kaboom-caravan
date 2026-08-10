@@ -205,31 +205,74 @@ export class GameRenderer {
       context.fillRect(0, this.groundY - 4, this.viewportWidth, 62);
     }
 
-    const zones: Array<[number, number, string]> = [
-      [0, 25, 'rgb(184 201 138 / 35%)'],
-      [25, 45, 'rgb(210 199 126 / 35%)'],
-      [45, 65, 'rgb(217 165 110 / 35%)'],
-      [65, 80, 'rgb(207 124 119 / 35%)'],
+    const zones: Array<[minimum: number, maximum: number, color: string]> = [
+      [0, 25, 'rgba(118, 151, 112, 0.16)'],
+      [25, 45, 'rgba(182, 157, 103, 0.15)'],
+      [45, 65, 'rgba(190, 126, 91, 0.15)'],
+      [65, 80, 'rgba(168, 101, 91, 0.14)'],
     ];
     for (const [minimum, maximum, color] of zones) {
       const left = this.worldToScreen(minimum);
       const right = this.worldToScreen(maximum);
-      context.fillStyle = color;
-      context.fillRect(left, this.groundY - 4, right - left, 62);
+      const centerX = (left + right) / 2;
+      const radius = Math.max(36, (right - left) * 0.72);
+      context.save();
+      context.translate(centerX, this.groundY + 25);
+      context.scale(1, 0.34);
+      const wash = context.createRadialGradient(0, 0, 0, 0, 0, radius);
+      wash.addColorStop(0, color);
+      wash.addColorStop(0.68, color);
+      wash.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      context.fillStyle = wash;
+      context.beginPath();
+      context.arc(0, 0, radius, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
     }
   }
 
   private drawFrontline(position: number): void {
     const context = this.context;
     const x = this.worldToScreen(position);
-    context.strokeStyle = '#fff4a3';
-    context.lineWidth = 4;
-    context.setLineDash([8, 6]);
+
+    context.save();
+    context.translate(x, this.groundY + 4);
+    context.rotate(-0.06);
+
+    // A worn curved paint mark keeps the boundary readable on the road without
+    // cutting through the illustrated world as a vertical HUD line.
+    context.lineCap = 'round';
+    context.strokeStyle = 'rgba(92, 73, 62, 0.28)';
+    context.lineWidth = 8;
     context.beginPath();
-    context.moveTo(x, this.groundY - 92);
-    context.lineTo(x, this.groundY + 48);
+    context.moveTo(-17, 9);
+    context.quadraticCurveTo(0, 0, 18, 7);
     context.stroke();
-    context.setLineDash([]);
+    context.strokeStyle = 'rgba(238, 204, 137, 0.82)';
+    context.lineWidth = 4;
+    context.stroke();
+
+    // A short garage-style checkpoint pennant makes the exact world position
+    // legible while remaining a physical object that vehicles can occlude.
+    context.strokeStyle = '#3d4a59';
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(0, 7);
+    context.lineTo(-2, -28);
+    context.stroke();
+    context.fillStyle = '#e87862';
+    context.beginPath();
+    context.moveTo(-2, -29);
+    context.quadraticCurveTo(8, -31, 16, -25);
+    context.quadraticCurveTo(8, -20, -1, -18);
+    context.closePath();
+    context.fill();
+    context.stroke();
+    context.fillStyle = '#f4d37e';
+    context.beginPath();
+    context.arc(-2, -28, 2.4, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
   }
 
   private drawCaravan(
