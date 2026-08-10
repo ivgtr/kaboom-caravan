@@ -52,7 +52,7 @@ export function GameApp() {
           setHud(toHudSnapshot(simulation));
         }
       },
-      () => renderer.render(simulation),
+      (alpha) => renderer.render(simulation, alpha),
     );
 
     input.connect();

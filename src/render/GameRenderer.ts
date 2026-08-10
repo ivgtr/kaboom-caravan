@@ -1,12 +1,17 @@
 import * as THREE from 'three';
-import type { SimulationState } from '../game/simulation/types';
+import {
+  createPresentationSnapshot,
+  interpolatePosition,
+} from '../game/simulation/presentationSnapshot';
+import type { EntityId, SimulationState } from '../game/simulation/types';
 
 export class GameRenderer {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.OrthographicCamera;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly player: THREE.Mesh;
-  private readonly enemyViews = new Map<string, THREE.Mesh>();
+  private readonly enemyViews = new Map<EntityId, THREE.Mesh>();
+  private readonly projectileViews = new Map<EntityId, THREE.Mesh>();
   private readonly resizeObserver: ResizeObserver;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -38,39 +43,80 @@ export class GameRenderer {
     this.resize();
   }
 
-  render(state: SimulationState): void {
-    this.player.position.x = state.player.position;
-    const liveEnemyIds = new Set(state.enemies.map((enemy) => enemy.id));
-
-    for (const enemy of state.enemies) {
-      let view = this.enemyViews.get(enemy.id);
-      if (!view) {
-        view = new THREE.Mesh(
+  render(state: SimulationState, alpha: number): void {
+    const snapshot = createPresentationSnapshot(state);
+    this.player.position.x = interpolatePosition(snapshot.player, alpha);
+    this.syncEntityViews(
+      snapshot.enemies,
+      this.enemyViews,
+      () =>
+        new THREE.Mesh(
           new THREE.BoxGeometry(3, 2, 2.5),
           new THREE.MeshStandardMaterial({ color: '#687ec9' }),
-        );
-        view.position.y = 1;
-        this.enemyViews.set(enemy.id, view);
-        this.scene.add(view);
-      }
-      view.position.x = enemy.position;
-    }
-
-    for (const [id, view] of this.enemyViews) {
-      if (!liveEnemyIds.has(id)) {
-        this.scene.remove(view);
-        view.geometry.dispose();
-        (view.material as THREE.Material).dispose();
-        this.enemyViews.delete(id);
-      }
-    }
-
+        ),
+      1,
+      alpha,
+    );
+    this.syncEntityViews(
+      snapshot.projectiles,
+      this.projectileViews,
+      () =>
+        new THREE.Mesh(
+          new THREE.SphereGeometry(0.35, 8, 8),
+          new THREE.MeshBasicMaterial({ color: '#fff16a' }),
+        ),
+      1.4,
+      alpha,
+    );
     this.renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {
     this.resizeObserver.disconnect();
+    this.disposeViews(this.enemyViews);
+    this.disposeViews(this.projectileViews);
     this.renderer.dispose();
+  }
+
+  private syncEntityViews(
+    entities: ReturnType<typeof createPresentationSnapshot>['enemies'],
+    views: Map<EntityId, THREE.Mesh>,
+    createView: () => THREE.Mesh,
+    height: number,
+    alpha: number,
+  ): void {
+    const liveIds = new Set(entities.map((entity) => entity.id));
+    for (const entity of entities) {
+      let view = views.get(entity.id);
+      if (!view) {
+        view = createView();
+        view.position.y = height;
+        views.set(entity.id, view);
+        this.scene.add(view);
+      }
+      view.position.x = interpolatePosition(entity, alpha);
+    }
+
+    for (const [id, view] of views) {
+      if (!liveIds.has(id)) {
+        this.disposeView(view);
+        views.delete(id);
+      }
+    }
+  }
+
+  private disposeViews(views: Map<EntityId, THREE.Mesh>): void {
+    for (const view of views.values()) this.disposeView(view);
+    views.clear();
+  }
+
+  private disposeView(view: THREE.Mesh): void {
+    this.scene.remove(view);
+    view.geometry.dispose();
+    const materials = Array.isArray(view.material)
+      ? view.material
+      : [view.material];
+    for (const material of materials) material.dispose();
   }
 
   private readonly resize = (): void => {

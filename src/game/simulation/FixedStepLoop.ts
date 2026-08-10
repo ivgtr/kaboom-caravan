@@ -1,9 +1,9 @@
-import { SIMULATION_STEP_SECONDS } from './types';
+import { FixedStepClock } from './FixedStepClock';
 
 const MAX_FRAME_SECONDS = 0.25;
 
 export class FixedStepLoop {
-  private accumulator = 0;
+  private readonly clock = new FixedStepClock();
   private previousTime?: number;
   private animationFrame?: number;
 
@@ -23,7 +23,7 @@ export class FixedStepLoop {
     }
     this.animationFrame = undefined;
     this.previousTime = undefined;
-    this.accumulator = 0;
+    this.clock.reset();
   }
 
   private readonly frame = (timeMilliseconds: number): void => {
@@ -32,14 +32,8 @@ export class FixedStepLoop {
       ? Math.min(currentTime - this.previousTime, MAX_FRAME_SECONDS)
       : 0;
     this.previousTime = currentTime;
-    this.accumulator += elapsed;
-
-    while (this.accumulator >= SIMULATION_STEP_SECONDS) {
-      this.update(SIMULATION_STEP_SECONDS);
-      this.accumulator -= SIMULATION_STEP_SECONDS;
-    }
-
-    this.render(this.accumulator / SIMULATION_STEP_SECONDS);
+    const alpha = this.clock.advance(elapsed, this.update);
+    this.render(alpha);
     this.animationFrame = requestAnimationFrame(this.frame);
   };
 }
