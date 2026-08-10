@@ -2,6 +2,12 @@ import {
   WEAPON_DEFINITIONS,
   type WeaponDefinition,
 } from '../data/weaponDefinitions';
+import {
+  derivePlayerStats,
+  deriveWeaponDefinition,
+} from '../build/derivedStats';
+import { runBuildTriggers } from '../build/triggers';
+import type { TriggerSignal } from '../build/types';
 import { segmentIntersectsCircle1d } from './collision';
 import { resolveDamage } from './damage';
 import {
@@ -17,11 +23,8 @@ import type {
   SimulationState,
 } from './types';
 
-const PLAYER_SPEED = 12;
 const PLAYER_MIN_POSITION = 0;
 const PLAYER_MAX_POSITION = 80;
-const PASSIVE_COOLING_PER_SECOND = 12;
-const PASSIVE_ENERGY_PER_SECOND = 10;
 const OVERHEAT_THRESHOLD = 100;
 const OVERHEAT_RECOVERY_THRESHOLD = 60;
 const ENEMY_CONTACT_COOLDOWN_SECONDS = 1;
@@ -135,6 +138,7 @@ function moveProjectiles(
         type: 'projectile-hit',
         projectileId: projectile.id,
         targetId: target.id,
+        weaponId: projectile.weaponId,
         damage,
       });
       continue;
@@ -204,12 +208,24 @@ export function stepSimulation(
   }
 
   const events: CombatEvent[] = [];
+  const playerStats = derivePlayerStats(state.build);
+  const primaryDefinition = deriveWeaponDefinition(
+    WEAPON_DEFINITIONS[state.build.primaryWeaponId],
+    state.build,
+  );
+  const secondaryDefinition = deriveWeaponDefinition(
+    WEAPON_DEFINITIONS[state.build.secondaryWeaponId],
+    state.build,
+  );
   let playerPosition = clamp(
-    state.player.position + command.move * PLAYER_SPEED * deltaSeconds,
+    state.player.position + command.move * playerStats.moveSpeed * deltaSeconds,
     PLAYER_MIN_POSITION,
     PLAYER_MAX_POSITION,
   );
-  let playerHitPoints = state.player.hitPoints;
+  let playerHitPoints = Math.min(
+    state.player.hitPoints,
+    playerStats.maximumHitPoints,
+  );
   let primaryCooldown = Math.max(
     0,
     state.player.primaryCooldown - deltaSeconds,
@@ -219,14 +235,14 @@ export function stepSimulation(
     state.player.secondaryCooldown - deltaSeconds,
   );
   let skillCooldown = Math.max(0, state.player.skillCooldown - deltaSeconds);
-  let ammo = state.player.ammo;
+  let ammo = Math.min(state.player.ammo, playerStats.maximumAmmo);
   let energy = Math.min(
-    100,
-    state.player.energy + PASSIVE_ENERGY_PER_SECOND * deltaSeconds,
+    playerStats.maximumEnergy,
+    state.player.energy + playerStats.energyPerSecond * deltaSeconds,
   );
   let heat = Math.max(
     0,
-    state.player.heat - PASSIVE_COOLING_PER_SECOND * deltaSeconds,
+    state.player.heat - playerStats.coolingPerSecond * deltaSeconds,
   );
   let overheated = state.player.overheated;
   let enemies = moveEnemies(
@@ -273,7 +289,7 @@ export function stepSimulation(
     );
 
   if (command.firePrimary) {
-    const result = fire(WEAPON_DEFINITIONS['machine-cannon'], primaryCooldown);
+    const result = fire(primaryDefinition, primaryCooldown);
     ammo = result.ammo;
     energy = result.energy;
     heat = result.heat;
@@ -290,7 +306,7 @@ export function stepSimulation(
   }
 
   if (command.fireSecondary) {
-    const result = fire(WEAPON_DEFINITIONS.railgun, secondaryCooldown);
+    const result = fire(secondaryDefinition, secondaryCooldown);
     ammo = result.ammo;
     energy = result.energy;
     heat = result.heat;
@@ -321,7 +337,7 @@ export function stepSimulation(
       enemy.position <= playerPosition + state.player.radius + enemy.radius;
     if (!isTouchingPlayer || enemy.contactCooldown > 0) return enemy;
 
-    const damage = resolveDamage(enemy.contactDamage, state.player.armor);
+    const damage = resolveDamage(enemy.contactDamage, playerStats.armor);
     playerHitPoints = Math.max(0, playerHitPoints - damage);
     events.push({ type: 'vehicle-hit', sourceId: enemy.id, damage });
     return { ...enemy, contactCooldown: ENEMY_CONTACT_COOLDOWN_SECONDS };
@@ -332,6 +348,56 @@ export function stepSimulation(
     events.push({ type: 'enemy-killed', enemyId: enemy.id });
   }
   enemies = enemies.filter((enemy) => enemy.hitPoints > 0);
+
+  const triggerSignals: TriggerSignal[] = [];
+  for (const event of events) {
+    switch (event.type) {
+      case 'weapon-fired':
+        triggerSignals.push({
+          type: 'onFire',
+          weaponTags: WEAPON_DEFINITIONS[event.weaponId].tags,
+        });
+        break;
+      case 'projectile-hit':
+        triggerSignals.push({
+          type: 'onHit',
+          weaponTags: WEAPON_DEFINITIONS[event.weaponId].tags,
+        });
+        break;
+      case 'enemy-killed':
+        triggerSignals.push({ type: 'onKill' });
+        break;
+      case 'vehicle-hit':
+        triggerSignals.push({ type: 'onDamage' });
+        break;
+      case 'overheated':
+        triggerSignals.push({ type: 'onOverheat' });
+        break;
+      default:
+        break;
+    }
+  }
+  if (state.player.ammo > 0 && ammo === 0) {
+    triggerSignals.push({ type: 'onAmmoEmpty' });
+  }
+  if (state.player.energy > 0 && energy === 0) {
+    triggerSignals.push({ type: 'onEnergyEmpty' });
+  }
+  const triggerResult = runBuildTriggers(
+    state.build,
+    triggerSignals,
+    { ammo, energy, heat, hitPoints: playerHitPoints },
+    {
+      ammo: playerStats.maximumAmmo,
+      energy: playerStats.maximumEnergy,
+      heat: OVERHEAT_THRESHOLD,
+      hitPoints: playerStats.maximumHitPoints,
+    },
+  );
+  ammo = triggerResult.resources.ammo;
+  energy = triggerResult.resources.energy;
+  heat = triggerResult.resources.heat;
+  playerHitPoints = triggerResult.resources.hitPoints;
 
   const pressure = enemies.filter(
     (enemy) =>
@@ -361,6 +427,8 @@ export function stepSimulation(
       previousPosition: state.player.position,
       position: playerPosition,
       hitPoints: playerHitPoints,
+      maxHitPoints: playerStats.maximumHitPoints,
+      armor: playerStats.armor,
       ammo,
       energy,
       heat,

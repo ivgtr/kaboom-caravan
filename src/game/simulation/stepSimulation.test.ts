@@ -98,6 +98,7 @@ describe('stepSimulation', () => {
       type: 'projectile-hit',
       projectileId: 'projectile-1',
       targetId: 'enemy-1',
+      weaponId: 'machine-cannon',
       damage: 3.5,
     });
   });

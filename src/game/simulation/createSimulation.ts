@@ -6,6 +6,11 @@ export function createSimulation(seed = 1): SimulationState {
     tick: 0,
     nextEntitySequence: 1,
     status: 'active',
+    build: {
+      primaryWeaponId: 'machine-cannon',
+      secondaryWeaponId: 'railgun',
+      moduleIds: [],
+    },
     player: {
       id: 'player',
       previousPosition: 10,

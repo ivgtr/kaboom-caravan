@@ -1,8 +1,9 @@
+import type { ModuleId, WeaponId } from '../data/ids';
+
 export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
 
 export type EntityId = string;
-export type WeaponId = 'machine-cannon' | 'railgun';
 export type Movement = -1 | 0 | 1;
 export type CombatStatus = 'active' | 'victory' | 'defeat';
 export type RiskTier = 'safe' | 'frontline' | 'danger' | 'enemy-territory';
@@ -66,6 +67,12 @@ export interface FrontlineState {
   rewardMultiplier: number;
 }
 
+export interface BuildState {
+  primaryWeaponId: WeaponId;
+  secondaryWeaponId: WeaponId;
+  moduleIds: ModuleId[];
+}
+
 export type CombatEvent =
   | {
       type: 'weapon-fired';
@@ -76,6 +83,7 @@ export type CombatEvent =
       type: 'projectile-hit';
       projectileId: EntityId;
       targetId: EntityId;
+      weaponId: WeaponId;
       damage: number;
     }
   | { type: 'enemy-killed'; enemyId: EntityId }
@@ -90,6 +98,7 @@ export interface SimulationState {
   tick: number;
   nextEntitySequence: number;
   status: CombatStatus;
+  build: BuildState;
   player: PlayerState;
   frontline: FrontlineState;
   enemies: EnemyState[];
