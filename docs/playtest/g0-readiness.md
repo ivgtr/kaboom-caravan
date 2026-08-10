@@ -48,14 +48,17 @@ Railgun、Heavy、Explosion、HUDは上記のStyle承認後に追加する。ほ
 
 ## 現在の候補レビュー
 
-`artifacts/g0/style-reference/ref_style_001_candidate_v001.png`を確認対象とする。
+`artifacts/g0/style-reference/ref_style_001_candidate_v002.png`を確認対象とする。V1は敵車両を描いていたため、Monster方針を反映したV2で置き換えた。
 
 - Pass: 巨大な機関砲とExplosionが画面の主役になる
-- Pass: Coral系PlayerとBlue-Violet系Enemyを即座に区別できる
+- Pass: Vehicle Base、主砲、副砲、冷却器、弾薬箱が別部品として読める
+- Pass: モスモコ、ハナツノ、ガレキガメを形と色で即座に区別できる
 - Pass: 背景の明度とDetail Densityが車両を邪魔しない
 - Pass: 固定横視点とGround Lineが2Dレイヤー化に適している
-- Pass: 小さい表示でもPlayer、敵、砲身、ExplosionのSilhouetteが読める
+- Pass: Muzzle、薬莢、Hit、Explosion、Smoke、Dustが多層VFXとして読める
+- Pass: HP・Heat・Energy・Ammo、10戦進行、Threat、武器・Module枠のHUD構造が成立する
+- Pass: 小さい表示でもCaravan、Monster、砲身、ExplosionのSilhouetteが読める
 - User review: Kawaiiの強さが幼児向けに寄りすぎていないか
-- User review: Coral / Mint / Blue-Violet / OrangeのPaletteをSTYLE LOCKしてよいか
+- User review: Modular Caravan、Monster生態系、詳細HUDをこの画面の方向でSTYLE LOCKしてよいか
 
 上の2点が承認されたら候補を`REF_STYLE_001`へ昇格し、分離素材の生成へ進む。
