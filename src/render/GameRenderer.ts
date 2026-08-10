@@ -33,6 +33,12 @@ import {
   type VfxFamily,
   type VfxPose,
 } from './vfxAssets';
+import {
+  getCameraShakeOffset,
+  getEnemyHitStopDuration,
+  getPlayerDamageShake,
+  type CameraShakeSpec,
+} from './combatFeedback';
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
@@ -90,6 +96,8 @@ interface CharacterMotionRuntime {
   hitAgeSeconds: number;
   phaseTransitionAgeSeconds: number;
   phaseClockSeconds: number;
+  hitStopRemainingSeconds: number;
+  hitStopWorldPosition?: number;
 }
 
 interface ExhaustPuff {
@@ -110,6 +118,8 @@ export interface RendererDiagnostics {
   stressPlayerProjectiles: number;
   stressEnemyProjectiles: number;
   reducedMotion: boolean;
+  activeEnemyHitStops: number;
+  cameraShakeRemainingSeconds: number;
   assets: ReturnType<SpriteAssetManager['getDiagnostics']>;
 }
 
@@ -121,6 +131,7 @@ const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
   hitAgeSeconds: Number.POSITIVE_INFINITY,
   phaseTransitionAgeSeconds: Number.POSITIVE_INFINITY,
   phaseClockSeconds: 0,
+  hitStopRemainingSeconds: 0,
 });
 
 export class GameRenderer {
@@ -145,6 +156,12 @@ export class GameRenderer {
     '(prefers-reduced-motion: reduce)',
   );
   private reducedMotion = this.reducedMotionQuery.matches;
+  private cameraShakeAgeSeconds = Number.POSITIVE_INFINITY;
+  private cameraShakeSpec: CameraShakeSpec = {
+    durationSeconds: 0,
+    amplitudePixels: 0,
+  };
+  private cameraShakePhaseRadians = 0;
   private readonly diagnosticsEnabled = new URLSearchParams(
     window.location.search,
   ).has('debug');
@@ -189,6 +206,7 @@ export class GameRenderer {
     const now = performance.now();
     const deltaSeconds = Math.min(0.05, (now - this.lastRenderTime) / 1000);
     this.lastRenderTime = now;
+    this.cameraShakeAgeSeconds += deltaSeconds;
     this.updateEffects(state, deltaSeconds);
     this.updateCharacterMotions(state, deltaSeconds);
     this.highEffectLoad =
@@ -199,6 +217,16 @@ export class GameRenderer {
     const scale = window.devicePixelRatio || 1;
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
+    const cameraOffset = getCameraShakeOffset(
+      this.cameraShakeAgeSeconds,
+      this.cameraShakeSpec,
+      this.cameraShakePhaseRadians,
+    );
+    if (cameraOffset.x !== 0 || cameraOffset.y !== 0) {
+      this.drawEnvironment();
+    }
+    context.save();
+    context.translate(cameraOffset.x, cameraOffset.y);
     this.drawEnvironment();
     this.drawExhaustPuffs();
 
@@ -215,10 +243,17 @@ export class GameRenderer {
     );
 
     for (const enemy of state.enemies) {
+      const runtime = this.enemyMotions.get(enemy.id);
+      const interpolatedPosition =
+        enemy.previousPosition +
+        (enemy.position - enemy.previousPosition) * alpha;
       this.drawMonster(
         this.worldToScreen(
-          enemy.previousPosition +
-            (enemy.position - enemy.previousPosition) * alpha,
+          runtime !== undefined &&
+            runtime.hitStopRemainingSeconds > 0 &&
+            runtime.hitStopWorldPosition !== undefined
+            ? runtime.hitStopWorldPosition
+            : interpolatedPosition,
         ),
         this.groundY,
         enemy,
@@ -254,6 +289,7 @@ export class GameRenderer {
     }
     if (this.performanceStress) this.drawPerformanceStressProjectiles();
     this.drawEffects();
+    context.restore();
 
     this.knownEntityPositions.set(state.player.id, state.player.position);
     for (const enemy of state.enemies) {
@@ -954,14 +990,27 @@ export class GameRenderer {
         this.playerMotion.releaseAgeSeconds = 0;
       } else if (event.type === 'projectile-hit') {
         const target = this.enemyMotions.get(event.targetId);
-        if (target) target.hitAgeSeconds = 0;
+        if (target) {
+          target.hitAgeSeconds = 0;
+          target.hitStopRemainingSeconds = Math.max(
+            target.hitStopRemainingSeconds,
+            getEnemyHitStopDuration(event.damage, this.reducedMotion),
+          );
+          target.hitStopWorldPosition = state.enemies.find(
+            ({ id }) => id === event.targetId,
+          )?.position;
+        }
       } else if (event.type === 'enemy-attacked') {
         const attacker = this.enemyMotions.get(event.enemyId);
         if (attacker) attacker.releaseAgeSeconds = 0;
       } else if (event.type === 'vehicle-hit') {
         this.playerMotion.hitAgeSeconds = 0;
+        this.startCameraShake(event.damage, state.tick);
         const attacker = this.enemyMotions.get(event.sourceId);
         if (attacker) attacker.releaseAgeSeconds = 0;
+      } else if (event.type === 'enemy-projectile-hit') {
+        this.playerMotion.hitAgeSeconds = 0;
+        this.startCameraShake(event.damage, state.tick);
       } else if (event.type === 'boss-phase-changed') {
         const boss = this.enemyMotions.get(event.bossId);
         if (boss) {
@@ -978,6 +1027,17 @@ export class GameRenderer {
     deltaSeconds: number,
     maximumTravelPerSecond = Number.POSITIVE_INFINITY,
   ): void {
+    if (runtime.hitStopRemainingSeconds > 0) {
+      runtime.hitStopRemainingSeconds = Math.max(
+        0,
+        runtime.hitStopRemainingSeconds - deltaSeconds,
+      );
+      runtime.lastPosition = position;
+      if (runtime.hitStopRemainingSeconds === 0) {
+        runtime.hitStopWorldPosition = undefined;
+      }
+      return;
+    }
     const travel = position - runtime.lastPosition;
     runtime.travelDistance += Math.min(
       Math.abs(travel),
@@ -989,6 +1049,29 @@ export class GameRenderer {
     runtime.hitAgeSeconds += deltaSeconds;
     runtime.phaseTransitionAgeSeconds += deltaSeconds;
     runtime.phaseClockSeconds += deltaSeconds;
+  }
+
+  private startCameraShake(damage: number, tick: number): void {
+    const nextShake = getPlayerDamageShake(damage, this.reducedMotion);
+    const currentRemaining = Math.max(
+      0,
+      this.cameraShakeSpec.durationSeconds - this.cameraShakeAgeSeconds,
+    );
+    const currentProgress =
+      this.cameraShakeSpec.durationSeconds > 0
+        ? Math.min(
+            1,
+            this.cameraShakeAgeSeconds / this.cameraShakeSpec.durationSeconds,
+          )
+        : 1;
+    const currentAmplitude =
+      this.cameraShakeSpec.amplitudePixels * (1 - currentProgress) ** 2;
+    this.cameraShakeSpec = {
+      durationSeconds: Math.max(nextShake.durationSeconds, currentRemaining),
+      amplitudePixels: Math.max(nextShake.amplitudePixels, currentAmplitude),
+    };
+    this.cameraShakeAgeSeconds = 0;
+    this.cameraShakePhaseRadians = (tick % 17) * 0.37;
   }
 
   private updateExhaustPuffs(
@@ -1988,6 +2071,13 @@ export class GameRenderer {
         ? PERFORMANCE_STRESS_ENEMY_PROJECTILES
         : 0,
       reducedMotion: this.reducedMotion,
+      activeEnemyHitStops: [...this.enemyMotions.values()].filter(
+        ({ hitStopRemainingSeconds }) => hitStopRemainingSeconds > 0,
+      ).length,
+      cameraShakeRemainingSeconds: Math.max(
+        0,
+        this.cameraShakeSpec.durationSeconds - this.cameraShakeAgeSeconds,
+      ),
       assets: this.assets.getDiagnostics(),
     };
     (
