@@ -42,6 +42,7 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 0, enemyTypeId: 'basic' },
       { atSeconds: 1.8, enemyTypeId: 'basic' },
       { atSeconds: 3.2, enemyTypeId: 'basic' },
+      { atSeconds: 4.6, enemyTypeId: 'basic' },
     ],
   },
   'battle-02-wave': {
@@ -52,6 +53,7 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 1.4, enemyTypeId: 'rusher' },
       { atSeconds: 2.8, enemyTypeId: 'basic' },
       { atSeconds: 4.2, enemyTypeId: 'rusher' },
+      { atSeconds: 5.4, enemyTypeId: 'basic' },
     ],
   },
   'battle-03-wave': {
@@ -64,6 +66,8 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 3, enemyTypeId: 'basic' },
       { atSeconds: 4, enemyTypeId: 'rusher' },
       { atSeconds: 5, enemyTypeId: 'basic' },
+      { atSeconds: 6, enemyTypeId: 'rusher' },
+      { atSeconds: 6.8, enemyTypeId: 'basic' },
     ],
   },
   'battle-04-wave': {
@@ -75,6 +79,7 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 2, enemyTypeId: 'basic' },
       { atSeconds: 3.5, enemyTypeId: 'rusher' },
       { atSeconds: 5, enemyTypeId: 'heavy' },
+      { atSeconds: 6, enemyTypeId: 'rusher' },
     ],
   },
   'battle-05-wave': {
@@ -86,6 +91,8 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 3, enemyTypeId: 'artillery' },
       { atSeconds: 4.5, enemyTypeId: 'rusher' },
       { atSeconds: 5.5, enemyTypeId: 'basic' },
+      { atSeconds: 6.3, enemyTypeId: 'bomber' },
+      { atSeconds: 7.2, enemyTypeId: 'artillery' },
     ],
   },
   'battle-06-wave': {
@@ -98,6 +105,8 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 2.8, enemyTypeId: 'bomber' },
       { atSeconds: 4, enemyTypeId: 'heavy' },
       { atSeconds: 5.5, enemyTypeId: 'artillery' },
+      { atSeconds: 6.4, enemyTypeId: 'basic' },
+      { atSeconds: 7.2, enemyTypeId: 'rusher' },
     ],
   },
   'battle-07-wave': {
@@ -110,6 +119,8 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 2.2, enemyTypeId: 'rusher' },
       { atSeconds: 3.4, enemyTypeId: 'bomber' },
       { atSeconds: 4.6, enemyTypeId: 'artillery' },
+      { atSeconds: 5.4, enemyTypeId: 'basic' },
+      { atSeconds: 6.2, enemyTypeId: 'bomber' },
     ],
   },
   'battle-08-wave': {
@@ -123,6 +134,8 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 4.2, enemyTypeId: 'rusher' },
       { atSeconds: 5.2, enemyTypeId: 'rusher' },
       { atSeconds: 6.2, enemyTypeId: 'heavy' },
+      { atSeconds: 7, enemyTypeId: 'basic' },
+      { atSeconds: 7.8, enemyTypeId: 'rusher' },
     ],
   },
   'battle-09-wave': {
@@ -138,6 +151,9 @@ export const WAVE_DEFINITIONS: Readonly<Record<WaveId, WaveDefinition>> = {
       { atSeconds: 4, enemyTypeId: 'rusher' },
       { atSeconds: 5, enemyTypeId: 'artillery' },
       { atSeconds: 6, enemyTypeId: 'heavy' },
+      { atSeconds: 6.5, enemyTypeId: 'basic' },
+      { atSeconds: 7, enemyTypeId: 'rusher' },
+      { atSeconds: 7.5, enemyTypeId: 'bomber' },
     ],
   },
   'battle-10-wave': {

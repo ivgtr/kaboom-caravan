@@ -50,10 +50,10 @@ describe('weapon resources', () => {
     expect(primary.player.energy).toBe(98);
     expect(primary.player.primaryCooldown).toBe(0.25);
     expect(primary.player.secondaryCooldown).toBe(0);
-    expect(secondary.player.ammo).toBe(48);
-    expect(secondary.player.energy).toBe(97);
+    expect(secondary.player.ammo).toBe(47);
+    expect(secondary.player.energy).toBe(96);
     expect(secondary.player.primaryCooldown).toBe(0);
-    expect(secondary.player.secondaryCooldown).toBe(0.8);
+    expect(secondary.player.secondaryCooldown).toBe(0.9);
   });
 
   it('locks weapons on overheat until heat falls to the recovery threshold', () => {
@@ -82,7 +82,7 @@ describe('weapon resources', () => {
     expect(cooled.events).toContainEqual({ type: 'cooled' });
   });
 
-  it('uses emergency boost to retreat and vent heat at an energy cost', () => {
+  it('opens a parry window without duplicating normal backward movement', () => {
     const initial = createSimulation();
     initial.player.position = 40;
     initial.player.previousPosition = 40;
@@ -94,13 +94,80 @@ describe('weapon resources', () => {
       SIMULATION_STEP_SECONDS,
     );
 
-    expect(result.player.position).toBe(28);
-    expect(result.player.heat).toBeCloseTo(44.8);
-    expect(result.player.energy).toBe(75);
-    expect(result.player.skillCooldown).toBe(6);
+    expect(result.player.position).toBe(40);
+    expect(result.player.heat).toBeCloseTo(79.8);
+    expect(result.player.energy).toBe(80);
+    expect(result.player.skillCooldown).toBe(4);
+    expect(result.player.parryWindowSeconds).toBe(0.42);
     expect(result.events).toContainEqual({
       type: 'skill-activated',
-      skillId: 'emergency-boost',
+      skillId: 'reactive-parry',
+    });
+  });
+
+  it('parries an incoming projectile, vents heat and counters its source', () => {
+    const initial = createSimulation();
+    initial.player.energy = 50;
+    initial.player.heat = 80;
+    initial.player.parryWindowSeconds = 0.3;
+    initial.enemyProjectiles = [
+      {
+        id: 'incoming',
+        ownerId: 'enemy-1',
+        previousPosition: 11,
+        position: 11,
+        velocity: -18,
+        radius: 0.55,
+        damage: 12,
+        ageSeconds: 0,
+        maximumAgeSeconds: 4,
+        visualId: 'spore',
+      },
+    ];
+
+    const result = stepSimulation(initial, IDLE_COMMAND, 0.1);
+
+    expect(result.player.hitPoints).toBe(100);
+    expect(result.player.energy).toBe(81);
+    expect(result.player.heat).toBeCloseTo(48.8);
+    expect(result.enemyProjectiles).toHaveLength(0);
+    expect(result.enemies.find(({ id }) => id === 'enemy-1')?.hitPoints).toBe(
+      12,
+    );
+    expect(result.events).toContainEqual({
+      type: 'attack-parried',
+      sourceId: 'enemy-1',
+      attackKind: 'projectile',
+      counterDamage: 30,
+    });
+  });
+
+  it('parries a telegraphed contact attack without moving backward', () => {
+    const initial = createSimulation();
+    initial.player.parryWindowSeconds = 0.3;
+    initial.enemies = [
+      {
+        ...initial.enemies[0]!,
+        previousPosition: 14,
+        position: 14,
+        speed: 0,
+        attackWindupRemaining: 0.01,
+      },
+    ];
+
+    const result = stepSimulation(initial, IDLE_COMMAND, 0.02);
+
+    expect(result.player.hitPoints).toBe(100);
+    expect(result.player.position).toBe(10);
+    expect(result.enemies[0]?.hitPoints).toBe(12);
+    expect(result.events.some(({ type }) => type === 'vehicle-hit')).toBe(
+      false,
+    );
+    expect(result.events).toContainEqual({
+      type: 'attack-parried',
+      sourceId: 'enemy-1',
+      attackKind: 'contact',
+      counterDamage: 30,
     });
   });
 });

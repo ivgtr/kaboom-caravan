@@ -37,6 +37,7 @@ export interface PlayerState {
   primaryCooldown: number;
   secondaryCooldown: number;
   skillCooldown: number;
+  parryWindowSeconds: number;
   overheated: boolean;
 }
 
@@ -140,7 +141,13 @@ export type CombatEvent =
   | { type: 'vehicle-hit'; sourceId: EntityId; damage: number }
   | { type: 'overheated' }
   | { type: 'cooled' }
-  | { type: 'skill-activated'; skillId: 'emergency-boost' }
+  | { type: 'skill-activated'; skillId: 'reactive-parry' }
+  | {
+      type: 'attack-parried';
+      sourceId: EntityId;
+      attackKind: 'contact' | 'projectile';
+      counterDamage: number;
+    }
   | { type: 'enemy-attack-windup'; enemyId: EntityId }
   | {
       type: 'enemy-contact-released';

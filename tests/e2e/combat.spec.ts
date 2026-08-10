@@ -1,5 +1,33 @@
 import { expect, test } from '@playwright/test';
 
+async function enableReactiveParry(page: import('@playwright/test').Page) {
+  await page.locator('.combat-feedback').waitFor({ state: 'attached' });
+  await page.evaluate(() => {
+    const feedback = document.querySelector('.combat-feedback');
+    if (!feedback) return;
+    let parryHeld = false;
+    const reactToWarning = () => {
+      if (!feedback.textContent?.includes('WATCH OUT!') || parryHeld) return;
+      parryHeld = true;
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyQ', bubbles: true }),
+      );
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new KeyboardEvent('keyup', { code: 'KeyQ', bubbles: true }),
+        );
+        parryHeld = false;
+      }, 80);
+    };
+    new MutationObserver(reactToWarning).observe(feedback, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    reactToWarning();
+  });
+}
+
 test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   page,
 }) => {
@@ -9,7 +37,7 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   const debug = page.locator('.debug-panel');
   const main = page.getByRole('button', { name: '主武器' });
   const sub = page.getByRole('button', { name: '副武器' });
-  const escape = page.getByRole('button', { name: '緊急離脱' });
+  const escape = page.getByRole('button', { name: '迎撃パリィ' });
 
   await expect(health).toContainText('100');
   const progress = page.getByRole('region', { name: '戦闘進行' });
@@ -93,6 +121,7 @@ test('renders an acquired module on the physical caravan mounts', async ({
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
+  await enableReactiveParry(page);
   await page.keyboard.down('e');
   await page.keyboard.down('Space');
   await page.keyboard.down('d');
@@ -342,6 +371,7 @@ for (const viewport of [
     test.setTimeout(60_000);
     await page.setViewportSize(viewport);
     await page.goto('/');
+    await enableReactiveParry(page);
     await page.keyboard.down('e');
     await page.keyboard.down('Space');
     await page.keyboard.down('d');
@@ -474,7 +504,7 @@ for (const viewport of [
       backward: page.getByRole('button', { name: '後退' }),
       main: page.getByRole('button', { name: '主武器' }),
       sub: page.getByRole('button', { name: '副武器' }),
-      escape: page.getByRole('button', { name: '緊急離脱' }),
+      escape: page.getByRole('button', { name: '迎撃パリィ' }),
     };
     await expect(controls.main).toBeVisible();
     if (process.env.CAPTURE_WORLD_REVIEW && viewport.width === 844) {

@@ -36,10 +36,12 @@ const FRONTLINE_PUSH_PER_KILL = 5;
 const FRONTLINE_RETREAT_PER_ENEMY_PER_SECOND = 0.5;
 const FRONTLINE_PRESSURE_RANGE = 35;
 const FRONTLINE_MAXIMUM = 80;
-const EMERGENCY_BOOST_ENERGY_COST = 25;
-const EMERGENCY_BOOST_HEAT_VENT = 35;
-const EMERGENCY_BOOST_DISTANCE = 12;
-const EMERGENCY_BOOST_COOLDOWN_SECONDS = 6;
+const PARRY_ENERGY_COST = 20;
+const PARRY_ENERGY_RESTORE = 30;
+const PARRY_HEAT_VENT = 30;
+const PARRY_COUNTER_DAMAGE = 30;
+const PARRY_WINDOW_SECONDS = 0.42;
+const PARRY_COOLDOWN_SECONDS = 4;
 const PLAYER_ACCELERATION = 30;
 const PLAYER_BRAKE_ACCELERATION = 42;
 const PLAYER_COAST_DECELERATION = 18;
@@ -59,7 +61,7 @@ function createProjectiles(
   definition: WeaponDefinition,
   sequence: number,
 ): ProjectileState[] {
-  const projectileCount = definition.behavior === 'scatter' ? 3 : 1;
+  const projectileCount = definition.behavior === 'scatter' ? 5 : 1;
   return Array.from({ length: projectileCount }, (_, index) => ({
     id: `projectile-${sequence + index}`,
     ownerId: state.player.id,
@@ -87,12 +89,17 @@ function createProjectiles(
     behavior: definition.behavior,
     remainingHits:
       definition.behavior === 'flame'
-        ? 5
+        ? 8
         : definition.behavior === 'railgun'
-          ? 3
+          ? 6
           : 1,
     hitEnemyIds: [],
-    explosionRadius: definition.behavior === 'rocket' ? 7 : 0,
+    explosionRadius:
+      definition.behavior === 'rocket'
+        ? 10
+        : definition.behavior === 'mine'
+          ? 9
+          : 0,
     ageSeconds: 0,
     maximumAgeSeconds:
       definition.behavior === 'mine'
@@ -121,6 +128,7 @@ function moveEnemyProjectiles(
   playerRadius: number,
   playerArmor: number,
   playerHitPoints: number,
+  parryActive: boolean,
   deltaSeconds: number,
 ): EnemyProjectileResult {
   const remainingProjectiles: EnemyProjectileState[] = [];
@@ -141,6 +149,15 @@ function moveEnemyProjectiles(
       playerRadius + movedProjectile.radius,
     );
     if (hitPlayer) {
+      if (parryActive) {
+        events.push({
+          type: 'attack-parried',
+          sourceId: movedProjectile.ownerId,
+          attackKind: 'projectile',
+          counterDamage: PARRY_COUNTER_DAMAGE,
+        });
+        continue;
+      }
       const damage = resolveDamage(movedProjectile.damage, playerArmor);
       hitPoints = Math.max(0, hitPoints - damage);
       events.push({
@@ -209,7 +226,8 @@ function moveProjectiles(
     if (collisionTargets.length > 0) {
       const target = collisionTargets[0]!;
       const impactedEnemies =
-        movedProjectile.behavior === 'rocket'
+        movedProjectile.behavior === 'rocket' ||
+        movedProjectile.behavior === 'mine'
           ? nextEnemies.filter(
               (enemy) =>
                 enemy.hitPoints > 0 &&
@@ -357,7 +375,7 @@ export function stepSimulation(
     targetVelocity,
     velocityChangeRate * deltaSeconds,
   );
-  let playerPosition = clamp(
+  const playerPosition = clamp(
     state.player.position + playerVelocity * deltaSeconds,
     PLAYER_MIN_POSITION,
     PLAYER_MAX_POSITION,
@@ -381,6 +399,10 @@ export function stepSimulation(
     state.player.secondaryCooldown - deltaSeconds,
   );
   let skillCooldown = Math.max(0, state.player.skillCooldown - deltaSeconds);
+  let parryWindowSeconds = Math.max(
+    0,
+    state.player.parryWindowSeconds - deltaSeconds,
+  );
   let ammo = Math.min(state.player.ammo, playerStats.maximumAmmo);
   let energy = Math.min(
     playerStats.maximumEnergy,
@@ -396,6 +418,17 @@ export function stepSimulation(
   let enemyProjectiles = state.enemyProjectiles;
   let nextEntitySequence = state.nextEntitySequence;
   let wave = state.wave;
+
+  if (
+    command.activateSkill &&
+    skillCooldown === 0 &&
+    energy >= PARRY_ENERGY_COST
+  ) {
+    energy -= PARRY_ENERGY_COST;
+    parryWindowSeconds = PARRY_WINDOW_SECONDS;
+    skillCooldown = PARRY_COOLDOWN_SECONDS;
+    events.push({ type: 'skill-activated', skillId: 'reactive-parry' });
+  }
 
   if (wave) {
     const waveResult = advanceWave(wave, deltaSeconds, nextEntitySequence);
@@ -415,7 +448,31 @@ export function stepSimulation(
   );
   enemies = behaviorResult.enemies;
   playerHitPoints = behaviorResult.playerHitPoints;
-  events.push(...behaviorResult.events);
+  const contactHits = behaviorResult.events.filter(
+    (event): event is Extract<CombatEvent, { type: 'vehicle-hit' }> =>
+      event.type === 'vehicle-hit',
+  );
+  if (parryWindowSeconds > 0 && contactHits.length > 0) {
+    playerHitPoints = Math.min(
+      playerStats.maximumHitPoints,
+      playerHitPoints + contactHits.reduce((sum, hit) => sum + hit.damage, 0),
+    );
+    events.push(
+      ...behaviorResult.events.filter((event) => event.type !== 'vehicle-hit'),
+    );
+    for (const sourceId of new Set(
+      contactHits.map(({ sourceId }) => sourceId),
+    )) {
+      events.push({
+        type: 'attack-parried',
+        sourceId,
+        attackKind: 'contact',
+        counterDamage: PARRY_COUNTER_DAMAGE,
+      });
+    }
+  } else {
+    events.push(...behaviorResult.events);
+  }
   for (const attack of behaviorResult.rangedAttacks) {
     const projectile: EnemyProjectileState = {
       id: `enemy-projectile-${nextEntitySequence}`,
@@ -442,22 +499,6 @@ export function stepSimulation(
   if (overheated && heat <= OVERHEAT_RECOVERY_THRESHOLD) {
     overheated = false;
     events.push({ type: 'cooled' });
-  }
-
-  if (
-    command.activateSkill &&
-    skillCooldown === 0 &&
-    energy >= EMERGENCY_BOOST_ENERGY_COST
-  ) {
-    energy -= EMERGENCY_BOOST_ENERGY_COST;
-    heat = Math.max(0, heat - EMERGENCY_BOOST_HEAT_VENT);
-    playerPosition = Math.max(
-      PLAYER_MIN_POSITION,
-      playerPosition - EMERGENCY_BOOST_DISTANCE,
-    );
-    playerVelocity = Math.min(playerVelocity, -playerStats.moveSpeed * 0.6);
-    skillCooldown = EMERGENCY_BOOST_COOLDOWN_SECONDS;
-    events.push({ type: 'skill-activated', skillId: 'emergency-boost' });
   }
 
   const fire = (definition: WeaponDefinition, cooldown: number): FireResult =>
@@ -526,11 +567,32 @@ export function stepSimulation(
     state.player.radius,
     playerStats.armor,
     playerHitPoints,
+    parryWindowSeconds > 0,
     deltaSeconds,
   );
   enemyProjectiles = enemyProjectileResult.projectiles;
   playerHitPoints = enemyProjectileResult.playerHitPoints;
   events.push(...enemyProjectileResult.events);
+
+  const successfulParries = events.filter(
+    (event): event is Extract<CombatEvent, { type: 'attack-parried' }> =>
+      event.type === 'attack-parried',
+  );
+  if (successfulParries.length > 0) {
+    energy = Math.min(
+      playerStats.maximumEnergy,
+      energy + PARRY_ENERGY_RESTORE * successfulParries.length,
+    );
+    heat = Math.max(0, heat - PARRY_HEAT_VENT * successfulParries.length);
+    const counteredSources = new Set(
+      successfulParries.map(({ sourceId }) => sourceId),
+    );
+    enemies = enemies.map((enemy) =>
+      counteredSources.has(enemy.id)
+        ? { ...enemy, hitPoints: enemy.hitPoints - PARRY_COUNTER_DAMAGE }
+        : enemy,
+    );
+  }
 
   const killedEnemies = enemies.filter((enemy) => enemy.hitPoints <= 0);
   for (const enemy of killedEnemies) {
@@ -557,8 +619,10 @@ export function stepSimulation(
       reinforcements.push(
         createEnteringEnemy('basic', `enemy-${nextEntitySequence}`),
         createEnteringEnemy('rusher', `enemy-${nextEntitySequence + 1}`),
+        createEnteringEnemy('artillery', `enemy-${nextEntitySequence + 2}`),
+        createEnteringEnemy('bomber', `enemy-${nextEntitySequence + 3}`),
       );
-      nextEntitySequence += 2;
+      nextEntitySequence += 4;
     }
     events.push({
       type: 'boss-phase-changed',
@@ -677,6 +741,7 @@ export function stepSimulation(
       primaryCooldown,
       secondaryCooldown,
       skillCooldown,
+      parryWindowSeconds,
       overheated,
     },
     frontline: {

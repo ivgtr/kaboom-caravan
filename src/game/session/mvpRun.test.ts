@@ -28,6 +28,7 @@ interface EncounterMetrics {
   enemyProjectilesFired: number;
   enemyProjectilesHit: number;
   enemyProjectilesAvoided: number;
+  attacksParried: number;
 }
 
 interface RewardSelectionMetric {
@@ -52,6 +53,7 @@ interface RunMetrics {
   enemyProjectilesFired: number;
   enemyProjectilesHit: number;
   enemyProjectilesAvoided: number;
+  attacksParried: number;
   finalBuild: BuildState;
 }
 
@@ -63,24 +65,26 @@ interface ExpectedRunBaseline {
   primaryShots: number;
   secondaryShots: number;
   enemyProjectiles: [fired: number, hit: number, avoided: number];
+  attacksParried: number;
   rewardIds: string[];
   finalBuild: BuildState;
 }
 
 const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
   1: {
-    elapsedTicks: 7584,
-    encounterTicks: [445, 287, 432, 947, 467, 755, 851, 959, 1131, 1310],
-    endingHitPoints: [100, 100, 115, 125, 120, 125, 95, 94, 100, 58],
+    elapsedTicks: 6373,
+    encounterTicks: [572, 455, 494, 896, 579, 561, 471, 687, 716, 942],
+    endingHitPoints: [100, 100, 100, 100, 95, 100, 100, 100, 100, 65],
     forwardDistances: [
-      70, 53.593, 63.543, 67.8, 57.958, 87.943, 79.953, 91.438, 112.197, 141.58,
+      70, 67.645, 68.408, 63.48, 70, 66.54, 60.42, 68.263, 62.08, 62.6,
     ],
-    primaryShots: 113,
-    secondaryShots: 44,
-    enemyProjectiles: [12, 6, 6],
+    primaryShots: 155,
+    secondaryShots: 32,
+    enemyProjectiles: [12, 3, 9],
+    attacksParried: 9,
     rewardIds: [
       'weapon:railgun',
-      'module:shield-generator',
+      'module:radar',
       'module:capacitor',
       'module:armor',
       'module:cooling-fan',
@@ -101,57 +105,59 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     },
   },
   42: {
-    elapsedTicks: 7877,
-    encounterTicks: [445, 287, 432, 947, 467, 607, 851, 906, 1625, 1310],
-    endingHitPoints: [100, 100, 100, 100, 92, 107, 114, 117, 109, 61],
+    elapsedTicks: 6950,
+    encounterTicks: [572, 455, 486, 896, 579, 589, 479, 748, 1204, 942],
+    endingHitPoints: [100, 100, 100, 100, 92, 100, 100, 100, 100, 73],
     forwardDistances: [
-      70, 53.593, 63.543, 67.8, 57.958, 69.105, 79.953, 94.122, 114.177, 141.58,
+      70, 67.645, 68.408, 63.48, 70, 66.54, 61.2, 68.263, 64.338, 62.6,
     ],
-    primaryShots: 130,
-    secondaryShots: 41,
-    enemyProjectiles: [14, 8, 6],
+    primaryShots: 168,
+    secondaryShots: 30,
+    enemyProjectiles: [12, 3, 9],
+    attacksParried: 9,
     rewardIds: [
       'weapon:railgun',
       'module:capacitor',
       'module:radar',
       'module:generator',
-      'module:shield-generator',
+      'module:heat-recycler',
       'module:magnetic-armor',
-      'module:ammo-box',
+      'module:armor',
       'module:capacitor',
       'module:generator',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'railgun',
-      moduleIds: ['magnetic-armor', 'ammo-box', 'capacitor', 'generator'],
+      moduleIds: ['magnetic-armor', 'armor', 'capacitor', 'generator'],
     },
   },
   2026: {
-    elapsedTicks: 8580,
-    encounterTicks: [445, 453, 471, 784, 725, 666, 851, 967, 1625, 1593],
-    endingHitPoints: [100, 100, 100, 100, 92, 100, 92, 92, 91, 7],
+    elapsedTicks: 7459,
+    encounterTicks: [572, 622, 723, 988, 582, 600, 471, 748, 1204, 949],
+    endingHitPoints: [100, 100, 100, 115, 109, 124, 125, 125, 100, 73],
     forwardDistances: [
-      70, 70, 63.212, 73.177, 82.743, 65.247, 79.953, 91.438, 114.177, 159.017,
+      70, 70, 61.278, 64.077, 70, 66.135, 60.42, 68.263, 64.338, 62.6,
     ],
-    primaryShots: 168,
-    secondaryShots: 46,
-    enemyProjectiles: [17, 11, 6],
+    primaryShots: 197,
+    secondaryShots: 34,
+    enemyProjectiles: [13, 4, 9],
+    attacksParried: 9,
     rewardIds: [
       'module:generator',
       'weapon:rocket-launcher',
-      'module:radar',
+      'module:shield-generator',
       'module:magnetic-armor',
       'module:heat-recycler',
       'weapon:railgun',
-      'module:ammo-box',
-      'module:shield-generator',
+      'module:armor',
       'module:radar',
+      'module:capacitor',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'railgun',
-      moduleIds: ['heat-recycler', 'ammo-box', 'shield-generator', 'radar'],
+      moduleIds: ['heat-recycler', 'armor', 'radar', 'capacitor'],
     },
   },
 };
@@ -173,6 +179,7 @@ function toRunBaseline(metrics: RunMetrics): ExpectedRunBaseline {
       metrics.enemyProjectilesHit,
       metrics.enemyProjectilesAvoided,
     ],
+    attacksParried: metrics.attacksParried,
     rewardIds: metrics.rewardsSelected.map(({ rewardId }) => rewardId),
     finalBuild: metrics.finalBuild,
   };
@@ -187,10 +194,16 @@ function combatCommand(session: GameSessionState): PlayerCommand {
   const hasTarget = Number.isFinite(distance);
   const primary = WEAPON_DEFINITIONS[session.run.build.primaryWeaponId];
   const secondary = WEAPON_DEFINITIONS[session.run.build.secondaryWeaponId];
-  const incomingProjectile = session.combat.enemyProjectiles.some(
-    (projectile) =>
-      projectile.position > session.combat.player.position &&
-      projectile.position - session.combat.player.position < 24,
+  const parryThreat = session.combat.enemyProjectiles.some((projectile) => {
+    const distance = projectile.position - session.combat.player.position;
+    return distance > 0 && distance / Math.abs(projectile.velocity) <= 0.32;
+  });
+  const contactThreat = session.combat.enemies.some(
+    (enemy) =>
+      enemy.attackWindupRemaining !== undefined &&
+      enemy.attackWindupRemaining <= 0.25 &&
+      enemy.position - session.combat.player.position <=
+        enemy.radius + session.combat.player.radius + 0.5,
   );
   const targetDistance = Math.max(
     10,
@@ -203,20 +216,20 @@ function combatCommand(session: GameSessionState): PlayerCommand {
     session.combat.player.energy >= weapon.energyCost &&
     session.combat.player.heat + weapon.heatGenerated < 100;
   return {
-    move: incomingProjectile
-      ? -1
-      : !hasTarget
+    move:
+      parryThreat || contactThreat
         ? 0
-        : distance > targetDistance + 5
-          ? 1
-          : distance < targetDistance - 5
-            ? -1
-            : 0,
+        : !hasTarget
+          ? 0
+          : distance > targetDistance + 5
+            ? 1
+            : distance < targetDistance - 5
+              ? -1
+              : 0,
     firePrimary: canFire(primary),
     fireSecondary: canFire(secondary),
     activateSkill:
-      (incomingProjectile || session.combat.player.overheated) &&
-      session.combat.player.energy >= 25,
+      (parryThreat || contactThreat) && session.combat.player.energy >= 20,
   };
 }
 
@@ -259,6 +272,7 @@ function createEncounterMetrics(session: GameSessionState): EncounterMetrics {
     enemyProjectilesFired: 0,
     enemyProjectilesHit: 0,
     enemyProjectilesAvoided: 0,
+    attacksParried: 0,
   };
 }
 
@@ -322,6 +336,8 @@ function simulateMvpRun(seed: number): {
           currentEncounter.enemyProjectilesFired += 1;
         } else if (event.type === 'enemy-projectile-hit') {
           currentEncounter.enemyProjectilesHit += 1;
+        } else if (event.type === 'attack-parried') {
+          currentEncounter.attacksParried += 1;
         }
       }
       if (session.phase !== 'combat') {
@@ -384,6 +400,10 @@ function simulateMvpRun(seed: number): {
     ),
     enemyProjectilesAvoided: encounters.reduce(
       (sum, encounter) => sum + encounter.enemyProjectilesAvoided,
+      0,
+    ),
+    attacksParried: encounters.reduce(
+      (sum, encounter) => sum + encounter.attacksParried,
       0,
     ),
     finalBuild: structuredClone(session.run.build),

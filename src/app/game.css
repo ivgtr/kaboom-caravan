@@ -398,6 +398,9 @@ button {
 .main.ready {
   animation: ready-pulse 1.7s ease-in-out infinite;
 }
+.weapon.parry.active {
+  animation: parry-ready 0.42s ease-out both;
+}
 .debug-panel {
   position: absolute;
   z-index: 10;
@@ -808,6 +811,12 @@ button {
 @keyframes ready-pulse {
   50% {
     filter: drop-shadow(0 0 13px #62dac5) brightness(1.07);
+  }
+}
+@keyframes parry-ready {
+  45% {
+    filter: drop-shadow(0 0 20px #69f4ee) brightness(1.28);
+    transform: scale(1.08);
   }
 }
 @keyframes heat-shake {

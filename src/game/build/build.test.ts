@@ -60,8 +60,8 @@ describe('modifier evaluation', () => {
 
     expect(player.coolingPerSecond).toBe(18);
     expect(player.armor).toBe(0);
-    expect(rocket.damage).toBe(42);
-    expect(railgun.damage).toBe(42);
+    expect(rocket.damage).toBeCloseTo(53.2);
+    expect(railgun.damage).toBe(52);
   });
 });
 

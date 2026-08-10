@@ -15,7 +15,7 @@ function simulationWithWeapon(weaponId: WeaponId) {
 }
 
 describe('weapon-specific behaviors', () => {
-  it('fires three independently tracked scatter pellets', () => {
+  it('fires five independently tracked scatter pellets', () => {
     const state = simulationWithWeapon('scatter-cannon');
     state.enemies = [createEnemy('basic', 'target', 60)];
 
@@ -25,9 +25,9 @@ describe('weapon-specific behaviors', () => {
       0,
     );
 
-    expect(result.projectiles).toHaveLength(3);
-    expect(new Set(result.projectiles.map(({ id }) => id)).size).toBe(3);
-    expect(result.player.ammo).toBe(48);
+    expect(result.projectiles).toHaveLength(5);
+    expect(new Set(result.projectiles.map(({ id }) => id)).size).toBe(5);
+    expect(result.player.ammo).toBe(47);
   });
 
   it('lets flame and railgun hit multiple enemies in one simulation step', () => {
@@ -98,5 +98,44 @@ describe('weapon-specific behaviors', () => {
       velocity: 0,
       maximumAgeSeconds: 12,
     });
+  });
+
+  it('detonates a mine across a clustered enemy group', () => {
+    const state = simulationWithWeapon('mine-launcher');
+    state.projectiles = [
+      {
+        id: 'armed-mine',
+        ownerId: state.player.id,
+        previousPosition: 18,
+        position: 18,
+        originPosition: 18,
+        velocity: 0,
+        radius: 2,
+        damage: 44,
+        maximumRange: 20,
+        weaponId: 'mine-launcher',
+        optimalRangeMinimum: 6,
+        optimalRangeMaximum: 18,
+        offRangeDamageMultiplier: 0.65,
+        behavior: 'mine',
+        remainingHits: 1,
+        hitEnemyIds: [],
+        explosionRadius: 9,
+        ageSeconds: 1,
+        maximumAgeSeconds: 12,
+      },
+    ];
+    state.enemies = [
+      createEnemy('basic', 'mine-a', 18),
+      createEnemy('basic', 'mine-b', 24),
+      createEnemy('basic', 'safe', 40),
+    ].map((enemy) => ({ ...enemy, speed: 0 }));
+
+    const result = stepSimulation(state, IDLE_COMMAND, 0);
+
+    expect(
+      result.events.filter(({ type }) => type === 'projectile-hit'),
+    ).toHaveLength(2);
+    expect(result.enemies.find(({ id }) => id === 'safe')?.hitPoints).toBe(42);
   });
 });

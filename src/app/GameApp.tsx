@@ -53,6 +53,7 @@ interface HudSnapshot {
   primaryCooldown: number;
   secondaryCooldown: number;
   skillCooldown: number;
+  parryWindowSeconds: number;
   overheated: boolean;
 }
 
@@ -90,6 +91,7 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     primaryCooldown: state.player.primaryCooldown,
     secondaryCooldown: state.player.secondaryCooldown,
     skillCooldown: state.player.skillCooldown,
+    parryWindowSeconds: state.player.parryWindowSeconds,
     overheated: state.player.overheated,
   };
 }
@@ -178,8 +180,13 @@ export function GameApp() {
           deltaSeconds,
         );
         sessionRef.current = session;
-        const latestEvent = session.combat.events.at(-1);
-        if (latestEvent) setFeedback(describeCombatEvent(latestEvent));
+        const feedbackEvent =
+          session.combat.events.find(({ type }) => type === 'attack-parried') ??
+          session.combat.events.find(
+            ({ type }) => type === 'enemy-attack-windup',
+          ) ??
+          session.combat.events.at(-1);
+        if (feedbackEvent) setFeedback(describeCombatEvent(feedbackEvent));
         const phaseChanged = session.phase !== lastPhase;
         if (phaseChanged && session.phase === 'reward') {
           setShowClear(true);
@@ -335,15 +342,22 @@ export function GameApp() {
                 />
               </ControlButton>
               <ControlButton
-                label="緊急離脱"
-                className="weapon escape"
+                label="迎撃パリィ"
+                className={`weapon escape parry ${hud.parryWindowSeconds > 0 ? 'active' : ''}`}
                 {...bindControl('escape')}
               >
                 <GameIcon name="escape" />
-                <small>ESC</small>
+                <small>PARRY</small>
                 <kbd>Q</kbd>
                 <span className="energy">{Math.floor(hud.energy)}%</span>
-                <Meter value={hud.skillCooldown} max={5} />
+                <Meter
+                  value={
+                    hud.parryWindowSeconds > 0
+                      ? hud.parryWindowSeconds
+                      : hud.skillCooldown
+                  }
+                  max={hud.parryWindowSeconds > 0 ? 0.42 : 4}
+                />
               </ControlButton>
             </section>
           </>
@@ -710,7 +724,8 @@ function GameIcon({ name }: { name: string }) {
     hp: 'M12 38 4 29C-8 16 9-4 24 10 39-4 56 16 44 29L24 49Z',
     enemy: 'M7 16 16 7l8 8 8-8 9 9-4 26H11Z',
     ammo: 'M12 4h12l4 9v30H8V13Z',
-    escape: 'M8 25h25l-8-8 7-7 20 20-20 20-7-7 8-8H8Z',
+    escape:
+      'M28 3 49 11v15c0 14-9 23-21 28C16 49 7 40 7 26V11Zm0 9-12 5v9c0 8 4 14 12 18 8-4 12-10 12-18v-9Z',
     forward: 'M8 14h22V4l22 22-22 22V38H8Z',
     backward: 'M52 14H30V4L8 26l22 22V38h22Z',
     weapon: 'M5 19h32l12 8-12 8H5Z',
@@ -742,7 +757,9 @@ function describeCombatEvent(event: CombatEvent): string {
     case 'cooled':
       return 'READY!';
     case 'skill-activated':
-      return 'EMERGENCY ESCAPE!';
+      return 'PARRY READY!';
+    case 'attack-parried':
+      return `PERFECT PARRY! ${event.counterDamage} COUNTER`;
     case 'enemy-attack-windup':
       return 'WATCH OUT!';
     case 'enemy-contact-released':

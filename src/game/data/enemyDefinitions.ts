@@ -111,7 +111,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       description:
         '古代Coreを宿し、胞子砲撃・眷属召喚・突進を行う巨大Guardian。',
       behaviorId: 'bossFortress',
-      hitPoints: 320,
+      hitPoints: 440,
       armor: 3,
       speed: 2.5,
       radius: 5,

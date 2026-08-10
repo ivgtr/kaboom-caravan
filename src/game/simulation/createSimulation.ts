@@ -29,6 +29,7 @@ export function createSimulation(seed = 1): SimulationState {
       primaryCooldown: 0,
       secondaryCooldown: 0,
       skillCooldown: 0,
+      parryWindowSeconds: 0,
       overheated: false,
     },
     frontline: {

@@ -289,6 +289,8 @@ describe('wave and boss progression', () => {
       'kawaii-fortress',
       'basic',
       'rusher',
+      'artillery',
+      'bomber',
     ]);
     expect(phaseTwo.events).toContainEqual({
       type: 'boss-phase-changed',

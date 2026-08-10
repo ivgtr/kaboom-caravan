@@ -82,7 +82,8 @@ interface VisualEffect {
     | 'contact'
     | 'death'
     | 'boss-death'
-    | 'bomber-burst';
+    | 'bomber-burst'
+    | 'parry';
   worldPosition: number;
   ageSeconds: number;
   durationSeconds: number;
@@ -1024,6 +1025,18 @@ export class GameRenderer {
             ({ id }) => id === event.targetId,
           )?.position;
         }
+      } else if (event.type === 'attack-parried') {
+        const source = this.enemyMotions.get(event.sourceId);
+        if (source) {
+          source.hitAgeSeconds = 0;
+          source.hitStopRemainingSeconds = Math.max(
+            source.hitStopRemainingSeconds,
+            getEnemyHitStopDuration(event.counterDamage, this.reducedMotion),
+          );
+          source.hitStopWorldPosition = state.enemies.find(
+            ({ id }) => id === event.sourceId,
+          )?.position;
+        }
       } else if (event.type === 'enemy-attacked') {
         const attacker = this.enemyMotions.get(event.enemyId);
         if (attacker) attacker.releaseAgeSeconds = 0;
@@ -1192,6 +1205,13 @@ export class GameRenderer {
             vfxFamily: event.visualId === 'spore' ? 'energy' : 'explosive',
             enemyVisualId: event.visualId,
           });
+        } else if (event.type === 'attack-parried') {
+          this.emitEffect({
+            kind: 'parry',
+            worldPosition: state.player.position,
+            ageSeconds: 0,
+            durationSeconds: 0.42,
+          });
         } else if (event.type === 'overheated') {
           this.emitEffect({
             kind: 'smoke',
@@ -1219,14 +1239,17 @@ export class GameRenderer {
       const progress = effect.ageSeconds / effect.durationSeconds;
       const x = this.worldToScreen(effect.worldPosition);
       const y =
-        effect.kind === 'muzzle'
+        effect.kind === 'parry'
           ? this.groundY -
-            Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
-          : effect.kind === 'explosion' && effect.weaponId === 'mine-launcher'
+            Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.46
+          : effect.kind === 'muzzle'
             ? this.groundY -
-              Math.min(38, Math.max(24, this.viewportHeight * 0.045))
-            : this.groundY -
-              Math.min(80, Math.max(44, this.viewportHeight * 0.09));
+              Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
+            : effect.kind === 'explosion' && effect.weaponId === 'mine-launcher'
+              ? this.groundY -
+                Math.min(38, Math.max(24, this.viewportHeight * 0.045))
+              : this.groundY -
+                Math.min(80, Math.max(44, this.viewportHeight * 0.09));
       if (effect.kind === 'smoke') {
         context.save();
         context.globalAlpha = 1 - progress;
@@ -1243,6 +1266,11 @@ export class GameRenderer {
           context.fill();
         }
         context.restore();
+        continue;
+      }
+
+      if (effect.kind === 'parry') {
+        this.drawParryVfx(x, y, progress);
         continue;
       }
 
@@ -1345,6 +1373,31 @@ export class GameRenderer {
         context.lineTo(x + direction * spread * 1.18, contactY - spread * 0.72);
         context.stroke();
       }
+    }
+    context.restore();
+  }
+
+  private drawParryVfx(x: number, y: number, progress: number): void {
+    const context = this.context;
+    const fade = Math.max(0, 1 - progress);
+    const radius = 30 + Math.sin(progress * Math.PI) * 28;
+    context.save();
+    context.globalAlpha = fade;
+    context.strokeStyle = progress < 0.35 ? '#eaffff' : '#69ddca';
+    context.fillStyle = 'rgb(105 221 202 / 16%)';
+    context.lineWidth = Math.max(2, 6 - progress * 3);
+    context.beginPath();
+    context.arc(x, y, radius, -Math.PI * 0.72, Math.PI * 0.72);
+    context.stroke();
+    context.beginPath();
+    context.arc(x, y, radius * 0.72, 0, Math.PI * 2);
+    context.fill();
+    for (const direction of [-1, 1]) {
+      context.beginPath();
+      context.moveTo(x + direction * radius * 0.58, y - radius * 0.52);
+      context.lineTo(x + direction * radius * 0.92, y);
+      context.lineTo(x + direction * radius * 0.58, y + radius * 0.52);
+      context.stroke();
     }
     context.restore();
   }
