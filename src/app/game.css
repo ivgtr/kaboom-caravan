@@ -471,6 +471,13 @@ button {
 .reward-panel header strong {
   font-size: clamp(18px, 3vw, 30px);
 }
+.reward-keyboard-hint {
+  margin-top: 2px;
+  color: #d8f9ef;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
 .reward-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -502,7 +509,8 @@ button {
   animation-delay: 0.16s;
 }
 .reward-card:hover,
-.reward-card:focus-within {
+.reward-card:focus-within,
+.reward-card.selected {
   transform: translateY(-7px);
   filter: drop-shadow(0 13px 8px rgb(90 236 210 / 35%));
 }
@@ -528,6 +536,23 @@ button {
 }
 .reward-module .reward-type {
   background: #257f7d;
+}
+.reward-shortcut {
+  position: absolute;
+  z-index: 2;
+  top: 10.5%;
+  right: 14.5%;
+  display: grid;
+  place-items: center;
+  width: clamp(18px, 7cqw, 28px);
+  aspect-ratio: 1;
+  border: 2px solid #263249;
+  border-radius: 7px;
+  background: #fff4db;
+  color: #263249;
+  font-size: clamp(9px, 3.7cqw, 14px);
+  font-weight: 1000;
+  box-shadow: 0 2px 0 #263249;
 }
 .equipment-visual {
   position: absolute;
@@ -603,6 +628,10 @@ button {
 }
 .reward-card-select:focus-visible {
   outline: 5px solid #69ddca;
+  outline-offset: -7px;
+}
+.reward-card.selected .reward-card-select {
+  outline: 4px solid #69ddca;
   outline-offset: -7px;
 }
 .reward-card-action {
@@ -698,13 +727,34 @@ button {
 }
 .slot-picker-actions button {
   display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
   padding: 9px;
   background: #ffcc58;
   font-size: 20px;
   box-shadow: 0 4px 0 #263249;
 }
 .slot-picker-actions small {
+  grid-column: 1 / 3;
   font-size: 10px;
+}
+.slot-picker-actions button > span {
+  justify-self: end;
+}
+.slot-picker-actions kbd {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  aspect-ratio: 1;
+  border: 2px solid #263249;
+  border-radius: 6px;
+  background: #fff4d9;
+  font-size: 12px;
+  box-shadow: 0 2px 0 #263249;
+}
+.slot-picker-actions button.selected {
+  outline: 4px solid #69ddca;
+  outline-offset: 2px;
 }
 .slot-picker-cancel {
   position: absolute;

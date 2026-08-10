@@ -326,7 +326,11 @@ for (const viewport of [
       }
     }
     const weaponCard = cards.filter({ hasText: 'WEAPON' }).first();
-    await weaponCard.getByRole('button', { name: /を選択/ }).click();
+    const weaponIndex = await cards.evaluateAll((items) =>
+      items.findIndex((item) => item.textContent?.includes('WEAPON')),
+    );
+    expect(weaponIndex).toBeGreaterThanOrEqual(0);
+    await page.keyboard.press(`Digit${weaponIndex + 1}`);
     const slotPicker = rewards.getByLabel('武器の装着先を選択');
     await expect(slotPicker).toBeVisible();
     await expect(
@@ -343,13 +347,28 @@ for (const viewport of [
     }
     await slotPicker.getByRole('button', { name: '戻る' }).click();
     await expect(slotPicker).toHaveCount(0);
+    await expect(weaponCard).toHaveClass(/selected/);
+    const nextIndex = (weaponIndex + 1) % 3;
+    await page.keyboard.press('ArrowRight');
+    await expect(cards.nth(nextIndex)).toHaveClass(/selected/);
+    await page.keyboard.press('ArrowLeft');
+    await expect(weaponCard).toHaveClass(/selected/);
     if (process.env.CAPTURE_UI_REVIEW) {
       await page.screenshot({
         path: `artifacts/ui/review/reward_${viewport.width}x${viewport.height}.png`,
       });
     }
-    await weaponCard.getByRole('button', { name: /を選択/ }).click();
-    await slotPicker.getByRole('button', { name: /主武器 MAIN/ }).click();
+    await page.keyboard.press('Space');
+    await expect(slotPicker).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(
+      slotPicker.getByRole('button', { name: /副武器 SUB/ }),
+    ).toHaveClass(/selected/);
+    await page.keyboard.press('ArrowLeft');
+    await expect(
+      slotPicker.getByRole('button', { name: /主武器 MAIN/ }),
+    ).toHaveClass(/selected/);
+    await page.keyboard.press('Space');
     await expect(rewards).toHaveCount(0);
     await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
   });

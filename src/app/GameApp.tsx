@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -378,14 +379,112 @@ function RewardPanel({
   const [pendingWeapon, setPendingWeapon] = useState<
     Extract<RewardChoice, { type: 'weapon' }> | undefined
   >();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedSlot, setSelectedSlot] = useState<WeaponSlot>('primary');
+  const cardButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const slotButtonRefs = useRef<Record<WeaponSlot, HTMLButtonElement | null>>({
+    primary: null,
+    secondary: null,
+  });
 
-  const beginEquip = (choice: RewardChoice) => {
-    if (choice.type === 'weapon') {
-      setPendingWeapon(choice);
-      return;
-    }
-    onChoose(choice.id);
-  };
+  const beginEquip = useCallback(
+    (choice: RewardChoice) => {
+      if (choice.type === 'weapon') {
+        setSelectedSlot('primary');
+        setPendingWeapon(choice);
+        return;
+      }
+      onChoose(choice.id);
+    },
+    [onChoose],
+  );
+
+  const focusCard = useCallback(
+    (index: number) => {
+      if (choices.length === 0) return;
+      const nextIndex = (index + choices.length) % choices.length;
+      setSelectedIndex(nextIndex);
+      cardButtonRefs.current[nextIndex]?.focus();
+    },
+    [choices.length],
+  );
+
+  const focusSlot = useCallback((slot: WeaponSlot) => {
+    setSelectedSlot(slot);
+    slotButtonRefs.current[slot]?.focus();
+  }, []);
+
+  const closeSlotPicker = useCallback(() => {
+    cardButtonRefs.current[selectedIndex]?.focus();
+    setPendingWeapon(undefined);
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const digitMatch = /^(?:Digit|Numpad)([1-3])$/.exec(event.code);
+      const digitIndex = digitMatch ? Number(digitMatch[1]) - 1 : undefined;
+
+      if (pendingWeapon) {
+        if (event.code === 'ArrowLeft' || digitIndex === 0) {
+          event.preventDefault();
+          focusSlot('primary');
+          return;
+        }
+        if (event.code === 'ArrowRight' || digitIndex === 1) {
+          event.preventDefault();
+          focusSlot('secondary');
+          return;
+        }
+        if (event.code === 'Space' || event.code === 'Enter') {
+          event.preventDefault();
+          if (!event.repeat) onChoose(pendingWeapon.id, selectedSlot);
+          return;
+        }
+        if (event.code === 'Escape') {
+          event.preventDefault();
+          closeSlotPicker();
+        }
+        return;
+      }
+
+      if (digitIndex !== undefined && choices[digitIndex]) {
+        event.preventDefault();
+        setSelectedIndex(digitIndex);
+        if (!event.repeat) beginEquip(choices[digitIndex]);
+        return;
+      }
+      if (event.code === 'ArrowLeft') {
+        event.preventDefault();
+        focusCard(selectedIndex - 1);
+        return;
+      }
+      if (event.code === 'ArrowRight') {
+        event.preventDefault();
+        focusCard(selectedIndex + 1);
+        return;
+      }
+      if (event.code === 'Space' || event.code === 'Enter') {
+        event.preventDefault();
+        const choice = choices[selectedIndex];
+        if (choice && !event.repeat) beginEquip(choice);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    beginEquip,
+    choices,
+    closeSlotPicker,
+    focusCard,
+    focusSlot,
+    onChoose,
+    pendingWeapon,
+    selectedIndex,
+    selectedSlot,
+  ]);
 
   return (
     <section className="reward-panel" role="dialog" aria-modal="true">
@@ -393,19 +492,21 @@ function RewardPanel({
         <div>
           <span>SALVAGE TIME!</span>
           <strong>欲しい装備をひとつ選ぼう</strong>
+          <small className="reward-keyboard-hint">1・2・3 / ← → + SPACE</small>
         </div>
         <b>MODULE {moduleNames.length}/4</b>
       </header>
       <div className="reward-grid">
-        {choices.map((choice) => (
+        {choices.map((choice, index) => (
           <article
-            className={`reward-card reward-${choice.type}`}
+            className={`reward-card reward-${choice.type}${selectedIndex === index ? ' selected' : ''}`}
             key={choice.id}
           >
             <span className="reward-type">
               <GameIcon name={choice.type === 'weapon' ? 'weapon' : 'module'} />
               {choice.type.toUpperCase()}
             </span>
+            <kbd className="reward-shortcut">{index + 1}</kbd>
             <div className="equipment-visual">
               <EquipmentGlyph
                 id={
@@ -419,7 +520,15 @@ function RewardPanel({
               className="reward-card-select"
               type="button"
               aria-label={`${choice.displayName}を選択`}
-              onClick={() => beginEquip(choice)}
+              aria-current={selectedIndex === index ? 'true' : undefined}
+              ref={(element) => {
+                cardButtonRefs.current[index] = element;
+              }}
+              onClick={() => {
+                setSelectedIndex(index);
+                beginEquip(choice);
+              }}
+              onFocus={() => setSelectedIndex(index)}
             >
               <span className="reward-card-action">
                 <small>SELECT</small>
@@ -441,24 +550,36 @@ function RewardPanel({
           </div>
           <div className="slot-picker-actions">
             <button
+              className={selectedSlot === 'primary' ? 'selected' : undefined}
               type="button"
+              ref={(element) => {
+                slotButtonRefs.current.primary = element;
+              }}
+              onFocus={() => setSelectedSlot('primary')}
               onClick={() => onChoose(pendingWeapon.id, 'primary')}
             >
               <small>主武器</small>
-              MAIN
+              <span>MAIN</span>
+              <kbd>1</kbd>
             </button>
             <button
+              className={selectedSlot === 'secondary' ? 'selected' : undefined}
               type="button"
+              ref={(element) => {
+                slotButtonRefs.current.secondary = element;
+              }}
+              onFocus={() => setSelectedSlot('secondary')}
               onClick={() => onChoose(pendingWeapon.id, 'secondary')}
             >
               <small>副武器</small>
-              SUB
+              <span>SUB</span>
+              <kbd>2</kbd>
             </button>
           </div>
           <button
             className="slot-picker-cancel"
             type="button"
-            onClick={() => setPendingWeapon(undefined)}
+            onClick={closeSlotPicker}
           >
             戻る
           </button>
