@@ -8,6 +8,8 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   const health = page.getByRole('region', { name: '車両耐久' });
   const debug = page.locator('.debug-panel');
   const main = page.getByRole('button', { name: '主武器' });
+  const sub = page.getByRole('button', { name: '副武器' });
+  const escape = page.getByRole('button', { name: '緊急離脱' });
 
   await expect(health).toContainText('100');
   const progress = page.getByRole('region', { name: '戦闘進行' });
@@ -16,6 +18,9 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   await expect(progress).not.toContainText('SAFE');
   await expect(progress).not.toContainText('DANGER');
   await expect(main).toContainText('30');
+  await expect(main.locator('kbd')).toHaveText('SPACE');
+  await expect(sub.locator('kbd')).toHaveText('E');
+  await expect(escape.locator('kbd')).toHaveText('Q');
   await expect(debug).toContainText('position 10.0');
 
   await page.keyboard.down('d');
@@ -95,7 +100,7 @@ test('renders an acquired module on the physical caravan mounts', async ({
   await page.keyboard.up('e');
   const moduleCard = rewards.locator('.reward-module').first();
   await expect(moduleCard).toBeVisible();
-  await moduleCard.getByRole('button', { name: '装備する' }).click();
+  await moduleCard.getByRole('button', { name: /を選択/ }).click();
 
   await expect(rewards).toHaveCount(0);
   await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
@@ -293,17 +298,21 @@ for (const viewport of [
         card.locator('.equipment-visual'),
         card.locator('h2'),
         card.locator('p'),
-        card.locator(':scope > button'),
+        card.locator('.reward-card-action'),
       ]) {
         await expectContained(content, cardBox!);
       }
+      const selectBox = await card.locator('.reward-card-select').boundingBox();
+      expect(selectBox).not.toBeNull();
+      expect(selectBox!.width).toBeCloseTo(cardBox!.width, 0);
+      expect(selectBox!.height).toBeCloseTo(cardBox!.height, 0);
       const regions = await Promise.all(
         [
           card.locator('.reward-type'),
           card.locator('.equipment-visual'),
           card.locator('h2'),
           card.locator('p'),
-          card.locator(':scope > button'),
+          card.locator('.reward-card-action'),
         ].map((region) => region.boundingBox()),
       );
       for (
@@ -317,7 +326,7 @@ for (const viewport of [
       }
     }
     const weaponCard = cards.filter({ hasText: 'WEAPON' }).first();
-    await weaponCard.getByRole('button', { name: '装備する' }).click();
+    await weaponCard.getByRole('button', { name: /を選択/ }).click();
     const slotPicker = rewards.getByLabel('武器の装着先を選択');
     await expect(slotPicker).toBeVisible();
     await expect(
@@ -339,7 +348,7 @@ for (const viewport of [
         path: `artifacts/ui/review/reward_${viewport.width}x${viewport.height}.png`,
       });
     }
-    await weaponCard.getByRole('button', { name: '装備する' }).click();
+    await weaponCard.getByRole('button', { name: /を選択/ }).click();
     await slotPicker.getByRole('button', { name: /主武器 MAIN/ }).click();
     await expect(rewards).toHaveCount(0);
     await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
@@ -408,6 +417,8 @@ for (const viewport of [
     expect(overlap(boxes.sub!, boxes.escape!)).toBe(false);
     expect(boxes.main!.width).toBeGreaterThan(boxes.sub!.width);
     expect(boxes.sub!.width).toBeGreaterThan(boxes.escape!.width);
+    expect(boxes.main!.x).toBeGreaterThan(boxes.sub!.x);
+    expect(boxes.escape!.y).toBeLessThan(boxes.main!.y);
   });
 }
 

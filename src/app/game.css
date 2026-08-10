@@ -229,8 +229,8 @@ button {
 }
 .weapon-controls {
   right: max(18px, env(safe-area-inset-right));
-  width: 390px;
-  height: 152px;
+  width: 284px;
+  height: 236px;
 }
 .control-button {
   position: relative;
@@ -285,16 +285,16 @@ button {
   height: 152px;
 }
 .weapon.sub {
-  bottom: 0;
-  left: 0;
+  right: 164px;
+  bottom: 4px;
   width: 112px;
   height: 112px;
 }
 .weapon.escape {
-  bottom: 20px;
-  left: 128px;
-  width: 100px;
-  height: 100px;
+  right: 32px;
+  bottom: 152px;
+  width: 84px;
+  height: 84px;
 }
 .weapon small {
   position: absolute;
@@ -305,6 +305,21 @@ button {
 }
 .weapon.main small {
   top: 13%;
+}
+.weapon kbd {
+  z-index: 2;
+  top: 26%;
+  right: 50%;
+  bottom: auto;
+  min-width: 16px;
+  border: 2px solid #263249;
+  background: #fff4db;
+  padding: 1px 4px;
+  color: #263249;
+  font-weight: 1000;
+  text-align: center;
+  box-shadow: 0 2px 0 #263249;
+  transform: translateX(50%);
 }
 .weapon .game-icon {
   width: 40%;
@@ -564,7 +579,6 @@ button {
   font-weight: 700;
   line-height: 1.25;
 }
-.reward-card > button,
 .result-panel button {
   border: 3px solid #263249;
   border-radius: 12px;
@@ -576,14 +590,45 @@ button {
   cursor: pointer;
   box-shadow: 0 4px 0 #263249;
 }
-.reward-card > button {
+.reward-card-select {
   position: absolute;
-  top: 82%;
+  z-index: 3;
+  inset: 0;
+  border: 0;
+  border-radius: 10%;
+  background: transparent;
+  padding: 0;
+  color: #fff4db;
+  cursor: pointer;
+}
+.reward-card-select:focus-visible {
+  outline: 5px solid #69ddca;
+  outline-offset: -7px;
+}
+.reward-card-action {
+  position: absolute;
+  top: 83%;
   right: 15%;
   left: 15%;
-  height: 7.5%;
-  padding: 2px 4px;
-  box-shadow: 0 3px 0 #263249;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55em;
+  height: 7%;
+  color: #fff4db;
+  font-size: clamp(11px, 4.2cqw, 16px);
+  font-weight: 1000;
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px #263249;
+}
+.reward-card-action small {
+  color: #66dac7;
+  font-size: 0.58em;
+  letter-spacing: 0.13em;
+}
+.reward-card:hover .reward-card-action,
+.reward-card:focus-within .reward-card-action {
+  color: #70e5d0;
 }
 .slot-picker {
   position: absolute;
@@ -750,21 +795,24 @@ button {
     height: 72px;
   }
   .weapon-controls {
-    width: 316px;
-    height: 124px;
+    width: 230px;
+    height: 192px;
   }
   .weapon.main {
     width: 124px;
     height: 124px;
   }
   .weapon.sub {
+    right: 136px;
+    bottom: 3px;
     width: 88px;
     height: 88px;
   }
   .weapon.escape {
-    width: 82px;
-    height: 82px;
-    left: 100px;
+    right: 27px;
+    bottom: 124px;
+    width: 68px;
+    height: 68px;
   }
   .reward-panel {
     padding: 8px 20px;
@@ -826,24 +874,24 @@ button {
   .weapon-controls {
     right: 4px;
     bottom: 3px;
-    width: 278px;
-    height: 112px;
+    width: 212px;
+    height: 174px;
   }
   .weapon.main {
     width: 112px;
     height: 112px;
   }
   .weapon.sub {
-    bottom: 0;
-    left: 0;
+    right: 124px;
+    bottom: 2px;
     width: 78px;
     height: 78px;
   }
   .weapon.escape {
-    bottom: 20px;
-    left: 86px;
-    width: 72px;
-    height: 72px;
+    right: 23px;
+    bottom: 112px;
+    width: 62px;
+    height: 62px;
   }
   .control-button kbd {
     display: none;

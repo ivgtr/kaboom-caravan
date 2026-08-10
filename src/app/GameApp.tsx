@@ -262,6 +262,7 @@ export function GameApp() {
               >
                 <EquipmentGlyph id={sessionView.secondaryWeaponId} />
                 <small>SUB</small>
+                <kbd>E</kbd>
                 <Meter value={hud.secondaryCooldown} max={2.5} />
               </ControlButton>
               <ControlButton
@@ -271,6 +272,7 @@ export function GameApp() {
               >
                 <EquipmentGlyph id={sessionView.primaryWeaponId} />
                 <small>{hud.overheated ? 'OVERHEAT' : 'MAIN'}</small>
+                <kbd>SPACE</kbd>
                 <span className="ammo">
                   <GameIcon name="ammo" />
                   {hud.ammo}
@@ -287,6 +289,7 @@ export function GameApp() {
               >
                 <GameIcon name="escape" />
                 <small>ESC</small>
+                <kbd>Q</kbd>
                 <span className="energy">{Math.floor(hud.energy)}%</span>
                 <Meter value={hud.skillCooldown} max={5} />
               </ControlButton>
@@ -412,8 +415,16 @@ function RewardPanel({
             </div>
             <h2>{choice.displayName}</h2>
             <p>{choice.description}</p>
-            <button type="button" onClick={() => beginEquip(choice)}>
-              装備する
+            <button
+              className="reward-card-select"
+              type="button"
+              aria-label={`${choice.displayName}を選択`}
+              onClick={() => beginEquip(choice)}
+            >
+              <span className="reward-card-action">
+                <small>SELECT</small>
+                選択する
+              </span>
             </button>
           </article>
         ))}
