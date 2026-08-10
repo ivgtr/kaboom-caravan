@@ -1,0 +1,8 @@
+dist/
+coverage/
+node_modules/
+docs/要件書.md
+docs/技術設計書.md
+docs/デザイン設計書.md
+docs/グラフィック指示書.md
+
