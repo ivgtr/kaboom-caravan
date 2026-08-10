@@ -8,7 +8,7 @@ import {
 } from '../build/derivedStats';
 import { runBuildTriggers } from '../build/triggers';
 import type { TriggerSignal } from '../build/types';
-import { createEnemy } from '../combat/createEnemy';
+import { createEnteringEnemy } from '../combat/createEnemy';
 import { stepEnemyBehaviors } from '../combat/enemyBehavior';
 import { ENEMY_DEFINITIONS } from '../data/enemyDefinitions';
 import { segmentIntersectsCircle1d } from './collision';
@@ -455,8 +455,12 @@ export function stepSimulation(
     if (nextPhase <= enemy.bossPhase) return enemy;
     if (nextPhase === 2) {
       reinforcements.push(
-        createEnemy('basic', `enemy-${nextEntitySequence}`, enemy.position + 7),
-        createEnemy(
+        createEnteringEnemy(
+          'basic',
+          `enemy-${nextEntitySequence}`,
+          enemy.position + 7,
+        ),
+        createEnteringEnemy(
           'rusher',
           `enemy-${nextEntitySequence + 1}`,
           enemy.position + 11,

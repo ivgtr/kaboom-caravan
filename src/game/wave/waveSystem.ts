@@ -1,4 +1,4 @@
-import { createEnemy } from '../combat/createEnemy';
+import { createEnteringEnemy } from '../combat/createEnemy';
 import { WAVE_DEFINITIONS } from '../data/waveDefinitions';
 import type { CombatEvent, EnemyState, WaveState } from '../simulation/types';
 import type { WaveId } from '../data/ids';
@@ -49,7 +49,11 @@ export function advanceWave(
   ) {
     const spawn = definition.spawns[nextSpawnIndex]!;
     spawnedEnemies.push(
-      createEnemy(spawn.enemyTypeId, `enemy-${sequence}`, spawn.position),
+      createEnteringEnemy(
+        spawn.enemyTypeId,
+        `enemy-${sequence}`,
+        spawn.position,
+      ),
     );
     sequence += 1;
     nextSpawnIndex += 1;

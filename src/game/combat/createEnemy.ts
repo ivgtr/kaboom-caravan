@@ -2,6 +2,8 @@ import { ENEMY_DEFINITIONS } from '../data/enemyDefinitions';
 import type { EnemyTypeId } from '../data/ids';
 import type { EnemyState, EntityId } from '../simulation/types';
 
+export const ENEMY_ENTRY_POSITION = 120;
+
 export function createEnemy(
   typeId: EnemyTypeId,
   id: EntityId,
@@ -25,5 +27,16 @@ export function createEnemy(
     attackCooldownSeconds: definition.attackCooldownSeconds,
     frontlinePressure: definition.frontlinePressure,
     ...(typeId === 'kawaii-fortress' ? { bossPhase: 1 as const } : {}),
+  };
+}
+
+export function createEnteringEnemy(
+  typeId: EnemyTypeId,
+  id: EntityId,
+  destinationPosition: number,
+): EnemyState {
+  return {
+    ...createEnemy(typeId, id, ENEMY_ENTRY_POSITION),
+    entryDestinationPosition: destinationPosition,
   };
 }

@@ -20,7 +20,6 @@ import {
   getBossPhaseAuraSource,
   type BossPhase,
 } from './bossPhaseAssets';
-import { getEnemyEntryX } from './enemyPresentation';
 import {
   getVfxSource,
   VFX_ART,
@@ -68,7 +67,6 @@ interface CharacterMotionRuntime {
   hitAgeSeconds: number;
   phaseTransitionAgeSeconds: number;
   phaseClockSeconds: number;
-  spawnAgeSeconds: number;
 }
 
 interface ExhaustPuff {
@@ -85,7 +83,6 @@ const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
   hitAgeSeconds: Number.POSITIVE_INFINITY,
   phaseTransitionAgeSeconds: Number.POSITIVE_INFINITY,
   phaseClockSeconds: 0,
-  spawnAgeSeconds: 0,
 });
 
 export class GameRenderer {
@@ -473,9 +470,6 @@ export class GameRenderer {
           ),
         ) * motionAsset.displayScale;
       const runtime = this.enemyMotions.get(enemy.id);
-      const entryX = runtime
-        ? getEnemyEntryX(x, this.viewportWidth, size, runtime.spawnAgeSeconds)
-        : x;
       const pose = this.selectEnemyPose(
         enemy,
         playerPosition,
@@ -486,13 +480,13 @@ export class GameRenderer {
       this.drawMotionFrame(
         monster,
         pose,
-        entryX - size * 0.5 + hitOffset,
+        x - size * 0.5 + hitOffset,
         groundY - size * motionAsset.groundAnchor,
         size,
       );
       if (typeId === 'kawaii-fortress') {
         this.drawBossPhaseAura(
-          entryX + hitOffset,
+          x + hitOffset,
           groundY,
           size,
           enemy.bossPhase ?? 1,
@@ -502,7 +496,7 @@ export class GameRenderer {
       }
       if (typeId === 'kawaii-fortress' && pose === 'anticipation') {
         this.drawBossAttackTelegraph(
-          entryX + hitOffset,
+          x + hitOffset,
           groundY,
           size,
           enemy.bossPhase ?? 1,
@@ -513,17 +507,8 @@ export class GameRenderer {
     }
     const scale =
       typeId === 'kawaii-fortress' ? 2.3 : typeId === 'heavy' ? 1.35 : 1;
-    const runtime = this.enemyMotions.get(enemy.id);
-    const entryX = runtime
-      ? getEnemyEntryX(
-          x,
-          this.viewportWidth,
-          60 * scale,
-          runtime.spawnAgeSeconds,
-        )
-      : x;
     context.save();
-    context.translate(entryX, groundY);
+    context.translate(x, groundY);
     context.scale(scale, scale);
     context.fillStyle = ENEMY_COLORS[typeId];
     context.strokeStyle = '#303447';
@@ -921,7 +906,7 @@ export class GameRenderer {
         runtime = createMotionRuntime(enemy.position);
         this.enemyMotions.set(enemy.id, runtime);
       }
-      this.advanceMotionRuntime(runtime, enemy.position, deltaSeconds);
+      this.advanceMotionRuntime(runtime, enemy.position, deltaSeconds, 4.5);
     }
     for (const enemyId of this.enemyMotions.keys()) {
       if (!liveEnemyIds.has(enemyId)) this.enemyMotions.delete(enemyId);
@@ -956,16 +941,19 @@ export class GameRenderer {
     runtime: CharacterMotionRuntime,
     position: number,
     deltaSeconds: number,
+    maximumTravelPerSecond = Number.POSITIVE_INFINITY,
   ): void {
     const travel = position - runtime.lastPosition;
-    runtime.travelDistance += Math.abs(travel);
+    runtime.travelDistance += Math.min(
+      Math.abs(travel),
+      maximumTravelPerSecond * deltaSeconds,
+    );
     runtime.wheelRotation += travel * 0.92;
     runtime.lastPosition = position;
     runtime.releaseAgeSeconds += deltaSeconds;
     runtime.hitAgeSeconds += deltaSeconds;
     runtime.phaseTransitionAgeSeconds += deltaSeconds;
     runtime.phaseClockSeconds += deltaSeconds;
-    runtime.spawnAgeSeconds += deltaSeconds;
   }
 
   private updateExhaustPuffs(

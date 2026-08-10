@@ -103,6 +103,12 @@ describe('wave and boss progression', () => {
     );
 
     expect(started.enemies.map((enemy) => enemy.typeId)).toEqual(['basic']);
+    expect(started.enemies[0]!.position).toBeGreaterThan(100);
+    expect(started.enemies[0]!.previousPosition).toBe(120);
+    expect(started.enemies[0]!.position).toBeLessThan(
+      started.enemies[0]!.previousPosition,
+    );
+    expect(started.enemies[0]!.entryDestinationPosition).toBe(68);
     expect(started.events).toContainEqual({
       type: 'wave-started',
       waveId: 'prototype-wave',

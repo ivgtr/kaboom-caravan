@@ -1,6 +1,8 @@
 import { resolveDamage } from '../simulation/damage';
 import type { CombatEvent, EnemyState } from '../simulation/types';
 
+const ENEMY_ENTRY_SPEED = 8;
+
 export interface EnemyBehaviorResult {
   enemies: EnemyState[];
   playerHitPoints: number;
@@ -24,6 +26,35 @@ export function stepEnemyBehaviors(
     const attackCooldown = Math.max(0, enemy.contactCooldown - deltaSeconds);
     const distance = enemy.position - playerPosition;
     let nextPosition = enemy.position;
+
+    if (
+      enemy.entryDestinationPosition !== undefined &&
+      enemy.position > enemy.entryDestinationPosition
+    ) {
+      const isRanged =
+        enemy.behaviorId === 'stopAndShoot' ||
+        enemy.behaviorId === 'bossFortress';
+      const attackPosition = playerPosition + enemy.attackRange;
+      const entryTarget = Math.max(
+        enemy.entryDestinationPosition,
+        isRanged ? attackPosition : minimumPosition,
+      );
+      nextPosition = Math.max(
+        entryTarget,
+        enemy.position - ENEMY_ENTRY_SPEED * deltaSeconds,
+      );
+      nextEnemies.push({
+        ...enemy,
+        previousPosition: enemy.position,
+        position: nextPosition,
+        contactCooldown: attackCooldown,
+        entryDestinationPosition:
+          nextPosition > entryTarget
+            ? enemy.entryDestinationPosition
+            : undefined,
+      });
+      continue;
+    }
 
     if (
       (enemy.behaviorId === 'stopAndShoot' ||
