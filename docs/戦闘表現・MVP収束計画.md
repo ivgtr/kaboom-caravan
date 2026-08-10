@@ -231,7 +231,7 @@ Status: Completed
 
 ### E. 自動バランス基準の更新
 
-Status: Pending
+Status: Completed
 
 1. Seed `1 / 42 / 2026`で10戦Runを再実行
 2. 戦闘ごとの所要時間、Player HP、前進距離、主副武器使用率を記録
@@ -240,6 +240,16 @@ Status: Pending
 5. 結果を`docs/playtest/mvp-readiness.md`へ反映
 
 このフェーズではHPだけを一括で増やさない。10〜20分へ伸ばす判断はUser Playtest後に行う。
+
+実装結果：
+
+- 各戦闘のTick／秒、開始・終了・最低HP、累積前進距離、最大位置を計測
+- Main／Sub発射数と使用率、Enemy Projectile発射／命中／回避をEventから集計
+- Reward選択列と最終Buildを記録し、同一Seed再実行との完全一致を検証
+- Seed別の期待BaselineをUnit Testへ固定し、意図しないBalance Driftを検出可能にした
+- 3 Seedすべて10戦Victory、総戦闘時間79.917〜80.000秒、最低HP 91〜92を確認
+- 敵弾は各Run 2発／2命中／0回避、Boss戦は0発であることを観測
+- Gameplay数値は変更せず、詳細を`docs/playtest/mvp-balance-baseline.md`へ記録
 
 ### F. User Playtest Gate
 

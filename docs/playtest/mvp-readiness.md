@@ -1,16 +1,19 @@
 # MVP手動プレイテスト・確認ゲート
 
 - Status: User Playtest Required
-- Date: 2026-08-10
+- Date: 2026-08-11
 - Automated baseline: seeds `1`, `42`, `2026`
+- Detailed baseline: [MVP自動バランス基準](mvp-balance-baseline.md)
 
 ## 自動確認済み
 
 - 3つの固定Seedで、実Simulationを10戦目のVictoryまで連続実行
 - 各RunでRewardを9回選択し、次戦闘のBuildへ反映
 - 同じSeedの戦績、報酬、最終Buildが再実行時に一致
-- 勝利までのSimulation戦闘時間は73.57〜74.10秒
+- 勝利までのSimulation戦闘時間は79.917〜80.000秒
 - 代表戦略は距離を維持し、RailgunとMachine CannonをResourceに応じて切り替える
+- Main／Sub使用率は約52／48%、累積前進距離は494.603〜497.765
+- 敵弾は各Run 2発発射、2発命中、回避0としてEventから計測
 - Canvas 2Dを利用できない場合は、白画面ではなく再読み込み可能なError UIを表示
 - Desktop、Tablet、Mobile Landscapeの操作領域とReward遷移をE2Eで確認
 
@@ -19,8 +22,9 @@
 自動戦略は入力とReward選択に思考時間を含まないため、上記時間をそのまま人間の
 プレイ時間とは扱わない。ただし要件の10〜20分に対して戦闘テンポが短い可能性が高い。
 
-また、代表戦略は全SeedでHP 100を維持した。長距離維持が強すぎるのか、上達時の
-妥当な無被弾戦略なのかは、実操作で前進報酬とのトレードオフを含めて判断する。
+代表戦略の最低HPは91〜92で、Battle 7／8のArtillery弾は全弾命中した。一方、Bossは
+距離60前後を維持すると敵弾を一度も発射できず、Boss戦はRailgun 12発・無被弾で完了する。
+長距離維持が強すぎるかは、実操作で前進報酬とのトレードオフを含めて判断する。
 
 ## 確認手順
 
@@ -41,6 +45,7 @@ npm run dev
 
 - 1 Runの目標時間を要件どおり10〜20分へ伸ばすか
 - 長距離維持へ対抗するPressure、Enemy攻撃、Reward倍率の強さ
+- Bossが距離60付近のPlayerへ攻撃機会を作れるか
 - 通常戦とBossのHP／Wave間隔／敵数のどれでテンポを調整するか
 - 5つの体験合格条件を満たしているか
 
