@@ -39,6 +39,35 @@ test('hides diagnostic UI from the product view', async ({ page }) => {
   await expect(page.locator('.debug-panel')).toHaveCount(0);
 });
 
+test('keeps rolling with inertia after movement input is released', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const rigAsset = page.waitForResponse((response) =>
+    response.url().endsWith('/assets/animation/veh_player_rig_parts_v003.png'),
+  );
+  await page.goto('/?debug=1');
+  expect((await rigAsset).ok()).toBe(true);
+
+  const debug = page.locator('.debug-panel');
+  const readPosition = async () => {
+    const text = await debug.textContent();
+    return Number(text?.match(/position ([\d.]+)/)?.[1] ?? 0);
+  };
+
+  await page.keyboard.down('d');
+  await expect.poll(readPosition).toBeGreaterThan(10.5);
+  await page.keyboard.up('d');
+  const positionAtRelease = await readPosition();
+  await expect.poll(readPosition).toBeGreaterThan(positionAtRelease);
+
+  if (process.env.CAPTURE_MOTION_REVIEW) {
+    await page.screenshot({
+      path: 'artifacts/animation/review/caravan_inertia_1440x900_v003.png',
+    });
+  }
+});
+
 test('shows a recoverable message when Canvas 2D is unavailable', async ({
   page,
 }) => {

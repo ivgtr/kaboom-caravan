@@ -18,6 +18,7 @@ export function createSimulation(seed = 1): SimulationState {
       id: 'player',
       previousPosition: 10,
       position: 10,
+      velocity: 0,
       radius: 2.5,
       hitPoints: 100,
       maxHitPoints: 100,

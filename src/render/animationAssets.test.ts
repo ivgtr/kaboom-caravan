@@ -3,6 +3,7 @@ import type { EnemyTypeId } from '../game/data/ids';
 import {
   ENEMY_MOTION_ART,
   getMotionFrameSource,
+  getPlayerRigPartSource,
   MOTION_POSE_CELLS,
 } from './animationAssets';
 
@@ -33,6 +34,9 @@ describe('character motion assets', () => {
     });
     expect(getMotionFrameSource(1024, 1024, 'release')).toEqual([
       512, 512, 512, 512,
+    ]);
+    expect(getPlayerRigPartSource(1024, 1024, 'smoke-medium')).toEqual([
+      0, 512, 512, 512,
     ]);
   });
 });

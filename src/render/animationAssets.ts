@@ -2,6 +2,9 @@ import type { EnemyTypeId } from '../game/data/ids';
 
 export type CharacterMotionPose = 'idle' | 'move' | 'anticipation' | 'release';
 
+export type PlayerRigPart =
+  'wheel' | 'smoke-small' | 'smoke-medium' | 'smoke-large';
+
 export interface CharacterMotionAsset {
   source: string;
   /** Y position of the ground line within a single normalized frame. */
@@ -22,6 +25,19 @@ export const PLAYER_MOTION_ART: CharacterMotionAsset = {
   source: '/assets/animation/veh_player_motion_v002.png',
   groundAnchor: 0.89,
   displayScale: 1,
+};
+
+export const PLAYER_RIG_ART = {
+  source: '/assets/animation/veh_player_rig_parts_v003.png',
+  cells: {
+    wheel: [0, 0],
+    'smoke-small': [1, 0],
+    'smoke-medium': [0, 1],
+    'smoke-large': [1, 1],
+  },
+} as const satisfies {
+  source: string;
+  cells: Readonly<Record<PlayerRigPart, readonly [number, number]>>;
 };
 
 export const ENEMY_MOTION_ART: Readonly<
@@ -68,4 +84,15 @@ export function getMotionFrameSource(
   const frameHeight = imageHeight / 2;
   const [column, row] = MOTION_POSE_CELLS[pose];
   return [column * frameWidth, row * frameHeight, frameWidth, frameHeight];
+}
+
+export function getPlayerRigPartSource(
+  imageWidth: number,
+  imageHeight: number,
+  part: PlayerRigPart,
+): readonly [x: number, y: number, width: number, height: number] {
+  const cellWidth = imageWidth / 2;
+  const cellHeight = imageHeight / 2;
+  const [column, row] = PLAYER_RIG_ART.cells[part];
+  return [column * cellWidth, row * cellHeight, cellWidth, cellHeight];
 }

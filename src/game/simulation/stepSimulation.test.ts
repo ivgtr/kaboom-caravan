@@ -48,7 +48,27 @@ describe('stepSimulation', () => {
     }
 
     expect(state.tick).toBe(60);
-    expect(state.player.position).toBeCloseTo(22);
+    expect(state.player.position).toBeCloseTo(19.7);
+    expect(state.player.velocity).toBe(12);
+  });
+
+  it('coasts to a stop and brakes before reversing direction', () => {
+    const moving = runMovementTicks(30, 1);
+    expect(moving.player.velocity).toBe(12);
+
+    const released = runMovementTicks(10, 0, moving);
+    expect(released.player.velocity).toBeCloseTo(9);
+    expect(released.player.position).toBeGreaterThan(moving.player.position);
+
+    const firstReverseTick = stepSimulation(
+      moving,
+      { ...IDLE_COMMAND, move: -1 },
+      SIMULATION_STEP_SECONDS,
+    );
+    expect(firstReverseTick.player.velocity).toBeGreaterThan(0);
+    expect(firstReverseTick.player.position).toBeGreaterThan(
+      moving.player.position,
+    );
   });
 
   it('produces the same state at 30, 60 and 120 render frames per second', () => {
@@ -180,6 +200,22 @@ describe('stepSimulation', () => {
     expect(snapshot.enemies[0]!.position).toBe(55);
   });
 });
+
+function runMovementTicks(
+  count: number,
+  move: -1 | 0 | 1,
+  initial = createSimulation(),
+) {
+  let state = initial;
+  for (let tick = 0; tick < count; tick += 1) {
+    state = stepSimulation(
+      state,
+      { ...IDLE_COMMAND, move },
+      SIMULATION_STEP_SECONDS,
+    );
+  }
+  return state;
+}
 
 describe('createSeededRandom', () => {
   it('replays the same random sequence for the same seed', () => {

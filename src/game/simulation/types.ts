@@ -26,6 +26,7 @@ export interface PlayerState {
   id: EntityId;
   previousPosition: number;
   position: number;
+  velocity: number;
   radius: number;
   hitPoints: number;
   maxHitPoints: number;

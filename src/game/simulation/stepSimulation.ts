@@ -39,9 +39,17 @@ const EMERGENCY_BOOST_ENERGY_COST = 25;
 const EMERGENCY_BOOST_HEAT_VENT = 35;
 const EMERGENCY_BOOST_DISTANCE = 12;
 const EMERGENCY_BOOST_COOLDOWN_SECONDS = 6;
+const PLAYER_ACCELERATION = 30;
+const PLAYER_BRAKE_ACCELERATION = 42;
+const PLAYER_COAST_DECELERATION = 18;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function moveTowards(current: number, target: number, maximumDelta: number) {
+  if (Math.abs(target - current) <= maximumDelta) return target;
+  return current + Math.sign(target - current) * maximumDelta;
 }
 
 function createProjectiles(
@@ -272,11 +280,33 @@ export function stepSimulation(
     WEAPON_DEFINITIONS[state.build.secondaryWeaponId],
     state.build,
   );
+  const targetVelocity = command.move * playerStats.moveSpeed;
+  const isReversing =
+    command.move !== 0 &&
+    state.player.velocity !== 0 &&
+    Math.sign(targetVelocity) !== Math.sign(state.player.velocity);
+  const velocityChangeRate =
+    command.move === 0
+      ? PLAYER_COAST_DECELERATION
+      : isReversing
+        ? PLAYER_BRAKE_ACCELERATION
+        : PLAYER_ACCELERATION;
+  let playerVelocity = moveTowards(
+    state.player.velocity,
+    targetVelocity,
+    velocityChangeRate * deltaSeconds,
+  );
   let playerPosition = clamp(
-    state.player.position + command.move * playerStats.moveSpeed * deltaSeconds,
+    state.player.position + playerVelocity * deltaSeconds,
     PLAYER_MIN_POSITION,
     PLAYER_MAX_POSITION,
   );
+  if (
+    (playerPosition === PLAYER_MIN_POSITION && playerVelocity < 0) ||
+    (playerPosition === PLAYER_MAX_POSITION && playerVelocity > 0)
+  ) {
+    playerVelocity = 0;
+  }
   let playerHitPoints = Math.min(
     state.player.hitPoints,
     playerStats.maximumHitPoints,
@@ -341,6 +371,7 @@ export function stepSimulation(
       PLAYER_MIN_POSITION,
       playerPosition - EMERGENCY_BOOST_DISTANCE,
     );
+    playerVelocity = Math.min(playerVelocity, -playerStats.moveSpeed * 0.6);
     skillCooldown = EMERGENCY_BOOST_COOLDOWN_SECONDS;
     events.push({ type: 'skill-activated', skillId: 'emergency-boost' });
   }
@@ -539,6 +570,7 @@ export function stepSimulation(
       ...state.player,
       previousPosition: state.player.position,
       position: playerPosition,
+      velocity: playerVelocity,
       hitPoints: playerHitPoints,
       maxHitPoints: playerStats.maximumHitPoints,
       armor: playerStats.armor,
