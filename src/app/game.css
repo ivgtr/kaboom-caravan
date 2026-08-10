@@ -428,14 +428,18 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
   gap: clamp(8px, 2vw, 22px);
-  width: min(1040px, 100%);
+  width: min(1200px, 100%);
   min-height: 0;
   margin: auto;
 }
 .reward-card {
   position: relative;
   display: block;
-  height: min(650px, calc(100vh - 100px));
+  container-type: inline-size;
+  width: 100%;
+  max-width: calc((100dvh - 120px) * 2 / 3);
+  aspect-ratio: 2 / 3;
+  height: auto;
   padding: 0;
   border: 0;
   background: url('/assets/ui/ui_reward_frame_v001.png') center/100% 100%
@@ -467,7 +471,7 @@ button {
   background: #263249;
   color: white;
   padding: 3px 8px;
-  font-size: 9px;
+  font-size: clamp(8px, 2.8cqw, 11px);
   font-weight: 1000;
   letter-spacing: 0.12em;
 }
@@ -481,8 +485,8 @@ button {
 .equipment-visual {
   position: absolute;
   top: 8%;
-  right: 8%;
-  left: 8%;
+  right: 10%;
+  left: 10%;
   display: grid;
   place-items: center;
   height: 52%;
@@ -508,22 +512,22 @@ button {
 .reward-card h2 {
   position: absolute;
   top: 63%;
-  right: 8%;
-  left: 8%;
+  right: 12%;
+  left: 12%;
   margin: 0;
   color: #263249;
-  font-size: clamp(15px, 2vw, 22px);
+  font-size: clamp(14px, 6cqw, 22px);
 }
 .reward-card p {
   position: absolute;
   top: 69%;
-  right: 8%;
-  left: 8%;
+  right: 12%;
+  left: 12%;
   max-height: 10%;
   overflow: hidden;
   margin: 0;
   color: #5a6070;
-  font-size: clamp(10px, 1.2vw, 13px);
+  font-size: clamp(9px, 3.4cqw, 13px);
   font-weight: 700;
 }
 .reward-card > button,
@@ -533,7 +537,8 @@ button {
   border-radius: 12px;
   background: #57cdb9;
   color: #263249;
-  padding: 8px;
+  padding: 4px;
+  font-size: clamp(11px, 4.2cqw, 16px);
   font-weight: 1000;
   cursor: pointer;
   box-shadow: 0 4px 0 #263249;
@@ -541,10 +546,10 @@ button {
 .reward-card > button,
 .reward-actions {
   position: absolute;
-  right: 7%;
-  bottom: 3%;
-  left: 7%;
-  height: 8%;
+  right: 10%;
+  bottom: 4%;
+  left: 10%;
+  height: 7.5%;
 }
 .reward-actions {
   display: flex;
@@ -646,7 +651,7 @@ button {
     padding: 8px 20px;
   }
   .reward-card {
-    height: calc(100vh - 72px);
+    max-width: calc((100dvh - 72px) * 2 / 3);
   }
   .reward-card p {
     font-size: 10px;
@@ -753,7 +758,9 @@ button {
     scrollbar-width: none;
   }
   .reward-card {
-    flex: 0 0 244px;
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
     height: calc(100dvh - 58px);
     scroll-snap-align: center;
   }

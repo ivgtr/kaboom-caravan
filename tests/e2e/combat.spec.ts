@@ -41,6 +41,7 @@ test('hides diagnostic UI from the product view', async ({ page }) => {
 
 for (const viewport of [
   { width: 1440, height: 900 },
+  { width: 1184, height: 689 },
   { width: 844, height: 390 },
 ]) {
   test(`shows battle clear then visual rewards at ${viewport.width}x${viewport.height}`, async ({
@@ -67,10 +68,25 @@ for (const viewport of [
     await page.keyboard.up('e');
 
     await expect(page.getByRole('button', { name: '主武器' })).toHaveCount(0);
-    await expect(rewards.locator('.reward-card')).toHaveCount(3);
+    const cards = rewards.locator('.reward-card');
+    await expect(cards).toHaveCount(3);
     await expect(rewards.locator('.equipment-art')).toHaveCount(3);
+    await waitForAnimations(cards.last());
+    for (let index = 0; index < 3; index += 1) {
+      const card = cards.nth(index);
+      const cardBox = await card.boundingBox();
+      expect(cardBox).not.toBeNull();
+      expect(cardBox!.width / cardBox!.height).toBeCloseTo(2 / 3, 2);
+      for (const content of [
+        card.locator('.equipment-visual'),
+        card.locator('h2'),
+        card.locator('p'),
+        card.locator('.reward-actions, :scope > button'),
+      ]) {
+        await expectContained(content, cardBox!);
+      }
+    }
     if (process.env.CAPTURE_UI_REVIEW) {
-      await waitForAnimations(rewards.locator('.reward-card').last());
       await page.screenshot({
         path: `artifacts/ui/review/reward_${viewport.width}x${viewport.height}.png`,
       });
@@ -154,4 +170,20 @@ async function waitForAnimations(locator: import('@playwright/test').Locator) {
       element.getAnimations().map(async (animation) => animation.finished),
     );
   });
+}
+
+async function expectContained(
+  locator: import('@playwright/test').Locator,
+  container: { x: number; y: number; width: number; height: number },
+) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(container.x - 1);
+  expect(box!.y).toBeGreaterThanOrEqual(container.y - 1);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(
+    container.x + container.width + 1,
+  );
+  expect(box!.y + box!.height).toBeLessThanOrEqual(
+    container.y + container.height + 1,
+  );
 }
