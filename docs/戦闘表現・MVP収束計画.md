@@ -199,7 +199,7 @@ Status: Completed
 
 ### D. Quality／Performance
 
-Status: Pending
+Status: Completed
 
 1. `prefers-reduced-motion`でPulse、Shake、Secondary Motionを弱める
 2. 攻撃予兆、Projectile、Hit FlashはReduced Motionでも残す
@@ -215,6 +215,19 @@ Status: Pending
 - Mobile Landscape相当Viewport: Frame p95 25ms未満
 - Effect Instance: 通常48以下、上限96
 - 参照切れ: Runtime Console Error 0件
+
+実装結果：
+
+- CSSとCanvasの双方で`prefers-reduced-motion`へ対応し、Pulse、Shake、Particle、Exhaustを抑制
+- Attack Telegraph、Projectile、Impact Core、Hit FlashはReduced Motionでも維持
+- Active EffectとRecycled Effectを各96件へ制限し、Renderer破棄時に全参照を解放
+- 100 Player Projectile、32 Enemy Projectile、48 Effectの再現可能なStress Sceneを追加
+- Effect 40件以上ではSecondary ParticleとShadow Blurだけを落とすAdaptive Detailを実装
+- 隔離したChromium計測で1920×1080 p95 16.3ms、844×390 p95 5.0msを記録
+- Runtime Assetの正常読込とdecode失敗を検証し、失敗時の手続き描画Fallbackを確認
+- 1920×1080、1440×900、1280×720、1024×768、932×430、844×390をE2E対象化
+- 即時遠距離Damage分岐はPhase Aで撤去済み。Asset失敗用Fallbackのみ意図的に維持
+- 測定条件と結果を`docs/performance/phase-d-baseline.md`へ記録
 
 ### E. 自動バランス基準の更新
 
