@@ -24,13 +24,15 @@ export class InputManager {
     return {
       move,
       firePrimary: this.pressed.has('Space'),
-      fireSecondary: false,
-      activateSkill: false,
+      fireSecondary: this.pressed.has('ShiftLeft') || this.pressed.has('KeyE'),
+      activateSkill: this.pressed.has('KeyQ'),
     };
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (['ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
+    if (
+      ['ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft'].includes(event.code)
+    ) {
       event.preventDefault();
     }
     this.pressed.add(event.code);

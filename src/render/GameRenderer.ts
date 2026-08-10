@@ -10,6 +10,7 @@ export class GameRenderer {
   private readonly camera: THREE.OrthographicCamera;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly player: THREE.Mesh;
+  private readonly frontlineMarker: THREE.Mesh;
   private readonly enemyViews = new Map<EntityId, THREE.Mesh>();
   private readonly projectileViews = new Map<EntityId, THREE.Mesh>();
   private readonly resizeObserver: ResizeObserver;
@@ -31,6 +32,33 @@ export class GameRenderer {
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
+    const riskZones: Array<[number, number, string]> = [
+      [12.5, 25, '#b8c98a'],
+      [35, 20, '#d2c77e'],
+      [55, 20, '#d9a56e'],
+      [72.5, 15, '#cf7c77'],
+    ];
+    for (const [center, width, color] of riskZones) {
+      const zone = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, 19.5),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.45,
+        }),
+      );
+      zone.rotation.x = -Math.PI / 2;
+      zone.position.set(center, 0.02, 0);
+      this.scene.add(zone);
+    }
+
+    this.frontlineMarker = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 5, 0.35),
+      new THREE.MeshBasicMaterial({ color: '#fff4a3' }),
+    );
+    this.frontlineMarker.position.y = 2.5;
+    this.scene.add(this.frontlineMarker);
+
     this.player = new THREE.Mesh(
       new THREE.BoxGeometry(5, 2.4, 2.8),
       new THREE.MeshStandardMaterial({ color: '#ffb5a7' }),
@@ -46,6 +74,7 @@ export class GameRenderer {
   render(state: SimulationState, alpha: number): void {
     const snapshot = createPresentationSnapshot(state);
     this.player.position.x = interpolatePosition(snapshot.player, alpha);
+    this.frontlineMarker.position.x = snapshot.frontlinePosition;
     this.syncEntityViews(
       snapshot.enemies,
       this.enemyViews,
@@ -123,9 +152,12 @@ export class GameRenderer {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
     const aspect = width / height;
-    const viewHeight = 36;
-    this.camera.left = -(viewHeight * aspect) / 2;
-    this.camera.right = (viewHeight * aspect) / 2;
+    const minimumViewWidth = 100;
+    const minimumViewHeight = 40;
+    const viewWidth = Math.max(minimumViewWidth, minimumViewHeight * aspect);
+    const viewHeight = Math.max(minimumViewHeight, minimumViewWidth / aspect);
+    this.camera.left = -viewWidth / 2;
+    this.camera.right = viewWidth / 2;
     this.camera.top = viewHeight / 2;
     this.camera.bottom = -viewHeight / 2;
     this.camera.updateProjectionMatrix();

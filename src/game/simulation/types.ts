@@ -2,7 +2,10 @@ export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
 
 export type EntityId = string;
+export type WeaponId = 'machine-cannon' | 'railgun';
 export type Movement = -1 | 0 | 1;
+export type CombatStatus = 'active' | 'victory' | 'defeat';
+export type RiskTier = 'safe' | 'frontline' | 'danger' | 'enemy-territory';
 
 export interface PlayerCommand {
   move: Movement;
@@ -23,6 +26,9 @@ export interface PlayerState {
   energy: number;
   ammo: number;
   primaryCooldown: number;
+  secondaryCooldown: number;
+  skillCooldown: number;
+  overheated: boolean;
 }
 
 export interface EnemyState {
@@ -47,10 +53,25 @@ export interface ProjectileState {
   radius: number;
   damage: number;
   maximumRange: number;
+  weaponId: WeaponId;
+  optimalRangeMinimum: number;
+  optimalRangeMaximum: number;
+  offRangeDamageMultiplier: number;
+}
+
+export interface FrontlineState {
+  position: number;
+  pressure: number;
+  riskTier: RiskTier;
+  rewardMultiplier: number;
 }
 
 export type CombatEvent =
-  | { type: 'weapon-fired'; projectileId: EntityId }
+  | {
+      type: 'weapon-fired';
+      projectileId: EntityId;
+      weaponId: WeaponId;
+    }
   | {
       type: 'projectile-hit';
       projectileId: EntityId;
@@ -58,13 +79,19 @@ export type CombatEvent =
       damage: number;
     }
   | { type: 'enemy-killed'; enemyId: EntityId }
-  | { type: 'vehicle-hit'; sourceId: EntityId; damage: number };
+  | { type: 'vehicle-hit'; sourceId: EntityId; damage: number }
+  | { type: 'overheated' }
+  | { type: 'cooled' }
+  | { type: 'skill-activated'; skillId: 'emergency-boost' }
+  | { type: 'combat-ended'; result: Exclude<CombatStatus, 'active'> };
 
 export interface SimulationState {
   seed: number;
   tick: number;
   nextEntitySequence: number;
+  status: CombatStatus;
   player: PlayerState;
+  frontline: FrontlineState;
   enemies: EnemyState[];
   projectiles: ProjectileState[];
   events: CombatEvent[];

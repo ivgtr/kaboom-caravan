@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   test: {
+    include: ['src/**/*.test.ts'],
     environment: 'jsdom',
     coverage: {
       provider: 'v8',

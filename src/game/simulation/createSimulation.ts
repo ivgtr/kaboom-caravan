@@ -5,6 +5,7 @@ export function createSimulation(seed = 1): SimulationState {
     seed,
     tick: 0,
     nextEntitySequence: 1,
+    status: 'active',
     player: {
       id: 'player',
       previousPosition: 10,
@@ -17,6 +18,15 @@ export function createSimulation(seed = 1): SimulationState {
       energy: 100,
       ammo: 30,
       primaryCooldown: 0,
+      secondaryCooldown: 0,
+      skillCooldown: 0,
+      overheated: false,
+    },
+    frontline: {
+      position: 25,
+      pressure: 0,
+      riskTier: 'safe',
+      rewardMultiplier: 1,
     },
     enemies: [
       {
