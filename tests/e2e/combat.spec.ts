@@ -101,6 +101,28 @@ test('renders an acquired module on the physical caravan mounts', async ({
   }
 });
 
+for (const viewport of [
+  { width: 1184, height: 689 },
+  { width: 844, height: 390 },
+]) {
+  test(`renders generated combat VFX at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const main = page.getByRole('button', { name: '主武器' });
+    await expect(main).toContainText('30');
+    await page.keyboard.down('Space');
+    await expect(main).not.toContainText('30');
+    if (process.env.CAPTURE_VFX_REVIEW) {
+      await page.screenshot({
+        path: `artifacts/vfx/review/combat_ballistic_${viewport.width}x${viewport.height}_v001.png`,
+      });
+    }
+    await page.keyboard.up('Space');
+  });
+}
+
 test('shows a recoverable message when Canvas 2D is unavailable', async ({
   page,
 }) => {

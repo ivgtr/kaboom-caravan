@@ -15,6 +15,13 @@ import {
   type PlayerRigPart,
 } from './animationAssets';
 import { SpriteAssetManager } from './SpriteAssetManager';
+import {
+  getVfxSource,
+  VFX_ART,
+  WEAPON_VFX_FAMILY,
+  type VfxFamily,
+  type VfxPose,
+} from './vfxAssets';
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
@@ -99,6 +106,7 @@ export class GameRenderer {
       ...Object.values(ENEMY_MOTION_ART).map(({ source }) => source),
       ...Object.values(WEAPON_ART),
       ...Object.values(MODULE_ART),
+      ...Object.values(VFX_ART).map(({ source }) => source),
     ]);
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(canvas);
@@ -892,136 +900,11 @@ export class GameRenderer {
       const y =
         effect.kind === 'muzzle'
           ? this.groundY -
-            Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.52
+            Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
           : this.groundY -
             Math.min(80, Math.max(44, this.viewportHeight * 0.09));
-      context.save();
-      if (effect.kind === 'muzzle') {
-        const accent = effect.weaponId
-          ? PROJECTILE_COLORS[effect.weaponId]
-          : '#fff4a3';
-        context.globalAlpha = 1 - progress;
-        context.strokeStyle = accent;
-        context.lineWidth = 3;
-        context.beginPath();
-        context.arc(x, y, 8 + progress * 22, 0, Math.PI * 2);
-        context.stroke();
-        context.fillStyle = '#fffdf0';
-        context.beginPath();
-        context.ellipse(
-          x + 10,
-          y,
-          17 * (1 - progress * 0.45),
-          5,
-          0,
-          0,
-          Math.PI * 2,
-        );
-        context.fill();
-        context.fillStyle = accent;
-        this.drawBurst(x + 8, y, 18 + progress * 18, 7, 0.34);
-        context.fillStyle = 'rgb(68 72 84 / 55%)';
-        for (let index = 0; index < 3; index += 1) {
-          context.beginPath();
-          context.arc(
-            x - 4 - progress * (10 + index * 5),
-            y - 3 - index * 4,
-            3 + progress * 4,
-            0,
-            Math.PI * 2,
-          );
-          context.fill();
-        }
-        context.strokeStyle = '#d89945';
-        context.lineWidth = 2;
-        context.beginPath();
-        context.moveTo(x - 5, y + 5);
-        context.lineTo(x - 13 - progress * 17, y + 13 + progress * 10);
-        context.stroke();
-      } else if (effect.kind === 'hit') {
-        context.globalAlpha = 1 - progress;
-        context.fillStyle = '#ffffff';
-        this.drawBurst(x, y, 10 + progress * 26, 8, 0.45);
-        context.strokeStyle = effect.weaponId
-          ? PROJECTILE_COLORS[effect.weaponId]
-          : '#fff4a3';
-        context.lineWidth = 3;
-        for (let index = 0; index < 7; index += 1) {
-          const angle = (Math.PI * 2 * index) / 7 + 0.2;
-          const inner = 8 + progress * 10;
-          const outer = 18 + progress * 35;
-          context.beginPath();
-          context.moveTo(
-            x + Math.cos(angle) * inner,
-            y + Math.sin(angle) * inner,
-          );
-          context.lineTo(
-            x + Math.cos(angle) * outer,
-            y + Math.sin(angle) * outer,
-          );
-          context.stroke();
-        }
-      } else if (effect.kind === 'explosion') {
-        const growth = Math.sin(Math.min(1, progress) * Math.PI * 0.72);
-        const radius = 16 + growth * 42;
-        context.globalAlpha = Math.min(1, (1 - progress) * 1.6);
-        for (let index = 0; index < 8; index += 1) {
-          const angle = (Math.PI * 2 * index) / 8 + 0.3;
-          const orbit = radius * (0.28 + (index % 3) * 0.08);
-          const lobe = radius * (0.32 + (index % 2) * 0.1);
-          context.fillStyle = index % 3 === 0 ? '#ff743d' : '#f5b83f';
-          context.beginPath();
-          context.arc(
-            x + Math.cos(angle) * orbit,
-            y + Math.sin(angle) * orbit,
-            lobe,
-            0,
-            Math.PI * 2,
-          );
-          context.fill();
-        }
-        context.fillStyle = progress < 0.45 ? '#fffbd2' : '#ff8b43';
-        context.beginPath();
-        context.arc(x, y, radius * (0.48 - progress * 0.12), 0, Math.PI * 2);
-        context.fill();
-        context.fillStyle = 'rgb(63 57 70 / 78%)';
-        for (let index = 0; index < 5; index += 1) {
-          const angle = -2.7 + index * 0.48;
-          context.beginPath();
-          context.arc(
-            x + Math.cos(angle) * radius * (0.45 + progress),
-            y + Math.sin(angle) * radius * (0.3 + progress * 0.65),
-            5 + progress * 9,
-            0,
-            Math.PI * 2,
-          );
-          context.fill();
-        }
-        context.strokeStyle = '#554657';
-        context.lineWidth = 3;
-        for (let index = 0; index < 6; index += 1) {
-          const angle = -2.8 + index * 0.55;
-          context.beginPath();
-          context.moveTo(x, y);
-          context.lineTo(
-            x + Math.cos(angle) * radius * (0.8 + progress),
-            y + Math.sin(angle) * radius * (0.8 + progress),
-          );
-          context.stroke();
-        }
-        context.fillStyle = 'rgb(226 189 131 / 65%)';
-        context.beginPath();
-        context.ellipse(
-          x,
-          this.groundY - 3,
-          radius * 0.9,
-          radius * 0.18,
-          0,
-          0,
-          Math.PI * 2,
-        );
-        context.fill();
-      } else {
+      if (effect.kind === 'smoke') {
+        context.save();
         context.globalAlpha = 1 - progress;
         context.fillStyle = '#596273';
         for (let index = 0; index < 4; index += 1) {
@@ -1035,9 +918,165 @@ export class GameRenderer {
           );
           context.fill();
         }
+        context.restore();
+        continue;
       }
-      context.restore();
+
+      const family = effect.weaponId
+        ? WEAPON_VFX_FAMILY[effect.weaponId]
+        : 'explosive';
+      const pose: VfxPose = effect.kind === 'muzzle' ? 'muzzle' : 'impact';
+      if (!this.drawGeneratedVfx(family, pose, x, y, progress)) {
+        this.drawFallbackVfx(effect, x, y, progress);
+      }
+      this.drawVfxParticles(effect, family, x, y, progress);
     }
+  }
+
+  private drawGeneratedVfx(
+    family: VfxFamily,
+    pose: VfxPose,
+    x: number,
+    y: number,
+    progress: number,
+  ): boolean {
+    const asset = VFX_ART[family];
+    const image = this.assets.get(asset.source);
+    if (!image) return false;
+    const [sourceX, sourceY, sourceWidth, sourceHeight] = getVfxSource(
+      image.naturalWidth,
+      image.naturalHeight,
+      pose,
+    );
+    const baseSize = Math.min(
+      pose === 'muzzle' ? 108 : 132,
+      Math.max(58, this.viewportHeight * (pose === 'muzzle' ? 0.1 : 0.12)),
+    );
+    const familyScale =
+      pose === 'muzzle' ? asset.muzzleScale : asset.impactScale;
+    const growth =
+      pose === 'muzzle'
+        ? 0.8 + Math.sin(progress * Math.PI) * 0.28
+        : 0.62 + Math.sin(Math.min(1, progress) * Math.PI * 0.78) * 0.5;
+    const size = baseSize * familyScale * growth;
+    const left =
+      pose === 'muzzle' ? x - size * asset.muzzleOriginX : x - size / 2;
+    const context = this.context;
+    context.save();
+    context.globalAlpha = Math.min(1, (1 - progress) * 1.9);
+    context.shadowColor =
+      family === 'energy'
+        ? '#67e7ef'
+        : family === 'fire' || family === 'explosive'
+          ? '#ff9c43'
+          : '#ffe174';
+    context.shadowBlur = 8 + size * 0.08;
+    if (pose === 'impact') {
+      context.translate(x, y);
+      context.rotate((family === 'energy' ? 0.16 : -0.08) * progress);
+      context.translate(-x, -y);
+    }
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      left,
+      y - size / 2,
+      size,
+      size,
+    );
+    context.restore();
+    return true;
+  }
+
+  private drawVfxParticles(
+    effect: VisualEffect,
+    family: VfxFamily,
+    x: number,
+    y: number,
+    progress: number,
+  ): void {
+    const context = this.context;
+    const accent = effect.weaponId
+      ? PROJECTILE_COLORS[effect.weaponId]
+      : '#ff9c43';
+    context.save();
+    context.globalAlpha = Math.max(0, (1 - progress) * 0.55);
+    context.strokeStyle = accent;
+    context.lineWidth = family === 'explosive' ? 4 : 2.5;
+    context.beginPath();
+    context.arc(x, y, 10 + progress * 34, 0, Math.PI * 2);
+    context.stroke();
+
+    if (effect.kind === 'muzzle') {
+      context.fillStyle = 'rgba(48, 57, 76, 0.72)';
+      for (let index = 0; index < 2; index += 1) {
+        context.beginPath();
+        context.arc(
+          x - 7 - progress * (14 + index * 8),
+          y - 4 - index * 5,
+          2.5 + progress * 4,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      }
+    } else {
+      context.fillStyle = family === 'explosive' ? '#36405a' : accent;
+      const count = family === 'explosive' ? 7 : 5;
+      for (let index = 0; index < count; index += 1) {
+        const angle = (Math.PI * 2 * index) / count + 0.35;
+        const distance = 22 + progress * (family === 'explosive' ? 48 : 34);
+        context.beginPath();
+        context.arc(
+          x + Math.cos(angle) * distance,
+          y + Math.sin(angle) * distance,
+          Math.max(1.5, 4 - progress * 2),
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      }
+      if (family === 'explosive') {
+        context.fillStyle = 'rgba(178, 137, 93, 0.35)';
+        context.beginPath();
+        context.ellipse(
+          x,
+          this.groundY - 3,
+          28 + progress * 42,
+          5 + progress * 5,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      }
+    }
+    context.restore();
+  }
+
+  private drawFallbackVfx(
+    effect: VisualEffect,
+    x: number,
+    y: number,
+    progress: number,
+  ): void {
+    const context = this.context;
+    context.save();
+    context.globalAlpha = 1 - progress;
+    context.fillStyle = effect.weaponId
+      ? PROJECTILE_COLORS[effect.weaponId]
+      : '#ff9c43';
+    this.drawBurst(
+      x,
+      y,
+      14 + progress * (effect.kind === 'explosion' ? 48 : 28),
+      8,
+      0.42,
+    );
+    context.restore();
   }
 
   private emitEffect(effect: VisualEffect): void {
