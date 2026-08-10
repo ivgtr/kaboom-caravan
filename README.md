@@ -52,6 +52,7 @@ npm run check
 - [MVP判断記録](docs/adr/0001-mvp-scope.md)：実装開始時の仮決定と保留事項
 - [戦闘ロードアウト判断記録](docs/adr/0002-combat-loadout.md)：装備枠、共有リソース、特殊能力の確定事項
 - [2D Presentation判断記録](docs/adr/0003-2d-layered-presentation.md)：2Dレイヤー描画への方針変更
+- [Caravan・Monster判断記録](docs/adr/0004-caravan-monster-visual-direction.md)：装備反映、Monster、VFX、Stage、HUDの方針
 - [2D素材設計書](docs/2D素材設計書.md)：Sprite分割、Anchor、透明素材、保管方法
 - [MVP実装計画書](docs/実装計画書.md)：実装フェーズ、要件トレーサビリティ、完了条件
 - [フェーズ2プレイテスト](docs/playtest/phase2.md)：距離、前線、武器、リソースの確認手順

@@ -42,10 +42,16 @@ input {
 .reward-panel,
 .result-panel {
   position: absolute;
-  border: 2px solid rgb(37 41 56 / 70%);
-  border-radius: 14px;
-  background: rgb(255 249 232 / 88%);
-  box-shadow: 0 5px 0 rgb(37 41 56 / 22%);
+  border: 3px solid #30384f;
+  border-radius: 16px;
+  background: linear-gradient(
+    145deg,
+    rgb(255 249 232 / 94%),
+    rgb(229 245 235 / 92%)
+  );
+  box-shadow:
+    0 6px 0 rgb(37 41 56 / 24%),
+    inset 0 0 0 2px rgb(255 255 255 / 55%);
 }
 
 .hud {
@@ -54,12 +60,53 @@ input {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
-  max-width: calc(100% - 32px);
+  width: min(720px, calc(100% - 32px));
   padding: 12px 16px;
 }
 
-.hud strong {
+.hud-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   width: 100%;
+  gap: 14px;
+}
+
+.hud-heading strong {
+  color: #d94f70;
+  font-size: 17px;
+  letter-spacing: 0.03em;
+}
+
+.hud-heading span {
+  color: #465168;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.battle-progress {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  width: 100%;
+  gap: 5px;
+}
+
+.battle-progress span {
+  height: 7px;
+  border: 1px solid #68738b;
+  border-radius: 999px;
+  background: #ccd6cf;
+}
+
+.battle-progress .progress-cleared {
+  border-color: #4d8f89;
+  background: #72d6c9;
+}
+
+.battle-progress .progress-current {
+  border-color: #c94667;
+  background: #ff8fa3;
+  box-shadow: 0 0 0 2px rgb(255 143 163 / 25%);
 }
 
 .hud-stat {
@@ -97,8 +144,15 @@ input {
   font-size: 13px;
 }
 
+.panel-label {
+  color: #68738b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
 .frontline-panel {
-  top: 128px;
+  top: 154px;
   left: 16px;
 }
 
@@ -111,7 +165,8 @@ input {
   display: inline-block;
   min-width: 62px;
   border-radius: 6px;
-  background: #31384c;
+  border: 1px solid #66728c;
+  background: linear-gradient(#3f4962, #293146);
   color: #fff8e8;
   padding: 2px 5px;
   text-align: center;
@@ -122,6 +177,16 @@ input {
   max-width: 360px;
   color: #5d5564;
   font-size: 11px;
+}
+
+.weapon-panel::before {
+  position: absolute;
+  inset: -7px auto auto 18px;
+  width: 44px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff8fa3;
+  content: '';
 }
 
 .weapon-ready {

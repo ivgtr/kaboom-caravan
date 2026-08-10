@@ -3,6 +3,7 @@ import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
 import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
 import { MODULE_DEFINITIONS } from '../game/data/moduleDefinitions';
+import { ENEMY_DEFINITIONS } from '../game/data/enemyDefinitions';
 import type { RewardChoice } from '../game/reward/rewardSystem';
 import {
   createGameSession,
@@ -36,11 +37,13 @@ interface HudSnapshot {
   overheated: boolean;
   nearestEnemyDistance?: number;
   nearestEnemyHitPoints?: number;
+  nearestEnemyName?: string;
 }
 
 interface SessionView {
   phase: SessionPhase;
   encounterIndex: number;
+  encounterName: string;
   rewardChoices: RewardChoice[];
   primaryWeaponName: string;
   secondaryWeaponName: string;
@@ -52,6 +55,7 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     .map((enemy) => ({
       distance: Math.abs(enemy.position - state.player.position),
       hitPoints: enemy.hitPoints,
+      name: ENEMY_DEFINITIONS[enemy.typeId].displayName,
     }))
     .sort((left, right) => left.distance - right.distance)[0];
 
@@ -74,6 +78,7 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     overheated: state.player.overheated,
     nearestEnemyDistance: nearestEnemy?.distance,
     nearestEnemyHitPoints: nearestEnemy?.hitPoints,
+    nearestEnemyName: nearestEnemy?.name,
   };
 }
 
@@ -82,6 +87,8 @@ function toSessionView(session: GameSessionState): SessionView {
   return {
     phase: session.phase,
     encounterIndex: session.run.encounterIndex,
+    encounterName:
+      MVP_ENCOUNTERS[session.run.encounterIndex]?.displayName ?? '戦闘完了',
     rewardChoices: session.rewardChoices,
     primaryWeaponName: WEAPON_DEFINITIONS[build.primaryWeaponId].displayName,
     secondaryWeaponName:
@@ -166,10 +173,28 @@ export function GameApp() {
     <main className="game-shell">
       <canvas ref={canvasRef} aria-label="戦闘フィールド" />
       <section className="hud" aria-label="車両状態">
-        <strong>
-          Kaboom Caravan / Battle {sessionView.encounterIndex + 1} of{' '}
-          {MVP_ENCOUNTERS.length}
-        </strong>
+        <header className="hud-heading">
+          <strong>Kaboom Caravan</strong>
+          <span>
+            BATTLE {sessionView.encounterIndex + 1}/{MVP_ENCOUNTERS.length} ·{' '}
+            {sessionView.encounterName}
+          </span>
+        </header>
+        <div className="battle-progress" aria-label="ラン進行">
+          {MVP_ENCOUNTERS.map((encounter, index) => (
+            <span
+              className={
+                index < sessionView.encounterIndex
+                  ? 'progress-cleared'
+                  : index === sessionView.encounterIndex
+                    ? 'progress-current'
+                    : ''
+              }
+              key={encounter.id}
+              title={encounter.displayName}
+            />
+          ))}
+        </div>
         <Resource label="HP" value={hud.hitPoints} maximum={100} />
         <Resource
           label={hud.overheated ? 'OVERHEAT' : 'HEAT'}
@@ -182,19 +207,21 @@ export function GameApp() {
         <span className="hud-stat">ENEMY {hud.enemies}</span>
       </section>
       <section className="frontline-panel" aria-label="前線状態">
+        <span className="panel-label">FRONTLINE / THREAT</span>
         <strong>{riskLabel(hud.riskTier)}</strong>
         <span>報酬期待値 ×{hud.rewardMultiplier.toFixed(1)}</span>
         <span>
           前線 {hud.frontline.toFixed(1)} / 圧力 {hud.pressure}
         </span>
         <span>
-          最寄り敵{' '}
+          {hud.nearestEnemyName ?? '最寄りMonster'}{' '}
           {hud.nearestEnemyDistance === undefined
             ? 'なし'
             : `${hud.nearestEnemyDistance.toFixed(1)}m / HP ${hud.nearestEnemyHitPoints?.toFixed(1)}`}
         </span>
       </section>
       <section className="weapon-panel" aria-label="武器状態">
+        <span className="panel-label">CARAVAN LOADOUT</span>
         <WeaponStatus
           keyLabel="SPACE"
           name={`${sessionView.primaryWeaponName} MAIN`}

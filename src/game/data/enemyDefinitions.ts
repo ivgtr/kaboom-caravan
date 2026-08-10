@@ -21,8 +21,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
   {
     basic: {
       id: 'basic',
-      displayName: '一般兵',
-      description: '数で前線へ圧力をかける標準敵。',
+      displayName: 'モスモコ',
+      description: '苔と小石をまとい、群れで前線へ転がり込む標準Monster。',
       behaviorId: 'advance',
       hitPoints: 30,
       armor: 0,
@@ -37,8 +37,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
     },
     rusher: {
       id: 'rusher',
-      displayName: '高速兵',
-      description: '高速で防衛線を突破する優先撃破対象。',
+      displayName: 'ハナツノ',
+      description: '花角を伏せて高速突進する、優先撃破対象の四足Monster。',
       behaviorId: 'rush',
       hitPoints: 20,
       armor: 0,
@@ -53,8 +53,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
     },
     heavy: {
       id: 'heavy',
-      displayName: '重装兵',
-      description: '高耐久と装甲で火力を要求する。',
+      displayName: 'ガレキガメ',
+      description: '旧文明の瓦礫を甲羅へ取り込んだ、高耐久・重装甲Monster。',
       behaviorId: 'heavyAdvance',
       hitPoints: 85,
       armor: 4,
@@ -69,8 +69,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
     },
     artillery: {
       id: 'artillery',
-      displayName: '遠距離兵',
-      description: '遠距離から砲撃し、プレイヤーへ前進を要求する。',
+      displayName: 'ホウシダケ',
+      description: '巨大な傘から胞子弾を放ち、キャラバンへ前進を要求する。',
       behaviorId: 'stopAndShoot',
       hitPoints: 38,
       armor: 1,
@@ -85,8 +85,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
     },
     bomber: {
       id: 'bomber',
-      displayName: '自爆兵',
-      description: '接近を許すと自爆して大ダメージを与える。',
+      displayName: 'バクレツミ',
+      description: '熟した爆裂果を抱え、接近すると破裂する小型Monster。',
       behaviorId: 'suicideRush',
       hitPoints: 16,
       armor: 0,
@@ -102,7 +102,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
     'kawaii-fortress': {
       id: 'kawaii-fortress',
       displayName: 'カワイイ・フォートレス',
-      description: '砲撃、増援、突撃の3Phaseを持つ巨大移動要塞。',
+      description:
+        '遺跡と生態系が一体化し、胞子砲撃・眷属召喚・突進を行う巨大要塞Monster。',
       behaviorId: 'bossFortress',
       hitPoints: 420,
       armor: 5,

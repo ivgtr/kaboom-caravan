@@ -1,4 +1,4 @@
-import type { EnemyTypeId, WeaponId } from '../game/data/ids';
+import type { EnemyTypeId, ModuleId, WeaponId } from '../game/data/ids';
 import {
   createPresentationSnapshot,
   interpolatePosition,
@@ -8,7 +8,7 @@ import type { SimulationState } from '../game/simulation/types';
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
 const ENEMY_COLORS: Record<EnemyTypeId, string> = {
-  basic: '#687ec9',
+  basic: '#72d6a0',
   rusher: '#e45c78',
   heavy: '#4d596f',
   artillery: '#8566ad',
@@ -24,11 +24,22 @@ const PROJECTILE_COLORS: Record<WeaponId, string> = {
   'mine-launcher': '#6d597a',
 };
 
+interface VisualEffect {
+  kind: 'muzzle' | 'hit' | 'explosion' | 'smoke';
+  worldPosition: number;
+  ageSeconds: number;
+  durationSeconds: number;
+}
+
 export class GameRenderer {
   private readonly context: CanvasRenderingContext2D;
   private readonly resizeObserver: ResizeObserver;
   private viewportWidth = 1;
   private viewportHeight = 1;
+  private lastProcessedTick = -1;
+  private lastRenderTime = performance.now();
+  private effects: VisualEffect[] = [];
+  private readonly knownEntityPositions = new Map<string, number>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -42,6 +53,10 @@ export class GameRenderer {
   render(state: SimulationState, alpha: number): void {
     const context = this.context;
     const snapshot = createPresentationSnapshot(state);
+    const now = performance.now();
+    const deltaSeconds = Math.min(0.05, (now - this.lastRenderTime) / 1000);
+    this.lastRenderTime = now;
+    this.updateEffects(state, deltaSeconds);
     const scale = window.devicePixelRatio || 1;
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
@@ -51,27 +66,21 @@ export class GameRenderer {
     const playerX = this.worldToScreen(
       interpolatePosition(snapshot.player, alpha),
     );
-    this.drawVehicle(
+    this.drawCaravan(
       playerX,
       this.groundY,
-      '#ff8fa3',
-      1,
       state.build.primaryWeaponId,
-      state.build.moduleIds.length,
+      state.build.secondaryWeaponId,
+      state.build.moduleIds,
+      state.player.overheated,
     );
 
     for (const enemy of snapshot.enemies) {
       const typeId = enemy.typeId ?? 'basic';
-      const scaleFactor =
-        typeId === 'kawaii-fortress' ? 2.2 : typeId === 'heavy' ? 1.25 : 1;
-      this.drawVehicle(
+      this.drawMonster(
         this.worldToScreen(interpolatePosition(enemy, alpha)),
         this.groundY,
-        ENEMY_COLORS[typeId],
-        scaleFactor,
-        typeId === 'artillery' ? 'railgun' : 'machine-cannon',
-        0,
-        true,
+        typeId,
       );
     }
 
@@ -85,6 +94,12 @@ export class GameRenderer {
       context.fillStyle = PROJECTILE_COLORS[projectile.weaponId];
       context.arc(x, this.groundY - 30, radius, 0, Math.PI * 2);
       context.fill();
+    }
+    this.drawEffects();
+
+    this.knownEntityPositions.set(state.player.id, state.player.position);
+    for (const enemy of state.enemies) {
+      this.knownEntityPositions.set(enemy.id, enemy.position);
     }
   }
 
@@ -122,6 +137,56 @@ export class GameRenderer {
       context.fillStyle = color;
       context.fillRect(left, this.groundY - 4, right - left, 62);
     }
+
+    context.fillStyle = 'rgb(255 255 255 / 58%)';
+    for (const [x, y, width] of [
+      [0.12, 0.18, 0.14],
+      [0.5, 0.12, 0.18],
+      [0.83, 0.22, 0.16],
+    ] as const) {
+      context.beginPath();
+      context.ellipse(
+        this.viewportWidth * x,
+        this.viewportHeight * y,
+        this.viewportWidth * width,
+        26,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+    }
+
+    context.fillStyle = 'rgb(94 133 122 / 28%)';
+    for (let index = 0; index < 7; index += 1) {
+      const width = 30 + (index % 3) * 12;
+      const height = 55 + (index % 4) * 18;
+      const x = (this.viewportWidth / 7) * index + 24;
+      context.fillRect(x, this.groundY - height - 12, width, height);
+      context.fillStyle = 'rgb(132 177 119 / 38%)';
+      context.fillRect(x - 4, this.groundY - height - 14, width + 8, 7);
+      context.fillStyle = 'rgb(94 133 122 / 28%)';
+    }
+
+    context.strokeStyle = 'rgb(113 83 67 / 28%)';
+    context.lineWidth = 2;
+    for (let index = 0; index < 9; index += 1) {
+      const x = 40 + index * (this.viewportWidth / 8);
+      context.beginPath();
+      context.moveTo(x, this.groundY + 18 + (index % 2) * 12);
+      context.lineTo(x + 16, this.groundY + 27 + (index % 3) * 7);
+      context.lineTo(x + 5, this.groundY + 39 + (index % 2) * 8);
+      context.stroke();
+    }
+
+    for (let index = 0; index < 18; index += 1) {
+      const x = 18 + index * (this.viewportWidth / 17);
+      const y = this.groundY + 76 + (index % 3) * 8;
+      context.fillStyle = index % 2 === 0 ? '#ff8fa3' : '#f2c14e';
+      context.beginPath();
+      context.arc(x, y, 3 + (index % 3), 0, Math.PI * 2);
+      context.fill();
+    }
   }
 
   private drawFrontline(position: number): void {
@@ -137,20 +202,22 @@ export class GameRenderer {
     context.setLineDash([]);
   }
 
-  private drawVehicle(
+  private drawCaravan(
     x: number,
     groundY: number,
-    color: string,
-    scale: number,
-    weaponId: WeaponId,
-    moduleCount: number,
-    faceLeft = false,
+    primaryWeaponId: WeaponId,
+    secondaryWeaponId: WeaponId,
+    moduleIds: ModuleId[],
+    overheated: boolean,
   ): void {
     const context = this.context;
-    const direction = faceLeft ? -1 : 1;
     context.save();
     context.translate(x, groundY);
-    context.scale(scale, scale);
+
+    if (overheated) {
+      context.shadowColor = '#ff5d5d';
+      context.shadowBlur = 18;
+    }
 
     context.fillStyle = '#2f3342';
     context.beginPath();
@@ -158,7 +225,7 @@ export class GameRenderer {
     context.arc(18, 0, 8, 0, Math.PI * 2);
     context.fill();
 
-    context.fillStyle = color;
+    context.fillStyle = '#ff8fa3';
     context.strokeStyle = '#303447';
     context.lineWidth = 3;
     context.beginPath();
@@ -170,6 +237,41 @@ export class GameRenderer {
     context.fill();
     context.stroke();
 
+    this.drawWeapon(primaryWeaponId, 5, -34, 1, 1);
+    this.drawWeapon(secondaryWeaponId, -8, -51, 0.7, 1);
+
+    const moduleColors: Record<ModuleId, string> = {
+      'cooling-fan': '#77e7ff',
+      generator: '#f2c14e',
+      'ammo-box': '#a78bfa',
+      armor: '#77839a',
+      'shield-generator': '#72d6c9',
+      radar: '#f4a261',
+      'heat-recycler': '#ff7a3d',
+      capacitor: '#c77dff',
+      'magnetic-armor': '#6c8cff',
+      'explosive-magazine': '#e45c78',
+    };
+    for (let index = 0; index < moduleIds.length; index += 1) {
+      context.fillStyle = moduleColors[moduleIds[index]!];
+      context.strokeStyle = '#303447';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.roundRect(-29 + index * 12, -35, 10, 11, 3);
+      context.fill();
+      context.stroke();
+    }
+    context.restore();
+  }
+
+  private drawWeapon(
+    weaponId: WeaponId,
+    x: number,
+    y: number,
+    scale: number,
+    direction: -1 | 1,
+  ): void {
+    const context = this.context;
     const barrelLength =
       weaponId === 'railgun'
         ? 52
@@ -178,18 +280,217 @@ export class GameRenderer {
           : weaponId === 'flamethrower'
             ? 28
             : 34;
+    context.save();
+    context.translate(x, y);
+    context.scale(scale, scale);
     context.strokeStyle = '#343849';
-    context.lineWidth = weaponId === 'scatter-cannon' ? 10 : 7;
+    context.lineWidth = weaponId === 'scatter-cannon' ? 11 : 7;
     context.beginPath();
-    context.moveTo(direction * 4, -39);
-    context.lineTo(direction * barrelLength, -39);
+    context.moveTo(0, 0);
+    context.lineTo(direction * barrelLength, 0);
     context.stroke();
-
-    for (let index = 0; index < moduleCount; index += 1) {
-      context.fillStyle = '#f2c14e';
-      context.fillRect(-26 + index * 11, -35, 8, 8);
-    }
+    context.fillStyle = PROJECTILE_COLORS[weaponId];
+    context.beginPath();
+    context.arc(0, 0, 6, 0, Math.PI * 2);
+    context.fill();
     context.restore();
+  }
+
+  private drawMonster(x: number, groundY: number, typeId: EnemyTypeId): void {
+    const context = this.context;
+    const scale =
+      typeId === 'kawaii-fortress' ? 2.3 : typeId === 'heavy' ? 1.35 : 1;
+    context.save();
+    context.translate(x, groundY);
+    context.scale(scale, scale);
+    context.fillStyle = ENEMY_COLORS[typeId];
+    context.strokeStyle = '#303447';
+    context.lineWidth = 3 / scale;
+
+    if (typeId === 'rusher') {
+      context.beginPath();
+      context.ellipse(0, -17, 28, 13, -0.12, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.beginPath();
+      context.moveTo(-22, -24);
+      context.lineTo(-39, -35);
+      context.lineTo(-28, -13);
+      context.fill();
+      context.stroke();
+    } else if (typeId === 'heavy' || typeId === 'kawaii-fortress') {
+      context.beginPath();
+      context.ellipse(0, -22, 30, 24, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.fillStyle = '#77839a';
+      for (const [rockX, rockY, radius] of [
+        [-14, -31, 9],
+        [4, -36, 11],
+        [18, -24, 8],
+      ] as const) {
+        context.beginPath();
+        context.arc(rockX, rockY, radius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+      }
+    } else if (typeId === 'artillery') {
+      context.beginPath();
+      context.ellipse(0, -17, 20, 18, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.fillStyle = '#a78bfa';
+      context.beginPath();
+      context.ellipse(0, -38, 24, 10, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    } else if (typeId === 'bomber') {
+      context.beginPath();
+      context.arc(0, -19, 19, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.fillStyle = '#f2c14e';
+      context.beginPath();
+      context.arc(0, -19, 7, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      context.beginPath();
+      context.ellipse(0, -15, 21, 17, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.fillStyle = '#91b96e';
+      context.beginPath();
+      context.arc(-7, -31, 8, 0, Math.PI * 2);
+      context.arc(7, -32, 7, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.fillStyle = '#fff9e8';
+    context.beginPath();
+    context.arc(-7, -18, 3.5, 0, Math.PI * 2);
+    context.arc(7, -18, 3.5, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#303447';
+    context.beginPath();
+    context.arc(-7, -18, 1.6, 0, Math.PI * 2);
+    context.arc(7, -18, 1.6, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+
+  private updateEffects(state: SimulationState, deltaSeconds: number): void {
+    if (state.tick !== this.lastProcessedTick) {
+      this.lastProcessedTick = state.tick;
+      for (const event of state.events) {
+        const targetPosition =
+          'targetId' in event
+            ? (state.enemies.find(({ id }) => id === event.targetId)
+                ?.position ?? this.knownEntityPositions.get(event.targetId))
+            : undefined;
+        if (event.type === 'weapon-fired') {
+          this.effects.push({
+            kind: 'muzzle',
+            worldPosition: state.player.position + 4,
+            ageSeconds: 0,
+            durationSeconds: 0.14,
+          });
+        } else if (
+          event.type === 'projectile-hit' &&
+          targetPosition !== undefined
+        ) {
+          this.effects.push({
+            kind:
+              event.weaponId === 'rocket-launcher' ||
+              event.weaponId === 'mine-launcher'
+                ? 'explosion'
+                : 'hit',
+            worldPosition: targetPosition,
+            ageSeconds: 0,
+            durationSeconds: 0.35,
+          });
+        } else if (event.type === 'enemy-killed') {
+          const position = this.knownEntityPositions.get(event.enemyId);
+          if (position !== undefined) {
+            this.effects.push({
+              kind: 'explosion',
+              worldPosition: position,
+              ageSeconds: 0,
+              durationSeconds: 0.45,
+            });
+          }
+        } else if (event.type === 'overheated') {
+          this.effects.push({
+            kind: 'smoke',
+            worldPosition: state.player.position,
+            ageSeconds: 0,
+            durationSeconds: 1.2,
+          });
+        }
+      }
+    }
+
+    this.effects = this.effects
+      .map((effect) => ({
+        ...effect,
+        ageSeconds: effect.ageSeconds + deltaSeconds,
+      }))
+      .filter((effect) => effect.ageSeconds < effect.durationSeconds);
+  }
+
+  private drawEffects(): void {
+    const context = this.context;
+    for (const effect of this.effects) {
+      const progress = effect.ageSeconds / effect.durationSeconds;
+      const x = this.worldToScreen(effect.worldPosition);
+      const y = this.groundY - 28;
+      context.save();
+      context.globalAlpha = 1 - progress;
+      if (effect.kind === 'muzzle' || effect.kind === 'hit') {
+        context.strokeStyle = effect.kind === 'muzzle' ? '#fff4a3' : '#ffffff';
+        context.lineWidth = 4;
+        const radius = 10 + progress * 20;
+        for (let index = 0; index < 8; index += 1) {
+          const angle = (Math.PI * 2 * index) / 8;
+          context.beginPath();
+          context.moveTo(
+            x + Math.cos(angle) * radius * 0.35,
+            y + Math.sin(angle) * radius * 0.35,
+          );
+          context.lineTo(
+            x + Math.cos(angle) * radius,
+            y + Math.sin(angle) * radius,
+          );
+          context.stroke();
+        }
+      } else if (effect.kind === 'explosion') {
+        const radius = 12 + progress * 35;
+        for (const [color, ratio] of [
+          ['#5a3d45', 1],
+          ['#ff7a3d', 0.78],
+          ['#f2c14e', 0.52],
+          ['#fff9cf', 0.25],
+        ] as const) {
+          context.fillStyle = color;
+          context.beginPath();
+          context.arc(x, y, radius * ratio, 0, Math.PI * 2);
+          context.fill();
+        }
+      } else {
+        context.fillStyle = '#596273';
+        for (let index = 0; index < 4; index += 1) {
+          context.beginPath();
+          context.arc(
+            x - 8 + index * 6,
+            y - progress * 45 - index * 5,
+            6 + progress * 6,
+            0,
+            Math.PI * 2,
+          );
+          context.fill();
+        }
+      }
+      context.restore();
+    }
   }
 
   private worldToScreen(position: number): number {
