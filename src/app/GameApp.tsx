@@ -349,6 +349,18 @@ function RewardPanel({
   moduleNames: string[];
   onChoose: (rewardId: string, weaponSlot?: WeaponSlot) => void;
 }) {
+  const [pendingWeapon, setPendingWeapon] = useState<
+    Extract<RewardChoice, { type: 'weapon' }> | undefined
+  >();
+
+  const beginEquip = (choice: RewardChoice) => {
+    if (choice.type === 'weapon') {
+      setPendingWeapon(choice);
+      return;
+    }
+    onChoose(choice.id);
+  };
+
   return (
     <section className="reward-panel" role="dialog" aria-modal="true">
       <header>
@@ -377,21 +389,47 @@ function RewardPanel({
             </div>
             <h2>{choice.displayName}</h2>
             <p>{choice.description}</p>
-            {choice.type === 'weapon' ? (
-              <div className="reward-actions">
-                <button onClick={() => onChoose(choice.id, 'primary')}>
-                  MAINへ
-                </button>
-                <button onClick={() => onChoose(choice.id, 'secondary')}>
-                  SUBへ
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => onChoose(choice.id)}>装着する</button>
-            )}
+            <button type="button" onClick={() => beginEquip(choice)}>
+              装備する
+            </button>
           </article>
         ))}
       </div>
+      {pendingWeapon && (
+        <section className="slot-picker" aria-label="武器の装着先を選択">
+          <div className="slot-picker-visual">
+            <EquipmentGlyph id={pendingWeapon.weaponId} />
+          </div>
+          <div className="slot-picker-copy">
+            <span>WEAPON SLOT</span>
+            <strong>{pendingWeapon.displayName}</strong>
+            <p>どちらの操作ボタンへ装着しますか？</p>
+          </div>
+          <div className="slot-picker-actions">
+            <button
+              type="button"
+              onClick={() => onChoose(pendingWeapon.id, 'primary')}
+            >
+              <small>主武器</small>
+              MAIN
+            </button>
+            <button
+              type="button"
+              onClick={() => onChoose(pendingWeapon.id, 'secondary')}
+            >
+              <small>副武器</small>
+              SUB
+            </button>
+          </div>
+          <button
+            className="slot-picker-cancel"
+            type="button"
+            onClick={() => setPendingWeapon(undefined)}
+          >
+            戻る
+          </button>
+        </section>
+      )}
     </section>
   );
 }

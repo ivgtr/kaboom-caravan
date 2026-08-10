@@ -78,19 +78,60 @@ for (const viewport of [
       expect(cardBox).not.toBeNull();
       expect(cardBox!.width / cardBox!.height).toBeCloseTo(2 / 3, 2);
       for (const content of [
+        card.locator('.reward-type'),
         card.locator('.equipment-visual'),
         card.locator('h2'),
         card.locator('p'),
-        card.locator('.reward-actions, :scope > button'),
+        card.locator(':scope > button'),
       ]) {
         await expectContained(content, cardBox!);
       }
+      const regions = await Promise.all(
+        [
+          card.locator('.reward-type'),
+          card.locator('.equipment-visual'),
+          card.locator('h2'),
+          card.locator('p'),
+          card.locator(':scope > button'),
+        ].map((region) => region.boundingBox()),
+      );
+      for (
+        let regionIndex = 0;
+        regionIndex < regions.length - 1;
+        regionIndex += 1
+      ) {
+        expect(overlap(regions[regionIndex]!, regions[regionIndex + 1]!)).toBe(
+          false,
+        );
+      }
     }
+    const weaponCard = cards.filter({ hasText: 'WEAPON' }).first();
+    await weaponCard.getByRole('button', { name: '装備する' }).click();
+    const slotPicker = rewards.getByLabel('武器の装着先を選択');
+    await expect(slotPicker).toBeVisible();
+    await expect(
+      slotPicker.getByRole('button', { name: /主武器 MAIN/ }),
+    ).toBeVisible();
+    await expect(
+      slotPicker.getByRole('button', { name: /副武器 SUB/ }),
+    ).toBeVisible();
+    if (process.env.CAPTURE_UI_REVIEW) {
+      await waitForAnimations(slotPicker);
+      await page.screenshot({
+        path: `artifacts/ui/review/reward_slot_${viewport.width}x${viewport.height}.png`,
+      });
+    }
+    await slotPicker.getByRole('button', { name: '戻る' }).click();
+    await expect(slotPicker).toHaveCount(0);
     if (process.env.CAPTURE_UI_REVIEW) {
       await page.screenshot({
         path: `artifacts/ui/review/reward_${viewport.width}x${viewport.height}.png`,
       });
     }
+    await weaponCard.getByRole('button', { name: '装備する' }).click();
+    await slotPicker.getByRole('button', { name: /主武器 MAIN/ }).click();
+    await expect(rewards).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
   });
 }
 
