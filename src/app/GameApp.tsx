@@ -427,12 +427,20 @@ function RewardPanel({
       const digitIndex = digitMatch ? Number(digitMatch[1]) - 1 : undefined;
 
       if (pendingWeapon) {
-        if (event.code === 'ArrowLeft' || digitIndex === 0) {
+        if (
+          event.code === 'ArrowLeft' ||
+          event.code === 'KeyA' ||
+          digitIndex === 0
+        ) {
           event.preventDefault();
           focusSlot('primary');
           return;
         }
-        if (event.code === 'ArrowRight' || digitIndex === 1) {
+        if (
+          event.code === 'ArrowRight' ||
+          event.code === 'KeyD' ||
+          digitIndex === 1
+        ) {
           event.preventDefault();
           focusSlot('secondary');
           return;
@@ -455,12 +463,12 @@ function RewardPanel({
         if (!event.repeat) beginEquip(choices[digitIndex]);
         return;
       }
-      if (event.code === 'ArrowLeft') {
+      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
         event.preventDefault();
         focusCard(selectedIndex - 1);
         return;
       }
-      if (event.code === 'ArrowRight') {
+      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
         event.preventDefault();
         focusCard(selectedIndex + 1);
         return;
@@ -492,7 +500,9 @@ function RewardPanel({
         <div>
           <span>SALVAGE TIME!</span>
           <strong>欲しい装備をひとつ選ぼう</strong>
-          <small className="reward-keyboard-hint">1・2・3 / ← → + SPACE</small>
+          <small className="reward-keyboard-hint">
+            A D / ← → + SPACE / 1・2・3
+          </small>
         </div>
         <b>MODULE {moduleNames.length}/4</b>
       </header>

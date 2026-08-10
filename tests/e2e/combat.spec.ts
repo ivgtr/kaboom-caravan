@@ -349,9 +349,9 @@ for (const viewport of [
     await expect(slotPicker).toHaveCount(0);
     await expect(weaponCard).toHaveClass(/selected/);
     const nextIndex = (weaponIndex + 1) % 3;
-    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('KeyD');
     await expect(cards.nth(nextIndex)).toHaveClass(/selected/);
-    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('KeyA');
     await expect(weaponCard).toHaveClass(/selected/);
     if (process.env.CAPTURE_UI_REVIEW) {
       await page.screenshot({
