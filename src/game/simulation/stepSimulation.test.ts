@@ -146,6 +146,7 @@ describe('stepSimulation', () => {
     expect(result.events).toContainEqual({
       type: 'enemy-killed',
       enemyId: 'enemy-1',
+      enemyTypeId: 'basic',
     });
   });
 

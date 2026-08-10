@@ -196,6 +196,46 @@ for (const viewport of [
   });
 }
 
+for (const viewport of [
+  { width: 1184, height: 689 },
+  { width: 844, height: 390 },
+]) {
+  test(`previews contact and death VFX at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    for (const preview of [
+      'basic',
+      'rusher',
+      'heavy',
+      'bomber',
+      'normal',
+      'boss',
+    ] as const) {
+      await page.goto(`/?debug=1&deathVfx=${preview}`);
+      await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+      await page.evaluate(async () => {
+        const image = new Image();
+        const loaded = new Promise<void>((resolve, reject) => {
+          image.addEventListener('load', () => resolve(), { once: true });
+          image.addEventListener(
+            'error',
+            () => reject(new Error('enemy death VFX asset failed to load')),
+            { once: true },
+          );
+        });
+        image.src = '/assets/vfx/vfx_enemy_death_pair_v001.png';
+        await loaded;
+      });
+      if (process.env.CAPTURE_DEATH_VFX_REVIEW) {
+        await page.screenshot({
+          path: `artifacts/vfx/review/enemy_${preview}_${viewport.width}x${viewport.height}_v001.png`,
+        });
+      }
+    }
+  });
+}
+
 test('shows a recoverable message when Canvas 2D is unavailable', async ({
   page,
 }) => {

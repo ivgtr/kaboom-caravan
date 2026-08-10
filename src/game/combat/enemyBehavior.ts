@@ -196,6 +196,12 @@ export function stepEnemyBehaviors(
     if (windupRemaining === 0) {
       const damage = resolveDamage(enemy.contactDamage, playerArmor);
       hitPoints = Math.max(0, hitPoints - damage);
+      events.push({
+        type: 'enemy-contact-released',
+        enemyId: enemy.id,
+        enemyTypeId: enemy.typeId,
+        contactPosition: playerPosition + playerRadius,
+      });
       events.push({ type: 'enemy-attacked', enemyId: enemy.id });
       events.push({ type: 'vehicle-hit', sourceId: enemy.id, damage });
       if (enemy.behaviorId === 'suicideRush') continue;

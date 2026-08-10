@@ -534,7 +534,11 @@ export function stepSimulation(
 
   const killedEnemies = enemies.filter((enemy) => enemy.hitPoints <= 0);
   for (const enemy of killedEnemies) {
-    events.push({ type: 'enemy-killed', enemyId: enemy.id });
+    events.push({
+      type: 'enemy-killed',
+      enemyId: enemy.id,
+      enemyTypeId: enemy.typeId,
+    });
   }
   enemies = enemies.filter((enemy) => enemy.hitPoints > 0);
 

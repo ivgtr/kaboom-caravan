@@ -168,6 +168,17 @@ describe('enemy definitions and behaviors', () => {
 
     expect(result.enemies).toHaveLength(0);
     expect(result.playerHitPoints).toBe(71);
+    expect(result.events.map(({ type }) => type)).toEqual([
+      'enemy-contact-released',
+      'enemy-attacked',
+      'vehicle-hit',
+    ]);
+    expect(result.events[0]).toEqual({
+      type: 'enemy-contact-released',
+      enemyId: 'bomber-1',
+      enemyTypeId: 'bomber',
+      contactPosition: 12.5,
+    });
   });
 });
 

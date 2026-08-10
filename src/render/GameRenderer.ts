@@ -24,6 +24,7 @@ import {
   getBossPhaseAuraSource,
   type BossPhase,
 } from './bossPhaseAssets';
+import { ENEMY_DEATH_VFX_ART, getEnemyDeathVfxSource } from './deathVfxAssets';
 import { ENEMY_VFX_ART, getEnemyVfxSource } from './enemyVfxAssets';
 import {
   getVfxSource,
@@ -57,13 +58,22 @@ const PROJECTILE_COLORS: Record<WeaponId, string> = {
 };
 
 interface VisualEffect {
-  kind: 'muzzle' | 'hit' | 'explosion' | 'smoke';
+  kind:
+    | 'muzzle'
+    | 'hit'
+    | 'explosion'
+    | 'smoke'
+    | 'contact'
+    | 'death'
+    | 'boss-death'
+    | 'bomber-burst';
   worldPosition: number;
   ageSeconds: number;
   durationSeconds: number;
   weaponId?: WeaponId;
   vfxFamily?: VfxFamily;
   enemyVisualId?: EnemyProjectileVisualId;
+  enemyTypeId?: EnemyTypeId;
 }
 
 interface CharacterMotionRuntime {
@@ -81,6 +91,9 @@ interface ExhaustPuff {
   ageSeconds: number;
   durationSeconds: number;
 }
+
+type DeathVfxPreview =
+  'normal' | 'boss' | 'bomber' | 'basic' | 'rusher' | 'heavy';
 
 const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
   travelDistance: 0,
@@ -112,6 +125,7 @@ export class GameRenderer {
     new URLSearchParams(window.location.search).get('debug') === 'motion';
   private readonly bossPreviewPhase = this.readBossPreviewPhase();
   private readonly enemyVfxPreview = this.readEnemyVfxPreview();
+  private readonly deathVfxPreview = this.readDeathVfxPreview();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -126,6 +140,7 @@ export class GameRenderer {
       ...Object.values(MODULE_ART),
       ...Object.values(VFX_ART).map(({ source }) => source),
       ...Object.values(ENEMY_VFX_ART).map(({ source }) => source),
+      ENEMY_DEATH_VFX_ART.source,
       BOSS_PHASE_AURA_ART.source,
     ]);
     this.resizeObserver = new ResizeObserver(this.resize);
@@ -176,6 +191,10 @@ export class GameRenderer {
 
     if (this.enemyVfxPreview !== undefined) {
       this.drawEnemyVfxPreview(this.enemyVfxPreview);
+    }
+
+    if (this.deathVfxPreview !== undefined) {
+      this.drawDeathVfxPreview(this.deathVfxPreview);
     }
 
     for (const projectile of state.enemyProjectiles) {
@@ -444,6 +463,10 @@ export class GameRenderer {
       const runtime = this.enemyMotions.get(enemy.id);
       const pose = this.selectEnemyPose(enemy, runtime);
       const hitOffset = runtime ? this.hitOffset(runtime, 1) : 0;
+      context.save();
+      if (runtime && runtime.hitAgeSeconds < 0.1) {
+        context.filter = 'brightness(1.75) saturate(0.55)';
+      }
       this.drawMotionFrame(
         monster,
         pose,
@@ -451,6 +474,7 @@ export class GameRenderer {
         groundY - size * motionAsset.groundAnchor,
         size,
       );
+      context.restore();
       if (typeId === 'kawaii-fortress') {
         this.drawBossPhaseAura(
           x + hitOffset,
@@ -959,14 +983,28 @@ export class GameRenderer {
             durationSeconds: 0.35,
             weaponId: event.weaponId,
           });
+        } else if (event.type === 'enemy-contact-released') {
+          this.emitEffect({
+            kind: event.enemyTypeId === 'bomber' ? 'bomber-burst' : 'contact',
+            worldPosition: event.contactPosition,
+            ageSeconds: 0,
+            durationSeconds: event.enemyTypeId === 'bomber' ? 0.5 : 0.28,
+            vfxFamily: event.enemyTypeId === 'bomber' ? 'explosive' : undefined,
+            enemyTypeId: event.enemyTypeId,
+          });
         } else if (event.type === 'enemy-killed') {
           const position = this.knownEntityPositions.get(event.enemyId);
           if (position !== undefined) {
             this.emitEffect({
-              kind: 'explosion',
+              kind:
+                event.enemyTypeId === 'kawaii-fortress'
+                  ? 'boss-death'
+                  : 'death',
               worldPosition: position,
               ageSeconds: 0,
-              durationSeconds: 0.45,
+              durationSeconds:
+                event.enemyTypeId === 'kawaii-fortress' ? 1.05 : 0.42,
+              enemyTypeId: event.enemyTypeId,
             });
           }
         } else if (event.type === 'enemy-projectile-hit') {
@@ -1029,6 +1067,19 @@ export class GameRenderer {
         continue;
       }
 
+      if (effect.kind === 'contact' && effect.enemyTypeId) {
+        this.drawContactVfx(effect.enemyTypeId, x, y, progress);
+        continue;
+      }
+
+      if (
+        (effect.kind === 'death' || effect.kind === 'boss-death') &&
+        effect.enemyTypeId
+      ) {
+        this.drawEnemyDeathVfx(effect.enemyTypeId, x, progress);
+        continue;
+      }
+
       const family =
         effect.vfxFamily ??
         (effect.weaponId ? WEAPON_VFX_FAMILY[effect.weaponId] : 'explosive');
@@ -1050,6 +1101,203 @@ export class GameRenderer {
       }
       this.drawVfxParticles(effect, family, x, y, progress);
     }
+  }
+
+  private drawContactVfx(
+    enemyTypeId: EnemyTypeId,
+    x: number,
+    y: number,
+    progress: number,
+  ): void {
+    const context = this.context;
+    const fade = Math.max(0, 1 - progress);
+    const spread = 18 + progress * 40;
+    const contactY =
+      enemyTypeId === 'rusher' ? y - 9 : enemyTypeId === 'heavy' ? y + 6 : y;
+    context.save();
+    context.globalAlpha = fade;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#263249';
+    context.fillStyle =
+      enemyTypeId === 'rusher'
+        ? '#ff8b72'
+        : enemyTypeId === 'heavy'
+          ? '#ffe08a'
+          : '#8ee3c1';
+    context.lineWidth = 3.5;
+
+    if (enemyTypeId === 'rusher') {
+      context.beginPath();
+      context.moveTo(x + spread * 0.65, contactY - spread * 0.45);
+      context.lineTo(x - spread * 0.25, contactY);
+      context.lineTo(x + spread * 0.65, contactY + spread * 0.45);
+      context.lineTo(x + spread * 0.2, contactY);
+      context.closePath();
+      context.fill();
+      context.stroke();
+    } else if (enemyTypeId === 'heavy') {
+      context.beginPath();
+      context.ellipse(
+        x,
+        contactY,
+        spread * 0.8,
+        spread * 0.34,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+      context.stroke();
+      context.beginPath();
+      context.arc(x, contactY, spread * 1.25, Math.PI * 1.12, Math.PI * 1.88);
+      context.stroke();
+    } else {
+      context.beginPath();
+      context.arc(x, contactY, spread * 0.62, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      for (const direction of [-1, 1]) {
+        context.beginPath();
+        context.moveTo(x + direction * spread * 0.85, contactY - spread * 0.42);
+        context.lineTo(x + direction * spread * 1.18, contactY - spread * 0.72);
+        context.stroke();
+      }
+    }
+    context.restore();
+  }
+
+  private drawEnemyDeathVfx(
+    enemyTypeId: EnemyTypeId,
+    x: number,
+    progress: number,
+  ): void {
+    const isBoss = enemyTypeId === 'kawaii-fortress';
+    const asset = ENEMY_MOTION_ART[enemyTypeId];
+    const image = this.assets.get(asset.source);
+    const relativeSize: Record<EnemyTypeId, number> = {
+      basic: 0.14,
+      rusher: 0.17,
+      heavy: 0.2,
+      artillery: 0.2,
+      bomber: 0.14,
+      'kawaii-fortress': 0.4,
+    };
+    const size =
+      Math.min(
+        isBoss ? 360 : 150,
+        Math.max(
+          isBoss ? 180 : 62,
+          this.viewportHeight * relativeSize[enemyTypeId],
+        ),
+      ) * asset.displayScale;
+    const bodyEnd = isBoss ? 0.44 : 0.38;
+
+    if (image && progress < bodyEnd) {
+      const bodyProgress = progress / bodyEnd;
+      const squash = isBoss ? 1 - bodyProgress * 0.12 : 1 - bodyProgress * 0.42;
+      const widen = isBoss ? 1 + bodyProgress * 0.04 : 1 + bodyProgress * 0.18;
+      const context = this.context;
+      context.save();
+      context.translate(x, this.groundY);
+      context.scale(widen, squash);
+      context.globalAlpha = Math.max(0, 1 - bodyProgress);
+      context.filter = `brightness(${1 + bodyProgress * 0.7}) saturate(${1 - bodyProgress * 0.45})`;
+      this.drawMotionFrame(
+        image,
+        'idle',
+        -size * 0.5,
+        -size * asset.groundAnchor,
+        size,
+      );
+      context.restore();
+    }
+
+    if (isBoss) {
+      this.drawBossDeathSequence(x, size, progress);
+      return;
+    }
+    this.drawDeathPairCell(
+      'puff',
+      x,
+      this.groundY - size * 0.35,
+      Math.min(1, progress / 0.82),
+      Math.min(150, Math.max(82, size * 1.2)),
+    );
+  }
+
+  private drawBossDeathSequence(
+    x: number,
+    bossSize: number,
+    progress: number,
+  ): void {
+    const coreX = x - bossSize * 0.2;
+    const coreY = this.groundY - bossSize * 0.42;
+    if (progress < 0.58) {
+      this.drawDeathPairCell(
+        'boss-core',
+        coreX,
+        coreY,
+        progress / 0.58,
+        Math.min(220, Math.max(128, bossSize * 0.62)),
+      );
+    }
+    if (progress >= 0.32) {
+      const blastProgress = Math.min(1, (progress - 0.32) / 0.68);
+      this.drawGeneratedVfx('explosive', 'impact', coreX, coreY, blastProgress);
+      const context = this.context;
+      context.save();
+      context.globalAlpha = Math.max(0, 0.7 * (1 - blastProgress));
+      context.strokeStyle = '#76e8ef';
+      context.lineWidth = Math.max(3, bossSize * 0.018);
+      context.beginPath();
+      context.arc(
+        coreX,
+        coreY,
+        bossSize * (0.18 + blastProgress * 0.42),
+        0,
+        Math.PI * 2,
+      );
+      context.stroke();
+      context.restore();
+    }
+  }
+
+  private drawDeathPairCell(
+    pose: 'puff' | 'boss-core',
+    x: number,
+    y: number,
+    progress: number,
+    baseSize: number,
+  ): boolean {
+    const image = this.assets.get(ENEMY_DEATH_VFX_ART.source);
+    if (!image) return false;
+    const [sourceX, sourceY, sourceWidth, sourceHeight] =
+      getEnemyDeathVfxSource(image.naturalWidth, image.naturalHeight, pose);
+    const scale =
+      pose === 'puff'
+        ? ENEMY_DEATH_VFX_ART.puffScale
+        : ENEMY_DEATH_VFX_ART.bossCoreScale;
+    const size =
+      baseSize * scale * (0.72 + Math.sin(progress * Math.PI) * 0.34);
+    const context = this.context;
+    context.save();
+    context.globalAlpha = Math.min(1, (1 - progress) * 1.8);
+    context.shadowColor = pose === 'puff' ? '#9de7bd' : '#68e8ef';
+    context.shadowBlur = Math.max(5, size * 0.06);
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      x - size / 2,
+      y - size / 2,
+      size,
+      size,
+    );
+    context.restore();
+    return true;
   }
 
   private drawGeneratedVfx(
@@ -1208,6 +1456,7 @@ export class GameRenderer {
       recycled.weaponId = effect.weaponId;
       recycled.vfxFamily = effect.vfxFamily;
       recycled.enemyVisualId = effect.enemyVisualId;
+      recycled.enemyTypeId = effect.enemyTypeId;
       this.effects.push(recycled);
     } else {
       this.effects.push(effect);
@@ -1452,6 +1701,36 @@ export class GameRenderer {
       this.groundY - Math.max(44, this.viewportHeight * 0.09),
       0.35,
     );
+  }
+
+  private readDeathVfxPreview(): DeathVfxPreview | undefined {
+    const preview = new URLSearchParams(window.location.search).get('deathVfx');
+    return preview === 'normal' ||
+      preview === 'boss' ||
+      preview === 'bomber' ||
+      preview === 'basic' ||
+      preview === 'rusher' ||
+      preview === 'heavy'
+      ? preview
+      : undefined;
+  }
+
+  private drawDeathVfxPreview(preview: DeathVfxPreview): void {
+    const x = this.viewportWidth * 0.72;
+    const y = this.groundY - Math.max(44, this.viewportHeight * 0.09);
+    if (preview === 'normal') {
+      this.drawEnemyDeathVfx('basic', x, 0.42);
+    } else if (preview === 'boss') {
+      this.drawBossDeathSequence(
+        x,
+        Math.min(360, Math.max(180, this.viewportHeight * 0.4)),
+        0.42,
+      );
+    } else if (preview === 'bomber') {
+      this.drawGeneratedVfx('explosive', 'impact', x, y, 0.3);
+    } else {
+      this.drawContactVfx(preview, x, y, 0.28);
+    }
   }
 
   private drawEquipmentSprite(

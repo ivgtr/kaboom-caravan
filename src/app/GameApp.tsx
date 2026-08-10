@@ -532,6 +532,8 @@ function describeCombatEvent(event: CombatEvent): string {
       return 'EMERGENCY ESCAPE!';
     case 'enemy-attack-windup':
       return 'WATCH OUT!';
+    case 'enemy-contact-released':
+      return 'IMPACT!';
     case 'enemy-attacked':
       return 'INCOMING!';
     case 'enemy-projectile-fired':

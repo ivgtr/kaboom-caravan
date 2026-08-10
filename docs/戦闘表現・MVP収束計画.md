@@ -173,7 +173,7 @@ Status: Completed
 
 ### C. Melee／Hit／Death
 
-Status: Pending
+Status: Completed
 
 1. 近接敵は接触前にReleaseへ入らず、接触Tickで攻撃を開始
 2. Rusherは角、Heavyは甲羅、Basicは体当たりのContact Pointを分ける
@@ -184,6 +184,18 @@ Status: Pending
 7. Boss Deathは通常PuffではなくCore停止→大型爆発→Fadeとする
 
 完了条件：Hitした対象、攻撃方向、Enemy消滅理由を100ms以内に判別できる。
+
+実装結果：
+
+- 接触後のEvent順序を`enemy-contact-released → enemy-attacked → vehicle-hit`へ固定
+- Contact PositionをSimulation Eventへ保持し、描画側の推測座標を廃止
+- BasicはBody Ring、RusherはHorn Chevron、HeavyはShell Arcで接触Silhouetteを分離
+- Player／Enemyへ100〜120msのFlashと逆方向Offsetを適用
+- 通常Deathを本体Squash／Fadeから生成Puffへつなぐ0.42秒のSequenceとして実装
+- Bomberは接触Release後に本体を消し、既存Explosive ImpactをDamage Eventへ同期
+- Boss Deathは本体Fade、Core停止、Explosive Impact、拡張Ringを1.05秒で再生
+- 1184×689と844×390で接触3種、Bomber、通常Death、Boss Deathを比較確認
+- Prompt、Master、Runtime、Review画像、採否をVFX Registryへ記録
 
 ### D. Quality／Performance
 

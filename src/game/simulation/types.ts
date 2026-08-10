@@ -133,12 +133,22 @@ export type CombatEvent =
       weaponId: WeaponId;
       damage: number;
     }
-  | { type: 'enemy-killed'; enemyId: EntityId }
+  | {
+      type: 'enemy-killed';
+      enemyId: EntityId;
+      enemyTypeId: EnemyTypeId;
+    }
   | { type: 'vehicle-hit'; sourceId: EntityId; damage: number }
   | { type: 'overheated' }
   | { type: 'cooled' }
   | { type: 'skill-activated'; skillId: 'emergency-boost' }
   | { type: 'enemy-attack-windup'; enemyId: EntityId }
+  | {
+      type: 'enemy-contact-released';
+      enemyId: EntityId;
+      enemyTypeId: EnemyTypeId;
+      contactPosition: number;
+    }
   | { type: 'enemy-attacked'; enemyId: EntityId }
   | {
       type: 'enemy-projectile-fired';
