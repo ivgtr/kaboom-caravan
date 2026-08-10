@@ -136,7 +136,6 @@ export class GameRenderer {
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
     this.drawEnvironment();
-    this.drawFrontline(snapshot.frontlinePosition);
     this.drawExhaustPuffs();
 
     const playerX = this.worldToScreen(
@@ -252,50 +251,6 @@ export class GameRenderer {
       context.fill();
       context.restore();
     }
-  }
-
-  private drawFrontline(position: number): void {
-    const context = this.context;
-    const x = this.worldToScreen(position);
-
-    context.save();
-    context.translate(x, this.groundY + 4);
-    context.rotate(-0.06);
-
-    // A worn curved paint mark keeps the boundary readable on the road without
-    // cutting through the illustrated world as a vertical HUD line.
-    context.lineCap = 'round';
-    context.strokeStyle = 'rgba(92, 73, 62, 0.28)';
-    context.lineWidth = 8;
-    context.beginPath();
-    context.moveTo(-17, 9);
-    context.quadraticCurveTo(0, 0, 18, 7);
-    context.stroke();
-    context.strokeStyle = 'rgba(238, 204, 137, 0.82)';
-    context.lineWidth = 4;
-    context.stroke();
-
-    // A short garage-style checkpoint pennant makes the exact world position
-    // legible while remaining a physical object that vehicles can occlude.
-    context.strokeStyle = '#3d4a59';
-    context.lineWidth = 3;
-    context.beginPath();
-    context.moveTo(0, 7);
-    context.lineTo(-2, -28);
-    context.stroke();
-    context.fillStyle = '#e87862';
-    context.beginPath();
-    context.moveTo(-2, -29);
-    context.quadraticCurveTo(8, -31, 16, -25);
-    context.quadraticCurveTo(8, -20, -1, -18);
-    context.closePath();
-    context.fill();
-    context.stroke();
-    context.fillStyle = '#f4d37e';
-    context.beginPath();
-    context.arc(-2, -28, 2.4, 0, Math.PI * 2);
-    context.fill();
-    context.restore();
   }
 
   private drawCaravan(

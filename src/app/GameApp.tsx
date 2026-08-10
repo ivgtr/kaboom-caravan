@@ -208,8 +208,7 @@ export function GameApp() {
               </div>
               <b>{Math.ceil(hud.hitPoints)}</b>
             </section>
-            <section className="route-hud" aria-label="前線進行">
-              <span>SAFE</span>
+            <section className="run-hud" aria-label="戦闘進行">
               <div className="battle-progress">
                 {MVP_ENCOUNTERS.map((encounter, index) => (
                   <i
@@ -224,10 +223,9 @@ export function GameApp() {
                   />
                 ))}
               </div>
-              <span>DANGER</span>
               <b>
-                BATTLE {sessionView.encounterIndex + 1}/10 · ×
-                {hud.rewardMultiplier.toFixed(1)}
+                <span>BATTLE {sessionView.encounterIndex + 1}/10</span>
+                <em>SALVAGE ×{hud.rewardMultiplier.toFixed(1)}</em>
               </b>
             </section>
             <section className="enemy-chip">

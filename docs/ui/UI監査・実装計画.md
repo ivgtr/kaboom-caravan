@@ -76,7 +76,7 @@
 ## 4. 新規UI
 
 - 左上のCompact HP Garage Gauge
-- 上中央のField-integrated Frontline / 10 Battle Strip
+- 上中央の10 Battle Run Progress Strip
 - 小型Enemy Count Sticker
 - 左下のForward / Back Touch Controls
 - 右下のMain / Sub / Escape Control Cluster
@@ -143,3 +143,16 @@
 - 844×390ではHorizontal Snap Carousel、Desktopでは3列表示
 - Gameplay Logicは維持し、変更はPresentation / Input / Testへ限定
 - ボタン位置などの細部UI調整はユーザー確認後に別途FIXする
+
+## 9. Combat UI責務の再整理
+
+- Game World: Player、Enemy、Projectile、地形と低彩度Risk Zoneを表示する
+- 左上: Caravan HPだけを表示する
+- 上中央: 空間上のFrontlineではなく、10戦のRun進行とSalvage倍率を表示する
+- 右上: 現在のEnemy Countだけを表示する
+- 左下: 前進／後退操作だけを表示する
+- 右下: Main／Sub／Escapeと、それぞれに直接関係する状態だけを表示する
+- Combat Feedback: Wave開始やHitなど短時間のEventだけを通知する
+
+Frontlineの正確な座標は内部ルールとして維持するが、旗、縦線、Paintで常時表示しない。
+危険度は道路へ溶け込む色味と敵との実際の距離で伝える。

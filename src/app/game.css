@@ -66,7 +66,7 @@ button {
   cursor: pointer;
 }
 .compact-hud,
-.route-hud,
+.run-hud,
 .enemy-chip {
   position: absolute;
   z-index: 3;
@@ -107,13 +107,11 @@ button {
   background: #f1d7c4;
   accent-color: #5fd2bd;
 }
-.route-hud {
+.run-hud {
   top: 10px;
   left: 50%;
   display: grid;
-  grid-template-columns: auto minmax(150px, 320px) auto;
-  align-items: center;
-  gap: 7px;
+  gap: 3px;
   width: min(470px, 40vw);
   padding: 7px 14px 9px;
   border: 3px solid #263249;
@@ -122,16 +120,16 @@ button {
   transform: translateX(-50%);
   text-align: center;
 }
-.route-hud > span {
-  color: #647189;
-  font-size: 8px;
-  font-weight: 1000;
-}
-.route-hud > b {
-  grid-column: 1/-1;
-  margin-top: -3px;
+.run-hud > b {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
   font-size: 10px;
   letter-spacing: 0.08em;
+}
+.run-hud > b em {
+  color: #db5e68;
+  font-style: normal;
 }
 .battle-progress {
   display: grid;
@@ -737,7 +735,7 @@ button {
     grid-template-columns: 28px 1fr 30px;
     padding: 8px 16px;
   }
-  .route-hud {
+  .run-hud {
     width: 38vw;
   }
   .combat-feedback {
@@ -794,18 +792,12 @@ button {
   .compact-hud progress {
     height: 9px;
   }
-  .route-hud {
+  .run-hud {
     top: 5px;
     width: 42vw;
     padding: 4px 8px 5px;
   }
-  .route-hud > span {
-    display: none;
-  }
-  .route-hud {
-    grid-template-columns: 1fr;
-  }
-  .route-hud b {
+  .run-hud b {
     font-size: 8px;
   }
   .enemy-chip {

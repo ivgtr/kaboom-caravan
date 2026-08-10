@@ -10,7 +10,6 @@ export interface PresentationEntitySnapshot {
 
 export interface PresentationSnapshot {
   tick: number;
-  frontlinePosition: number;
   player: PresentationEntitySnapshot;
   enemies: PresentationEntitySnapshot[];
   projectiles: PresentationEntitySnapshot[];
@@ -21,7 +20,6 @@ export function createPresentationSnapshot(
 ): PresentationSnapshot {
   return {
     tick: state.tick,
-    frontlinePosition: state.frontline.position,
     player: {
       id: state.player.id,
       previousPosition: state.player.previousPosition,

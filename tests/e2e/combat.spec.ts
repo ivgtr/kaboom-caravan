@@ -10,6 +10,11 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   const main = page.getByRole('button', { name: '主武器' });
 
   await expect(health).toContainText('100');
+  const progress = page.getByRole('region', { name: '戦闘進行' });
+  await expect(progress).toContainText('BATTLE 1/10');
+  await expect(progress).toContainText('SALVAGE ×1.0');
+  await expect(progress).not.toContainText('SAFE');
+  await expect(progress).not.toContainText('DANGER');
   await expect(main).toContainText('30');
   await expect(debug).toContainText('position 10.0');
 
@@ -290,7 +295,7 @@ for (const viewport of [
     await expect(controls.main).toBeVisible();
     if (process.env.CAPTURE_WORLD_REVIEW && viewport.width === 844) {
       await page.screenshot({
-        path: 'artifacts/world/review/road_frontline_844x390_v001.png',
+        path: 'artifacts/world/review/road_risk_zones_844x390_v002.png',
       });
     }
 

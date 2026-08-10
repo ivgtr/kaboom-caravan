@@ -16,7 +16,7 @@ MVPのPresentationに3Dモデルを使用しない。背景、地面、植生、
 1. 遠景Background
 2. 中景Ruins / Hills
 3. Road / Ground
-4. Risk ZoneとFrontline表示
+4. 道路へ溶け込むRisk Zone表現
 5. Player / Enemy Vehicle Base
 6. WeaponとModule Attachment
 7. Projectile / Muzzle Flash / Hit / Explosion / Smoke
@@ -34,13 +34,14 @@ Simulationは描画方式を知らず、Presentation SnapshotとCombat Eventだ�
 - 車体、武器、ModuleはAttachment Point相当の2D Anchor座標で合成する
 - Risk Zoneは矩形の色面で区切らず、低彩度の楕円状Dust Washを重ね、
   Radial Gradientで境界を道路へ溶かす
-- Frontlineは画面を縦断する点線を使わず、短いCheckpoint Pennantと
-  接地した曲線Paintで正確な位置を示す
+- Frontlineの正確な境界を旗、線、Paintで常時表示しない
+- 道路は低彩度のRisk Zoneだけを残し、上中央HUDは空間境界ではなく
+  10戦のRun進行として明確に分離する
 - 通常Animationは位置、回転、Scale、反動、点滅、Sprite Sheetで表現する
 - 複雑なBone Animationと3D物理はMVP対象外とする
 
 Runtime review:
-`artifacts/world/review/road_frontline_1440x900_v001.png`
+`artifacts/world/review/road_risk_zones_844x390_v002.png`
 
 ## 理由
 
