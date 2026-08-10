@@ -8,6 +8,9 @@ import {
 } from '../build/derivedStats';
 import { runBuildTriggers } from '../build/triggers';
 import type { TriggerSignal } from '../build/types';
+import { createEnemy } from '../combat/createEnemy';
+import { stepEnemyBehaviors } from '../combat/enemyBehavior';
+import { ENEMY_DEFINITIONS } from '../data/enemyDefinitions';
 import { segmentIntersectsCircle1d } from './collision';
 import { resolveDamage } from './damage';
 import {
@@ -22,12 +25,12 @@ import type {
   ProjectileState,
   SimulationState,
 } from './types';
+import { advanceWave, completeWaveIfCleared } from '../wave/waveSystem';
 
 const PLAYER_MIN_POSITION = 0;
 const PLAYER_MAX_POSITION = 80;
 const OVERHEAT_THRESHOLD = 100;
 const OVERHEAT_RECOVERY_THRESHOLD = 60;
-const ENEMY_CONTACT_COOLDOWN_SECONDS = 1;
 const FRONTLINE_PUSH_PER_KILL = 4;
 const FRONTLINE_RETREAT_PER_ENEMY_PER_SECOND = 2.5;
 const FRONTLINE_PRESSURE_RANGE = 35;
@@ -39,26 +42,6 @@ const EMERGENCY_BOOST_COOLDOWN_SECONDS = 6;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
-}
-
-function moveEnemies(
-  enemies: EnemyState[],
-  playerPosition: number,
-  playerRadius: number,
-  deltaSeconds: number,
-): EnemyState[] {
-  return enemies.map((enemy) => {
-    const contactPosition = playerPosition + playerRadius + enemy.radius;
-    return {
-      ...enemy,
-      previousPosition: enemy.position,
-      position: Math.max(
-        contactPosition,
-        enemy.position - enemy.speed * deltaSeconds,
-      ),
-      contactCooldown: Math.max(0, enemy.contactCooldown - deltaSeconds),
-    };
-  });
 }
 
 function createProjectile(
@@ -245,14 +228,30 @@ export function stepSimulation(
     state.player.heat - playerStats.coolingPerSecond * deltaSeconds,
   );
   let overheated = state.player.overheated;
-  let enemies = moveEnemies(
-    state.enemies,
-    playerPosition,
-    state.player.radius,
-    deltaSeconds,
-  );
+  let enemies = state.enemies;
   let projectiles = state.projectiles;
   let nextEntitySequence = state.nextEntitySequence;
+  let wave = state.wave;
+
+  if (wave) {
+    const waveResult = advanceWave(wave, deltaSeconds, nextEntitySequence);
+    wave = waveResult.wave;
+    enemies = [...enemies, ...waveResult.spawnedEnemies];
+    nextEntitySequence = waveResult.nextEntitySequence;
+    events.push(...waveResult.events);
+  }
+
+  const behaviorResult = stepEnemyBehaviors(
+    enemies,
+    playerPosition,
+    state.player.radius,
+    playerStats.armor,
+    playerHitPoints,
+    deltaSeconds,
+  );
+  enemies = behaviorResult.enemies;
+  playerHitPoints = behaviorResult.playerHitPoints;
+  events.push(...behaviorResult.events);
 
   if (overheated && heat <= OVERHEAT_RECOVERY_THRESHOLD) {
     overheated = false;
@@ -332,22 +331,48 @@ export function stepSimulation(
   projectiles = projectileResult.projectiles;
   events.push(...projectileResult.events);
 
-  enemies = enemies.map((enemy) => {
-    const isTouchingPlayer =
-      enemy.position <= playerPosition + state.player.radius + enemy.radius;
-    if (!isTouchingPlayer || enemy.contactCooldown > 0) return enemy;
-
-    const damage = resolveDamage(enemy.contactDamage, playerStats.armor);
-    playerHitPoints = Math.max(0, playerHitPoints - damage);
-    events.push({ type: 'vehicle-hit', sourceId: enemy.id, damage });
-    return { ...enemy, contactCooldown: ENEMY_CONTACT_COOLDOWN_SECONDS };
-  });
-
   const killedEnemies = enemies.filter((enemy) => enemy.hitPoints <= 0);
   for (const enemy of killedEnemies) {
     events.push({ type: 'enemy-killed', enemyId: enemy.id });
   }
   enemies = enemies.filter((enemy) => enemy.hitPoints > 0);
+
+  const reinforcements: EnemyState[] = [];
+  enemies = enemies.map((enemy) => {
+    if (enemy.typeId !== 'kawaii-fortress' || !enemy.bossPhase) return enemy;
+    const maximumHitPoints = ENEMY_DEFINITIONS['kawaii-fortress'].hitPoints;
+    const nextPhase: 1 | 2 | 3 =
+      enemy.hitPoints <= maximumHitPoints * 0.33
+        ? 3
+        : enemy.hitPoints <= maximumHitPoints * 0.66
+          ? 2
+          : 1;
+    if (nextPhase <= enemy.bossPhase) return enemy;
+    if (nextPhase === 2) {
+      reinforcements.push(
+        createEnemy('basic', `enemy-${nextEntitySequence}`, enemy.position + 7),
+        createEnemy(
+          'rusher',
+          `enemy-${nextEntitySequence + 1}`,
+          enemy.position + 11,
+        ),
+      );
+      nextEntitySequence += 2;
+    }
+    events.push({
+      type: 'boss-phase-changed',
+      bossId: enemy.id,
+      phase: nextPhase as 2 | 3,
+    });
+    return { ...enemy, bossPhase: nextPhase };
+  });
+  enemies = [...enemies, ...reinforcements];
+
+  if (wave) {
+    const completion = completeWaveIfCleared(wave, enemies);
+    wave = completion.wave;
+    if (completion.event) events.push(completion.event);
+  }
 
   const triggerSignals: TriggerSignal[] = [];
   for (const event of events) {
@@ -372,6 +397,12 @@ export function stepSimulation(
         break;
       case 'overheated':
         triggerSignals.push({ type: 'onOverheat' });
+        break;
+      case 'wave-started':
+        triggerSignals.push({ type: 'onWaveStart' });
+        break;
+      case 'wave-completed':
+        triggerSignals.push({ type: 'onWaveEnd' });
         break;
       default:
         break;
@@ -399,10 +430,12 @@ export function stepSimulation(
   heat = triggerResult.resources.heat;
   playerHitPoints = triggerResult.resources.hitPoints;
 
-  const pressure = enemies.filter(
-    (enemy) =>
-      enemy.position <= state.frontline.position + FRONTLINE_PRESSURE_RANGE,
-  ).length;
+  const pressure = enemies
+    .filter(
+      (enemy) =>
+        enemy.position <= state.frontline.position + FRONTLINE_PRESSURE_RANGE,
+    )
+    .reduce((sum, enemy) => sum + enemy.frontlinePressure, 0);
   const frontlinePosition = clamp(
     state.frontline.position +
       killedEnemies.length * FRONTLINE_PUSH_PER_KILL -
@@ -413,7 +446,13 @@ export function stepSimulation(
   const riskTier = getRiskTier(playerPosition);
   let status: SimulationState['status'] = 'active';
   if (playerHitPoints <= 0 || frontlinePosition <= 0) status = 'defeat';
-  else if (enemies.length === 0 && projectiles.length === 0) status = 'victory';
+  else if (
+    enemies.length === 0 &&
+    projectiles.length === 0 &&
+    (!wave || wave.completed)
+  ) {
+    status = 'victory';
+  }
   if (status !== 'active')
     events.push({ type: 'combat-ended', result: status });
 
@@ -443,6 +482,7 @@ export function stepSimulation(
       riskTier,
       rewardMultiplier: getRewardMultiplier(riskTier),
     },
+    ...(wave ? { wave } : {}),
     enemies,
     projectiles,
     events,

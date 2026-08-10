@@ -28,3 +28,16 @@ export type WeaponTag =
   | 'explosive'
   | 'energy'
   | 'deployable';
+
+export type EnemyTypeId =
+  'basic' | 'rusher' | 'heavy' | 'artillery' | 'bomber' | 'kawaii-fortress';
+
+export type EnemyBehaviorId =
+  | 'advance'
+  | 'rush'
+  | 'heavyAdvance'
+  | 'stopAndShoot'
+  | 'suicideRush'
+  | 'bossFortress';
+
+export type WaveId = 'prototype-wave' | 'mixed-wave' | 'boss-wave';

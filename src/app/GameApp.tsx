@@ -194,6 +194,14 @@ function describeCombatEvent(event: CombatEvent): string {
       return '冷却完了。武器を再使用できます。';
     case 'skill-activated':
       return '緊急ブースト：12m後退し、Heatを35排出しました。';
+    case 'enemy-attacked':
+      return '敵の遠距離攻撃を確認。';
+    case 'wave-started':
+      return 'Wave開始。';
+    case 'wave-completed':
+      return 'Wave完了。';
+    case 'boss-phase-changed':
+      return `Boss Phase ${event.phase}へ移行。`;
     case 'combat-ended':
       return event.result === 'victory' ? '戦闘勝利。' : '戦闘敗北。';
   }

@@ -1,3 +1,6 @@
+import { createEnemy } from '../combat/createEnemy';
+import type { WaveId } from '../data/ids';
+import { createWaveState } from '../wave/waveSystem';
 import type { SimulationState } from './types';
 
 export function createSimulation(seed = 1): SimulationState {
@@ -34,30 +37,22 @@ export function createSimulation(seed = 1): SimulationState {
       rewardMultiplier: 1,
     },
     enemies: [
-      {
-        id: 'enemy-1',
-        previousPosition: 55,
-        position: 55,
-        radius: 1.5,
-        hitPoints: 30,
-        armor: 0,
-        speed: 1.5,
-        contactDamage: 8,
-        contactCooldown: 0,
-      },
-      {
-        id: 'enemy-2',
-        previousPosition: 72,
-        position: 72,
-        radius: 1.5,
-        hitPoints: 30,
-        armor: 0,
-        speed: 1.5,
-        contactDamage: 8,
-        contactCooldown: 0,
-      },
+      createEnemy('basic', 'enemy-1', 55),
+      createEnemy('basic', 'enemy-2', 72),
     ],
     projectiles: [],
     events: [],
+  };
+}
+
+export function createWaveSimulation(
+  seed: number,
+  waveId: WaveId,
+): SimulationState {
+  return {
+    ...createSimulation(seed),
+    nextEntitySequence: 1,
+    enemies: [],
+    wave: createWaveState(waveId),
   };
 }

@@ -1,4 +1,10 @@
-import type { ModuleId, WeaponId } from '../data/ids';
+import type {
+  EnemyBehaviorId,
+  EnemyTypeId,
+  ModuleId,
+  WeaponId,
+  WaveId,
+} from '../data/ids';
 
 export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
@@ -34,6 +40,8 @@ export interface PlayerState {
 
 export interface EnemyState {
   id: EntityId;
+  typeId: EnemyTypeId;
+  behaviorId: EnemyBehaviorId;
   previousPosition: number;
   position: number;
   radius: number;
@@ -42,6 +50,11 @@ export interface EnemyState {
   speed: number;
   contactDamage: number;
   contactCooldown: number;
+  attackRange: number;
+  attackDamage: number;
+  attackCooldownSeconds: number;
+  frontlinePressure: number;
+  bossPhase?: 1 | 2 | 3;
 }
 
 export interface ProjectileState {
@@ -73,6 +86,14 @@ export interface BuildState {
   moduleIds: ModuleId[];
 }
 
+export interface WaveState {
+  id: WaveId;
+  elapsedSeconds: number;
+  nextSpawnIndex: number;
+  started: boolean;
+  completed: boolean;
+}
+
 export type CombatEvent =
   | {
       type: 'weapon-fired';
@@ -91,6 +112,10 @@ export type CombatEvent =
   | { type: 'overheated' }
   | { type: 'cooled' }
   | { type: 'skill-activated'; skillId: 'emergency-boost' }
+  | { type: 'enemy-attacked'; enemyId: EntityId }
+  | { type: 'wave-started'; waveId: WaveId }
+  | { type: 'wave-completed'; waveId: WaveId }
+  | { type: 'boss-phase-changed'; bossId: EntityId; phase: 2 | 3 }
   | { type: 'combat-ended'; result: Exclude<CombatStatus, 'active'> };
 
 export interface SimulationState {
@@ -101,6 +126,7 @@ export interface SimulationState {
   build: BuildState;
   player: PlayerState;
   frontline: FrontlineState;
+  wave?: WaveState;
   enemies: EnemyState[];
   projectiles: ProjectileState[];
   events: CombatEvent[];
