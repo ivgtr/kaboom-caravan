@@ -54,11 +54,7 @@ export function advanceWave(
   ) {
     const spawn = definition.spawns[nextSpawnIndex]!;
     spawnedEnemies.push(
-      createEnteringEnemy(
-        spawn.enemyTypeId,
-        `enemy-${sequence}`,
-        spawn.position,
-      ),
+      createEnteringEnemy(spawn.enemyTypeId, `enemy-${sequence}`),
     );
     sequence += 1;
     nextSpawnIndex += 1;

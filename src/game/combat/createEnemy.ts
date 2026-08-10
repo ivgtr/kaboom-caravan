@@ -34,10 +34,6 @@ export function createEnemy(
 export function createEnteringEnemy(
   typeId: EnemyTypeId,
   id: EntityId,
-  destinationPosition: number,
 ): EnemyState {
-  return {
-    ...createEnemy(typeId, id, ENEMY_ENTRY_POSITION),
-    entryDestinationPosition: destinationPosition,
-  };
+  return createEnemy(typeId, id, ENEMY_ENTRY_POSITION);
 }

@@ -58,7 +58,6 @@ export interface EnemyState {
   attackCooldownSeconds: number;
   frontlinePressure: number;
   bossPhase?: 1 | 2 | 3;
-  entryDestinationPosition?: number;
   attackWindupRemaining?: number;
 }
 

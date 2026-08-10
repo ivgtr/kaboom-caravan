@@ -555,16 +555,8 @@ export function stepSimulation(
     if (nextPhase <= enemy.bossPhase) return enemy;
     if (nextPhase === 2) {
       reinforcements.push(
-        createEnteringEnemy(
-          'basic',
-          `enemy-${nextEntitySequence}`,
-          enemy.position + 7,
-        ),
-        createEnteringEnemy(
-          'rusher',
-          `enemy-${nextEntitySequence + 1}`,
-          enemy.position + 11,
-        ),
+        createEnteringEnemy('basic', `enemy-${nextEntitySequence}`),
+        createEnteringEnemy('rusher', `enemy-${nextEntitySequence + 1}`),
       );
       nextEntitySequence += 2;
     }

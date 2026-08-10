@@ -32,41 +32,20 @@ describe('enemy definitions and behaviors', () => {
 
     expect(
       result.enemies.find((enemy) => enemy.id === 'rusher-1')!.position,
-    ).toBe(65.5);
+    ).toBe(62);
     expect(
       result.enemies.find((enemy) => enemy.id === 'basic-1')!.position,
-    ).toBe(68.5);
+    ).toBe(64.5);
   });
 
-  it('eases an entering enemy into its native movement speed', () => {
-    const farEnemy = createEnteringEnemy('basic', 'basic-far', 68);
-    farEnemy.position = 80;
-    farEnemy.previousPosition = 80;
-    const farStep = stepEnemyBehaviors([farEnemy], 10, 2.5, 1, 100, 0.1)
+  it('moves an entering enemy at its native speed without proximity easing', () => {
+    const enteringEnemy = createEnteringEnemy('basic', 'basic-entering');
+    const startingPosition = enteringEnemy.position;
+    const result = stepEnemyBehaviors([enteringEnemy], 10, 2.5, 1, 100, 0.1)
       .enemies[0]!;
 
-    const brakingEnemy = createEnteringEnemy('basic', 'basic-braking', 68);
-    brakingEnemy.position = 69;
-    brakingEnemy.previousPosition = 69;
-    const brakingStep = stepEnemyBehaviors([brakingEnemy], 10, 2.5, 1, 100, 0.1)
-      .enemies[0]!;
-
-    const arrivalEnemy = createEnteringEnemy('basic', 'basic-arrival', 68);
-    arrivalEnemy.position = 68.1;
-    arrivalEnemy.previousPosition = 68.1;
-    const arrivalStep = stepEnemyBehaviors(
-      [arrivalEnemy],
-      10,
-      2.5,
-      1,
-      100,
-      0.01,
-    ).enemies[0]!;
-
-    expect((80 - farStep.position) / 0.1).toBeCloseTo(8);
-    expect((69 - brakingStep.position) / 0.1).toBeCloseTo(4.75);
-    expect((68.1 - arrivalStep.position) / 0.01).toBeCloseTo(1.547, 2);
-    expect(arrivalStep.entryDestinationPosition).toBe(68);
+    expect(startingPosition).toBe(120);
+    expect((startingPosition - result.position) / 0.1).toBeCloseTo(5.5);
   });
 
   it('lets artillery stop and fire from range', () => {
@@ -153,7 +132,7 @@ describe('enemy definitions and behaviors', () => {
     const artillery = createEnemy('artillery', 'artillery-1', 70);
     const result = stepEnemyBehaviors([artillery], 10, 2.5, 1, 100, 1);
 
-    expect(result.enemies[0]!.position).toBe(69);
+    expect(result.enemies[0]!.position).toBe(64.5);
     expect(result.playerHitPoints).toBe(100);
     expect(result.events).not.toContainEqual({
       type: 'enemy-attacked',
@@ -264,7 +243,6 @@ describe('wave and boss progression', () => {
     expect(started.enemies[0]!.position).toBeLessThan(
       started.enemies[0]!.previousPosition,
     );
-    expect(started.enemies[0]!.entryDestinationPosition).toBe(68);
     expect(started.events).toContainEqual({
       type: 'wave-started',
       waveId: 'prototype-wave',

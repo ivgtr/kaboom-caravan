@@ -5,26 +5,6 @@ import type {
   EnemyState,
 } from '../simulation/types';
 
-const ENEMY_ENTRY_SPEED = 8;
-const ENEMY_ENTRY_BRAKE_DISTANCE = 2;
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function smoothstep(value: number): number {
-  const progress = clamp(value, 0, 1);
-  return progress * progress * (3 - 2 * progress);
-}
-
-function getEntrySpeed(enemy: EnemyState, entryTarget: number): number {
-  const remainingDistance = enemy.position - entryTarget;
-  const cruiseWeight = smoothstep(
-    remainingDistance / ENEMY_ENTRY_BRAKE_DISTANCE,
-  );
-  return enemy.speed + (ENEMY_ENTRY_SPEED - enemy.speed) * cruiseWeight;
-}
-
 export interface EnemyBehaviorResult {
   enemies: EnemyState[];
   playerHitPoints: number;
@@ -60,36 +40,6 @@ export function stepEnemyBehaviors(
     const attackCooldown = Math.max(0, enemy.contactCooldown - deltaSeconds);
     const distance = enemy.position - playerPosition;
     let nextPosition = enemy.position;
-
-    if (
-      enemy.entryDestinationPosition !== undefined &&
-      enemy.position > enemy.entryDestinationPosition
-    ) {
-      const isRanged =
-        enemy.behaviorId === 'stopAndShoot' ||
-        enemy.behaviorId === 'bossFortress';
-      const attackPosition = playerPosition + enemy.attackRange;
-      const entryTarget = Math.max(
-        enemy.entryDestinationPosition,
-        isRanged ? attackPosition : minimumPosition,
-      );
-      const entrySpeed = getEntrySpeed(enemy, entryTarget);
-      nextPosition = Math.max(
-        entryTarget,
-        enemy.position - entrySpeed * deltaSeconds,
-      );
-      nextEnemies.push({
-        ...enemy,
-        previousPosition: enemy.position,
-        position: nextPosition,
-        contactCooldown: attackCooldown,
-        entryDestinationPosition:
-          nextPosition > entryTarget
-            ? enemy.entryDestinationPosition
-            : undefined,
-      });
-      continue;
-    }
 
     const isRanged =
       enemy.behaviorId === 'stopAndShoot' ||
