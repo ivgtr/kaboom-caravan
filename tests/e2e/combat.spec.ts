@@ -123,6 +123,41 @@ for (const viewport of [
   });
 }
 
+for (const viewport of [
+  { width: 1184, height: 689 },
+  { width: 844, height: 390 },
+]) {
+  test(`previews all boss phase auras at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    for (const phase of [1, 2, 3] as const) {
+      await page.goto(`/?debug=1&bossPhase=${phase}`);
+      await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+      await page.evaluate(async () => {
+        const image = new Image();
+        const loaded = new Promise<void>((resolve, reject) => {
+          image.addEventListener('load', () => resolve(), { once: true });
+          image.addEventListener(
+            'error',
+            () => reject(new Error('boss aura asset failed to load')),
+            {
+              once: true,
+            },
+          );
+        });
+        image.src = '/assets/animation/boss_phase_aura_v001.png';
+        await loaded;
+      });
+      if (process.env.CAPTURE_BOSS_REVIEW) {
+        await page.screenshot({
+          path: `artifacts/animation/review/boss_phase_${phase}_${viewport.width}x${viewport.height}_v001.png`,
+        });
+      }
+    }
+  });
+}
+
 test('shows a recoverable message when Canvas 2D is unavailable', async ({
   page,
 }) => {

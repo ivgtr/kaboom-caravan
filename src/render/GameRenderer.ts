@@ -16,6 +16,11 @@ import {
 } from './animationAssets';
 import { SpriteAssetManager } from './SpriteAssetManager';
 import {
+  BOSS_PHASE_AURA_ART,
+  getBossPhaseAuraSource,
+  type BossPhase,
+} from './bossPhaseAssets';
+import {
   getVfxSource,
   VFX_ART,
   WEAPON_VFX_FAMILY,
@@ -60,6 +65,8 @@ interface CharacterMotionRuntime {
   wheelRotation: number;
   releaseAgeSeconds: number;
   hitAgeSeconds: number;
+  phaseTransitionAgeSeconds: number;
+  phaseClockSeconds: number;
 }
 
 interface ExhaustPuff {
@@ -74,6 +81,8 @@ const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
   wheelRotation: 0,
   releaseAgeSeconds: Number.POSITIVE_INFINITY,
   hitAgeSeconds: Number.POSITIVE_INFINITY,
+  phaseTransitionAgeSeconds: Number.POSITIVE_INFINITY,
+  phaseClockSeconds: 0,
 });
 
 export class GameRenderer {
@@ -94,6 +103,7 @@ export class GameRenderer {
   private exhaustEmissionSeconds = 0;
   private readonly showMotionDebug =
     new URLSearchParams(window.location.search).get('debug') === 'motion';
+  private readonly bossPreviewPhase = this.readBossPreviewPhase();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -107,6 +117,7 @@ export class GameRenderer {
       ...Object.values(WEAPON_ART),
       ...Object.values(MODULE_ART),
       ...Object.values(VFX_ART).map(({ source }) => source),
+      BOSS_PHASE_AURA_ART.source,
     ]);
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(canvas);
@@ -151,6 +162,10 @@ export class GameRenderer {
         state.player.position,
         state.player.radius,
       );
+    }
+
+    if (this.bossPreviewPhase !== undefined) {
+      this.drawBossPreview(this.bossPreviewPhase);
     }
 
     for (const projectile of state.projectiles) {
@@ -469,6 +484,25 @@ export class GameRenderer {
         groundY - size * motionAsset.groundAnchor,
         size,
       );
+      if (typeId === 'kawaii-fortress') {
+        this.drawBossPhaseAura(
+          x + hitOffset,
+          groundY,
+          size,
+          enemy.bossPhase ?? 1,
+          pose,
+          runtime,
+        );
+      }
+      if (typeId === 'kawaii-fortress' && pose === 'anticipation') {
+        this.drawBossAttackTelegraph(
+          x + hitOffset,
+          groundY,
+          size,
+          enemy.bossPhase ?? 1,
+          runtime,
+        );
+      }
       return;
     }
     const scale =
@@ -573,6 +607,123 @@ export class GameRenderer {
       y,
       size,
       size,
+    );
+  }
+
+  private drawBossPhaseAura(
+    x: number,
+    groundY: number,
+    bossSize: number,
+    phase: BossPhase,
+    pose: CharacterMotionPose,
+    runtime?: CharacterMotionRuntime,
+  ): void {
+    const aura = this.assets.get(BOSS_PHASE_AURA_ART.source);
+    if (!aura) return;
+    const [sourceX, sourceY, sourceWidth, sourceHeight] =
+      getBossPhaseAuraSource(aura.naturalWidth, aura.naturalHeight, phase);
+    const clock = runtime?.phaseClockSeconds ?? performance.now() / 1000;
+    const transitionAge = runtime?.phaseTransitionAgeSeconds ?? 1;
+    const transitionProgress = Math.min(1, transitionAge / 0.72);
+    const transitionBounce =
+      transitionProgress < 1
+        ? 1 + Math.sin(transitionProgress * Math.PI) * 0.22
+        : 1;
+    const pulseAmount = phase === 1 ? 0.025 : phase === 2 ? 0.045 : 0.065;
+    const pulse = 1 + Math.sin(clock * (2.2 + phase * 0.8)) * pulseAmount;
+    const auraSize =
+      bossSize *
+      BOSS_PHASE_AURA_ART.scaleByPhase[phase] *
+      pulse *
+      transitionBounce;
+    const phaseAlpha = BOSS_PHASE_AURA_ART.alphaByPhase[phase];
+    const anchorX = x - bossSize * (pose === 'release' ? 0.3 : 0.18);
+    const anchorY = groundY - bossSize * (pose === 'release' ? 0.28 : 0.2);
+    const direction = phase === 3 ? -1 : 1;
+
+    const context = this.context;
+    context.save();
+    context.translate(anchorX, anchorY);
+    context.rotate(
+      clock * BOSS_PHASE_AURA_ART.rotationSpeedByPhase[phase] * direction,
+    );
+    context.globalAlpha = phaseAlpha;
+    context.shadowColor = phase === 3 ? '#ff745d' : '#65e8ef';
+    context.shadowBlur = Math.max(5, auraSize * 0.09);
+    context.drawImage(
+      aura,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      -auraSize / 2,
+      -auraSize / 2,
+      auraSize,
+      auraSize,
+    );
+    context.restore();
+  }
+
+  private drawBossAttackTelegraph(
+    x: number,
+    groundY: number,
+    bossSize: number,
+    phase: BossPhase,
+    runtime?: CharacterMotionRuntime,
+  ): void {
+    const clock = runtime?.phaseClockSeconds ?? performance.now() / 1000;
+    const pulse = 0.55 + Math.sin(clock * 12) * 0.2;
+    const centerX = x - bossSize * 0.17;
+    const centerY = groundY - bossSize * 0.4;
+    const radius = bossSize * (0.17 + phase * 0.012);
+    const context = this.context;
+    context.save();
+    context.globalAlpha = pulse;
+    context.strokeStyle = phase === 3 ? '#ff6d57' : '#ffe06a';
+    context.lineWidth = Math.max(2.5, bossSize * 0.015);
+    context.lineCap = 'round';
+    context.setLineDash([bossSize * 0.045, bossSize * 0.035]);
+    context.beginPath();
+    context.arc(centerX, centerY, radius, Math.PI * 1.06, Math.PI * 1.94);
+    context.stroke();
+    context.setLineDash([]);
+    for (const direction of [-1, 1]) {
+      const markerX = centerX + direction * radius * 0.82;
+      context.beginPath();
+      context.moveTo(markerX, centerY - radius * 0.32);
+      context.lineTo(markerX + direction * bossSize * 0.04, centerY);
+      context.lineTo(markerX, centerY + radius * 0.32);
+      context.stroke();
+    }
+    context.restore();
+  }
+
+  private drawBossPreview(phase: BossPhase): void {
+    const position = 71;
+    const previewBoss: EnemyState = {
+      id: 'debug-boss-preview',
+      typeId: 'kawaii-fortress',
+      behaviorId: 'bossFortress',
+      previousPosition: position,
+      position,
+      radius: 5,
+      hitPoints: 420,
+      armor: 5,
+      speed: 0,
+      contactDamage: 24,
+      contactCooldown: 0.1,
+      attackRange: 52,
+      attackDamage: 14,
+      attackCooldownSeconds: 2.8,
+      frontlinePressure: 4,
+      bossPhase: phase,
+    };
+    this.drawMonster(
+      this.worldToScreen(position),
+      this.groundY,
+      previewBoss,
+      0,
+      2.5,
     );
   }
 
@@ -786,7 +937,10 @@ export class GameRenderer {
         if (attacker) attacker.releaseAgeSeconds = 0;
       } else if (event.type === 'boss-phase-changed') {
         const boss = this.enemyMotions.get(event.bossId);
-        if (boss) boss.releaseAgeSeconds = 0;
+        if (boss) {
+          boss.releaseAgeSeconds = 0;
+          boss.phaseTransitionAgeSeconds = 0;
+        }
       }
     }
   }
@@ -802,6 +956,8 @@ export class GameRenderer {
     runtime.lastPosition = position;
     runtime.releaseAgeSeconds += deltaSeconds;
     runtime.hitAgeSeconds += deltaSeconds;
+    runtime.phaseTransitionAgeSeconds += deltaSeconds;
+    runtime.phaseClockSeconds += deltaSeconds;
   }
 
   private updateExhaustPuffs(
@@ -1173,6 +1329,13 @@ export class GameRenderer {
     const normalized =
       (position - WORLD_MINIMUM) / (WORLD_MAXIMUM - WORLD_MINIMUM);
     return padding + normalized * (this.viewportWidth - padding * 2);
+  }
+
+  private readBossPreviewPhase(): BossPhase | undefined {
+    const phase = Number(
+      new URLSearchParams(window.location.search).get('bossPhase'),
+    );
+    return phase === 1 || phase === 2 || phase === 3 ? phase : undefined;
   }
 
   private drawEquipmentSprite(
