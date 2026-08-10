@@ -348,6 +348,8 @@ for (const viewport of [
 
 for (const viewport of [
   { width: 1920, height: 1080 },
+  { width: 1440, height: 900 },
+  { width: 1280, height: 720 },
   { width: 1024, height: 768 },
   { width: 932, height: 430 },
   { width: 844, height: 390 },

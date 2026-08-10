@@ -282,6 +282,42 @@ describe('stepSimulation', () => {
     );
   });
 
+  it('expires a player projectile after its finite lifetime', () => {
+    const initial = createSimulation();
+    initial.enemies = [];
+    initial.projectiles = [
+      {
+        id: 'expired-player-projectile',
+        ownerId: 'player',
+        previousPosition: 20,
+        position: 20,
+        originPosition: 20,
+        velocity: 0,
+        radius: 0.2,
+        damage: 10,
+        maximumRange: 60,
+        weaponId: 'machine-cannon',
+        optimalRangeMinimum: 12,
+        optimalRangeMaximum: 40,
+        offRangeDamageMultiplier: 0.7,
+        behavior: 'projectile',
+        remainingHits: 1,
+        hitEnemyIds: [],
+        explosionRadius: 0,
+        ageSeconds: 0,
+        maximumAgeSeconds: 0.01,
+      },
+    ];
+
+    const result = stepSimulation(
+      initial,
+      IDLE_COMMAND,
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(result.projectiles).toHaveLength(0);
+  });
+
   it('does not mutate the previous state', () => {
     const initial = createSimulation();
     const originalEnemy = structuredClone(initial.enemies[0]);

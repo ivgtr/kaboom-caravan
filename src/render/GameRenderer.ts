@@ -36,6 +36,12 @@ import {
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
+export const MAX_ACTIVE_EFFECTS = 96;
+export const MAX_RECYCLED_EFFECTS = 96;
+const PERFORMANCE_SAMPLE_LIMIT = 240;
+const PERFORMANCE_STRESS_PLAYER_PROJECTILES = 100;
+const PERFORMANCE_STRESS_ENEMY_PROJECTILES = 32;
+const PERFORMANCE_STRESS_EFFECTS = 48;
 const WORLD_ART = {
   background: '/assets/world/env_background_sunny_highway_v001.webp',
   road: '/assets/world/env_road_v001.webp',
@@ -95,6 +101,18 @@ interface ExhaustPuff {
 type DeathVfxPreview =
   'normal' | 'boss' | 'bomber' | 'basic' | 'rusher' | 'heavy';
 
+export interface RendererDiagnostics {
+  renderDurationsMs: number[];
+  activeEffects: number;
+  recycledEffects: number;
+  maximumActiveEffects: number;
+  maximumRecycledEffects: number;
+  stressPlayerProjectiles: number;
+  stressEnemyProjectiles: number;
+  reducedMotion: boolean;
+  assets: ReturnType<SpriteAssetManager['getDiagnostics']>;
+}
+
 const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
   travelDistance: 0,
   lastPosition: position,
@@ -121,6 +139,17 @@ export class GameRenderer {
   private readonly enemyMotions = new Map<string, CharacterMotionRuntime>();
   private exhaustPuffs: ExhaustPuff[] = [];
   private exhaustEmissionSeconds = 0;
+  private highEffectLoad = false;
+  private readonly renderDurationsMs: number[] = [];
+  private readonly reducedMotionQuery = window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  );
+  private reducedMotion = this.reducedMotionQuery.matches;
+  private readonly diagnosticsEnabled = new URLSearchParams(
+    window.location.search,
+  ).has('debug');
+  private readonly performanceStress =
+    new URLSearchParams(window.location.search).get('debug') === 'performance';
   private readonly showMotionDebug =
     new URLSearchParams(window.location.search).get('debug') === 'motion';
   private readonly bossPreviewPhase = this.readBossPreviewPhase();
@@ -145,10 +174,16 @@ export class GameRenderer {
     ]);
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(canvas);
+    this.reducedMotionQuery.addEventListener(
+      'change',
+      this.handleReducedMotionChange,
+    );
+    if (this.performanceStress) this.seedPerformanceStressEffects();
     this.resize();
   }
 
   render(state: SimulationState, alpha: number): void {
+    const renderStartedAt = performance.now();
     const context = this.context;
     const snapshot = createPresentationSnapshot(state);
     const now = performance.now();
@@ -156,6 +191,11 @@ export class GameRenderer {
     this.lastRenderTime = now;
     this.updateEffects(state, deltaSeconds);
     this.updateCharacterMotions(state, deltaSeconds);
+    this.highEffectLoad =
+      this.performanceStress ||
+      state.projectiles.length >= 80 ||
+      state.enemyProjectiles.length >= 24 ||
+      this.effects.length >= 40;
     const scale = window.devicePixelRatio || 1;
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
@@ -212,16 +252,33 @@ export class GameRenderer {
       );
       this.drawProjectile(x, projectile.weaponId, projectile.behavior);
     }
+    if (this.performanceStress) this.drawPerformanceStressProjectiles();
     this.drawEffects();
 
     this.knownEntityPositions.set(state.player.id, state.player.position);
     for (const enemy of state.enemies) {
       this.knownEntityPositions.set(enemy.id, enemy.position);
     }
+    this.recordDiagnostics(performance.now() - renderStartedAt);
   }
 
   dispose(): void {
     this.resizeObserver.disconnect();
+    this.reducedMotionQuery.removeEventListener(
+      'change',
+      this.handleReducedMotionChange,
+    );
+    this.effects.length = 0;
+    this.recycledEffects.length = 0;
+    this.exhaustPuffs.length = 0;
+    this.knownEntityPositions.clear();
+    this.enemyMotions.clear();
+    this.assets.dispose();
+    delete (
+      window as typeof window & {
+        __kaboomRendererDiagnostics?: RendererDiagnostics;
+      }
+    ).__kaboomRendererDiagnostics;
   }
 
   private drawEnvironment(): void {
@@ -613,7 +670,9 @@ export class GameRenderer {
     if (!aura) return;
     const [sourceX, sourceY, sourceWidth, sourceHeight] =
       getBossPhaseAuraSource(aura.naturalWidth, aura.naturalHeight, phase);
-    const clock = runtime?.phaseClockSeconds ?? performance.now() / 1000;
+    const clock = this.reducedMotion
+      ? 0
+      : (runtime?.phaseClockSeconds ?? performance.now() / 1000);
     const transitionAge = runtime?.phaseTransitionAgeSeconds ?? 1;
     const transitionProgress = Math.min(1, transitionAge / 0.72);
     const transitionBounce =
@@ -621,7 +680,9 @@ export class GameRenderer {
         ? 1 + Math.sin(transitionProgress * Math.PI) * 0.22
         : 1;
     const pulseAmount = phase === 1 ? 0.025 : phase === 2 ? 0.045 : 0.065;
-    const pulse = 1 + Math.sin(clock * (2.2 + phase * 0.8)) * pulseAmount;
+    const pulse = this.reducedMotion
+      ? 1
+      : 1 + Math.sin(clock * (2.2 + phase * 0.8)) * pulseAmount;
     const auraSize =
       bossSize *
       BOSS_PHASE_AURA_ART.scaleByPhase[phase] *
@@ -662,8 +723,10 @@ export class GameRenderer {
     phase: BossPhase,
     runtime?: CharacterMotionRuntime,
   ): void {
-    const clock = runtime?.phaseClockSeconds ?? performance.now() / 1000;
-    const pulse = 0.55 + Math.sin(clock * 12) * 0.2;
+    const clock = this.reducedMotion
+      ? 0
+      : (runtime?.phaseClockSeconds ?? performance.now() / 1000);
+    const pulse = this.reducedMotion ? 0.72 : 0.55 + Math.sin(clock * 12) * 0.2;
     const centerX = x - bossSize * 0.17;
     const centerY = groundY - bossSize * 0.4;
     const radius = bossSize * (0.17 + phase * 0.012);
@@ -847,7 +910,9 @@ export class GameRenderer {
   ): number {
     if (runtime.hitAgeSeconds >= 0.2) return 0;
     const remaining = 1 - runtime.hitAgeSeconds / 0.2;
-    return direction * Math.sin(remaining * Math.PI) * 4;
+    return (
+      direction * Math.sin(remaining * Math.PI) * (this.reducedMotion ? 2 : 4)
+    );
   }
 
   private updateCharacterMotions(
@@ -931,6 +996,10 @@ export class GameRenderer {
     playerVelocity: number,
     deltaSeconds: number,
   ): void {
+    if (this.reducedMotion) {
+      this.exhaustPuffs.length = 0;
+      return;
+    }
     this.exhaustEmissionSeconds -= deltaSeconds;
     const speed = Math.abs(playerVelocity);
     if (speed > 0.75 && this.exhaustEmissionSeconds <= 0) {
@@ -1032,7 +1101,7 @@ export class GameRenderer {
       effect.ageSeconds += deltaSeconds;
       if (effect.ageSeconds >= effect.durationSeconds) {
         this.effects.splice(index, 1);
-        this.recycledEffects.push(effect);
+        this.recycleEffect(effect);
       }
     }
   }
@@ -1321,8 +1390,9 @@ export class GameRenderer {
     );
     const familyScale =
       pose === 'muzzle' ? asset.muzzleScale : asset.impactScale;
-    const growth =
-      pose === 'muzzle'
+    const growth = this.reducedMotion
+      ? 1
+      : pose === 'muzzle'
         ? 0.8 + Math.sin(progress * Math.PI) * 0.28
         : 0.62 + Math.sin(Math.min(1, progress) * Math.PI * 0.78) * 0.5;
     const size = baseSize * familyScale * growth;
@@ -1337,7 +1407,7 @@ export class GameRenderer {
         : family === 'fire' || family === 'explosive'
           ? '#ff9c43'
           : '#ffe174';
-    context.shadowBlur = 8 + size * 0.08;
+    context.shadowBlur = this.highEffectLoad ? 0 : 8 + size * 0.08;
     if (pose === 'impact') {
       context.translate(x, y);
       context.rotate((family === 'energy' ? 0.16 : -0.08) * progress);
@@ -1365,6 +1435,7 @@ export class GameRenderer {
     y: number,
     progress: number,
   ): void {
+    if (this.reducedMotion || this.highEffectLoad) return;
     const context = this.context;
     const accent = effect.weaponId
       ? PROJECTILE_COLORS[effect.weaponId]
@@ -1461,9 +1532,14 @@ export class GameRenderer {
     } else {
       this.effects.push(effect);
     }
-    if (this.effects.length > 96) {
-      this.recycledEffects.push(this.effects.shift()!);
+    if (this.effects.length > MAX_ACTIVE_EFFECTS) {
+      this.recycleEffect(this.effects.shift()!);
     }
+  }
+
+  private recycleEffect(effect: VisualEffect): void {
+    if (this.recycledEffects.length >= MAX_RECYCLED_EFFECTS) return;
+    this.recycledEffects.push(effect);
   }
 
   private drawProjectile(
@@ -1543,7 +1619,7 @@ export class GameRenderer {
       const size = baseSize * asset.projectileScale;
       context.save();
       context.shadowColor = visualId === 'spore' ? '#8af0c5' : '#65e6ef';
-      context.shadowBlur = Math.max(5, size * 0.08);
+      context.shadowBlur = this.highEffectLoad ? 0 : Math.max(5, size * 0.08);
       context.drawImage(
         image,
         sourceX,
@@ -1621,7 +1697,7 @@ export class GameRenderer {
     );
     const scale = pose === 'impact' ? asset.impactScale : asset.projectileScale;
     const animatedScale =
-      pose === 'impact'
+      pose === 'impact' && !this.reducedMotion
         ? scale * (0.82 + Math.sin(progress * Math.PI) * 0.28)
         : scale;
     const size = baseSize * animatedScale;
@@ -1630,7 +1706,7 @@ export class GameRenderer {
     context.globalAlpha =
       pose === 'impact' ? Math.min(1, (1 - progress) * 1.8) : 1;
     context.shadowColor = visualId === 'spore' ? '#8af0c5' : '#65e6ef';
-    context.shadowBlur = Math.max(6, size * 0.08);
+    context.shadowBlur = this.highEffectLoad ? 0 : Math.max(6, size * 0.08);
     context.drawImage(
       image,
       sourceX,
@@ -1835,6 +1911,97 @@ export class GameRenderer {
     }
     return recoil;
   }
+
+  private seedPerformanceStressEffects(): void {
+    const weapons: WeaponId[] = [
+      'machine-cannon',
+      'scatter-cannon',
+      'railgun',
+      'rocket-launcher',
+    ];
+    for (let index = 0; index < PERFORMANCE_STRESS_EFFECTS; index += 1) {
+      this.emitEffect({
+        kind: index % 3 === 0 ? 'explosion' : 'hit',
+        worldPosition: 6 + ((index * 17) % 88),
+        ageSeconds: (index % 8) * 0.035,
+        durationSeconds: 3600,
+        weaponId: weapons[index % weapons.length],
+      });
+    }
+  }
+
+  private drawPerformanceStressProjectiles(): void {
+    const playerProjectiles = [
+      ['machine-cannon', 'projectile'],
+      ['scatter-cannon', 'scatter'],
+      ['flamethrower', 'flame'],
+      ['rocket-launcher', 'rocket'],
+      ['railgun', 'railgun'],
+      ['mine-launcher', 'mine'],
+    ] as const;
+    for (
+      let index = 0;
+      index < PERFORMANCE_STRESS_PLAYER_PROJECTILES;
+      index += 1
+    ) {
+      const [weaponId, behavior] =
+        playerProjectiles[index % playerProjectiles.length]!;
+      this.drawProjectile(
+        this.worldToScreen(4 + ((index * 13) % 92)),
+        weaponId,
+        behavior,
+      );
+    }
+    const enemyVisuals: EnemyProjectileVisualId[] = [
+      'spore',
+      'boss-core',
+      'boss-burst',
+    ];
+    for (
+      let index = 0;
+      index < PERFORMANCE_STRESS_ENEMY_PROJECTILES;
+      index += 1
+    ) {
+      this.drawEnemyProjectile(
+        this.worldToScreen(6 + ((index * 19) % 88)),
+        enemyVisuals[index % enemyVisuals.length]!,
+      );
+    }
+  }
+
+  private recordDiagnostics(renderDurationMs: number): void {
+    if (!this.diagnosticsEnabled) return;
+    this.renderDurationsMs.push(renderDurationMs);
+    if (this.renderDurationsMs.length > PERFORMANCE_SAMPLE_LIMIT) {
+      this.renderDurationsMs.shift();
+    }
+    const diagnostics: RendererDiagnostics = {
+      renderDurationsMs: [...this.renderDurationsMs],
+      activeEffects: this.effects.length,
+      recycledEffects: this.recycledEffects.length,
+      maximumActiveEffects: MAX_ACTIVE_EFFECTS,
+      maximumRecycledEffects: MAX_RECYCLED_EFFECTS,
+      stressPlayerProjectiles: this.performanceStress
+        ? PERFORMANCE_STRESS_PLAYER_PROJECTILES
+        : 0,
+      stressEnemyProjectiles: this.performanceStress
+        ? PERFORMANCE_STRESS_ENEMY_PROJECTILES
+        : 0,
+      reducedMotion: this.reducedMotion,
+      assets: this.assets.getDiagnostics(),
+    };
+    (
+      window as typeof window & {
+        __kaboomRendererDiagnostics?: RendererDiagnostics;
+      }
+    ).__kaboomRendererDiagnostics = diagnostics;
+  }
+
+  private readonly handleReducedMotionChange = (
+    event: MediaQueryListEvent,
+  ): void => {
+    this.reducedMotion = event.matches;
+  };
 
   private drawImageCover(
     image: HTMLImageElement,
