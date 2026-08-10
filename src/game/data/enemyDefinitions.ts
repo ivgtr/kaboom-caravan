@@ -54,7 +54,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
     heavy: {
       id: 'heavy',
       displayName: 'ガレキガメ',
-      description: '旧文明の瓦礫を甲羅へ取り込んだ、高耐久・重装甲Monster。',
+      description: '旧文明の小さな護符を滑らかな甲羅へ宿す、高耐久Monster。',
       behaviorId: 'heavyAdvance',
       hitPoints: 85,
       armor: 4,
@@ -103,7 +103,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       id: 'kawaii-fortress',
       displayName: 'カワイイ・フォートレス',
       description:
-        '遺跡と生態系が一体化し、胞子砲撃・眷属召喚・突進を行う巨大要塞Monster。',
+        '古代Coreを宿し、胞子砲撃・眷属召喚・突進を行う巨大Guardian。',
       behaviorId: 'bossFortress',
       hitPoints: 420,
       armor: 5,

@@ -3,25 +3,22 @@ import {
   createPresentationSnapshot,
   interpolatePosition,
 } from '../game/simulation/presentationSnapshot';
-import type { SimulationState } from '../game/simulation/types';
+import type { EnemyState, SimulationState } from '../game/simulation/types';
 import { MODULE_ART, WEAPON_ART } from '../app/equipmentAssets';
+import {
+  ENEMY_MOTION_ART,
+  getMotionFrameSource,
+  PLAYER_MOTION_ART,
+  type CharacterMotionPose,
+} from './animationAssets';
 import { SpriteAssetManager } from './SpriteAssetManager';
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
 const WORLD_ART = {
-  player: '/assets/world/veh_player_base_v001.png',
   background: '/assets/world/env_background_sunny_highway_v001.webp',
   road: '/assets/world/env_road_v001.webp',
 } as const;
-const ENEMY_ART: Readonly<Record<EnemyTypeId, string>> = {
-  basic: '/assets/world/enm_basic_v001.png',
-  rusher: '/assets/world/enm_rusher_v001.png',
-  heavy: '/assets/world/enm_heavy_v001.png',
-  artillery: '/assets/world/enm_artillery_v001.png',
-  bomber: '/assets/world/enm_bomber_v001.png',
-  'kawaii-fortress': '/assets/world/enm_kawaii_fortress_v001.png',
-};
 const ENEMY_COLORS: Record<EnemyTypeId, string> = {
   basic: '#72d6a0',
   rusher: '#e45c78',
@@ -47,17 +44,34 @@ interface VisualEffect {
   weaponId?: WeaponId;
 }
 
+interface CharacterMotionRuntime {
+  travelDistance: number;
+  lastPosition: number;
+  releaseAgeSeconds: number;
+  hitAgeSeconds: number;
+}
+
+const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
+  travelDistance: 0,
+  lastPosition: position,
+  releaseAgeSeconds: Number.POSITIVE_INFINITY,
+  hitAgeSeconds: Number.POSITIVE_INFINITY,
+});
+
 export class GameRenderer {
   private readonly context: CanvasRenderingContext2D;
   private readonly resizeObserver: ResizeObserver;
   private viewportWidth = 1;
   private viewportHeight = 1;
   private lastProcessedTick = -1;
+  private lastMotionTick = -1;
   private lastRenderTime = performance.now();
   private effects: VisualEffect[] = [];
   private readonly recycledEffects: VisualEffect[] = [];
   private readonly knownEntityPositions = new Map<string, number>();
   private readonly assets = new SpriteAssetManager();
+  private playerMotion = createMotionRuntime(0);
+  private readonly enemyMotions = new Map<string, CharacterMotionRuntime>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -65,7 +79,8 @@ export class GameRenderer {
     this.context = context;
     this.assets.preload([
       ...Object.values(WORLD_ART),
-      ...Object.values(ENEMY_ART),
+      PLAYER_MOTION_ART.source,
+      ...Object.values(ENEMY_MOTION_ART).map(({ source }) => source),
       ...Object.values(WEAPON_ART),
       ...Object.values(MODULE_ART),
     ]);
@@ -81,6 +96,7 @@ export class GameRenderer {
     const deltaSeconds = Math.min(0.05, (now - this.lastRenderTime) / 1000);
     this.lastRenderTime = now;
     this.updateEffects(state, deltaSeconds);
+    this.updateCharacterMotions(state, deltaSeconds);
     const scale = window.devicePixelRatio || 1;
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
@@ -100,12 +116,16 @@ export class GameRenderer {
       state.player.position !== state.player.previousPosition,
     );
 
-    for (const enemy of snapshot.enemies) {
-      const typeId = enemy.typeId ?? 'basic';
+    for (const enemy of state.enemies) {
       this.drawMonster(
-        this.worldToScreen(interpolatePosition(enemy, alpha)),
+        this.worldToScreen(
+          enemy.previousPosition +
+            (enemy.position - enemy.previousPosition) * alpha,
+        ),
         this.groundY,
-        typeId,
+        enemy,
+        state.player.position,
+        state.player.radius,
       );
     }
 
@@ -206,32 +226,34 @@ export class GameRenderer {
     moving: boolean,
   ): void {
     const context = this.context;
-    const player = this.assets.get(WORLD_ART.player);
+    const player = this.assets.get(PLAYER_MOTION_ART.source);
     if (player) {
       const width = Math.min(190, Math.max(118, this.viewportHeight * 0.25));
-      const size = width;
+      const size = width * PLAYER_MOTION_ART.displayScale;
       const left = x - size * 0.5;
-      const bob = moving ? Math.sin(performance.now() * 0.015) * 2 : 0;
-      const top = groundY - size * 0.8 + bob;
+      const top = groundY - size * PLAYER_MOTION_ART.groundAnchor;
       const recoil = this.weaponRecoil(primaryWeaponId);
+      const pose = this.selectPlayerPose(moving);
+      const hitOffset = this.hitOffset(this.playerMotion, -1);
       context.save();
+      context.translate(hitOffset, 0);
       if (overheated) {
         context.shadowColor = '#ff5d5d';
         context.shadowBlur = 18;
         context.globalAlpha = 0.92;
       }
-      context.drawImage(player, left, top, size, size);
+      this.drawMotionFrame(player, pose, left, top, size);
       this.drawEquipmentSprite(
         WEAPON_ART[primaryWeaponId],
         x + width * (0.12 - recoil * 0.05),
-        groundY - width * 0.58 + bob,
+        groundY - width * 0.72,
         width * 0.56,
         -4,
       );
       this.drawEquipmentSprite(
         WEAPON_ART[secondaryWeaponId],
-        x + width * 0.02,
-        groundY - width * 0.78 + bob,
+        x - width * 0.08,
+        groundY - width * 0.84,
         width * 0.34,
         2,
       );
@@ -241,7 +263,7 @@ export class GameRenderer {
         this.drawEquipmentSprite(
           MODULE_ART[moduleIds[index]!],
           x - width * (0.29 - column * 0.14),
-          groundY - width * (0.55 - row * 0.14) + bob,
+          groundY - width * (0.55 - row * 0.14),
           width * 0.2,
           index % 2 === 0 ? -4 : 4,
         );
@@ -334,9 +356,17 @@ export class GameRenderer {
     context.restore();
   }
 
-  private drawMonster(x: number, groundY: number, typeId: EnemyTypeId): void {
+  private drawMonster(
+    x: number,
+    groundY: number,
+    enemy: EnemyState,
+    playerPosition: number,
+    playerRadius: number,
+  ): void {
     const context = this.context;
-    const monster = this.assets.get(ENEMY_ART[typeId]);
+    const typeId = enemy.typeId;
+    const motionAsset = ENEMY_MOTION_ART[typeId];
+    const monster = this.assets.get(motionAsset.source);
     if (monster) {
       const relativeSize: Record<EnemyTypeId, number> = {
         basic: 0.14,
@@ -346,21 +376,27 @@ export class GameRenderer {
         bomber: 0.14,
         'kawaii-fortress': 0.4,
       };
-      const size = Math.min(
-        typeId === 'kawaii-fortress' ? 360 : 150,
-        Math.max(
-          typeId === 'kawaii-fortress' ? 180 : 62,
-          this.viewportHeight * relativeSize[typeId],
-        ),
+      const size =
+        Math.min(
+          typeId === 'kawaii-fortress' ? 360 : 150,
+          Math.max(
+            typeId === 'kawaii-fortress' ? 180 : 62,
+            this.viewportHeight * relativeSize[typeId],
+          ),
+        ) * motionAsset.displayScale;
+      const runtime = this.enemyMotions.get(enemy.id);
+      const pose = this.selectEnemyPose(
+        enemy,
+        playerPosition,
+        playerRadius,
+        runtime,
       );
-      context.drawImage(
+      const hitOffset = runtime ? this.hitOffset(runtime, 1) : 0;
+      this.drawMotionFrame(
         monster,
-        x - size * 0.5,
-        groundY -
-          size * 0.82 +
-          Math.sin(performance.now() * 0.008 + x * 0.04) *
-            (typeId === 'rusher' ? 3 : 1.5),
-        size,
+        pose,
+        x - size * 0.5 + hitOffset,
+        groundY - size * motionAsset.groundAnchor,
         size,
       );
       return;
@@ -443,6 +479,157 @@ export class GameRenderer {
     context.arc(7, -18, 1.6, 0, Math.PI * 2);
     context.fill();
     context.restore();
+  }
+
+  private drawMotionFrame(
+    image: HTMLImageElement,
+    pose: CharacterMotionPose,
+    x: number,
+    y: number,
+    size: number,
+  ): void {
+    const [sourceX, sourceY, sourceWidth, sourceHeight] = getMotionFrameSource(
+      image.naturalWidth,
+      image.naturalHeight,
+      pose,
+    );
+    this.context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      x,
+      y,
+      size,
+      size,
+    );
+  }
+
+  private selectPlayerPose(moving: boolean): CharacterMotionPose {
+    if (this.playerMotion.releaseAgeSeconds < 0.16) return 'release';
+    if (this.playerMotion.hitAgeSeconds < 0.2) return 'anticipation';
+    if (!moving) return 'idle';
+    return Math.floor(this.playerMotion.travelDistance * 1.35) % 2 === 0
+      ? 'move'
+      : 'idle';
+  }
+
+  private selectEnemyPose(
+    enemy: EnemyState,
+    playerPosition: number,
+    playerRadius: number,
+    runtime?: CharacterMotionRuntime,
+  ): CharacterMotionPose {
+    if (runtime?.releaseAgeSeconds !== undefined) {
+      if (runtime.releaseAgeSeconds < 0.18) return 'release';
+    }
+    if (this.isEnemyAnticipating(enemy, playerPosition, playerRadius)) {
+      return 'anticipation';
+    }
+    const moving = Math.abs(enemy.position - enemy.previousPosition) > 0.0001;
+    if (!moving || !runtime) return 'idle';
+    const cadence =
+      enemy.typeId === 'rusher' || enemy.typeId === 'bomber'
+        ? 1.7
+        : enemy.typeId === 'heavy' || enemy.typeId === 'kawaii-fortress'
+          ? 0.85
+          : 1.25;
+    return Math.floor(runtime.travelDistance * cadence) % 2 === 0
+      ? 'move'
+      : 'idle';
+  }
+
+  private isEnemyAnticipating(
+    enemy: EnemyState,
+    playerPosition: number,
+    playerRadius: number,
+  ): boolean {
+    const distance = enemy.position - playerPosition;
+    if (
+      enemy.behaviorId === 'stopAndShoot' ||
+      enemy.behaviorId === 'bossFortress'
+    ) {
+      const windUpSeconds = Math.min(0.34, enemy.attackCooldownSeconds * 0.18);
+      return (
+        distance <= enemy.attackRange && enemy.contactCooldown <= windUpSeconds
+      );
+    }
+    const anticipationDistance =
+      enemy.typeId === 'rusher'
+        ? 5
+        : enemy.typeId === 'bomber'
+          ? 4
+          : enemy.typeId === 'heavy'
+            ? 0.8
+            : 0.75;
+    return distance <= enemy.radius + anticipationDistance + playerRadius;
+  }
+
+  private hitOffset(
+    runtime: CharacterMotionRuntime,
+    direction: -1 | 1,
+  ): number {
+    if (runtime.hitAgeSeconds >= 0.2) return 0;
+    const remaining = 1 - runtime.hitAgeSeconds / 0.2;
+    return direction * Math.sin(remaining * Math.PI) * 4;
+  }
+
+  private updateCharacterMotions(
+    state: SimulationState,
+    deltaSeconds: number,
+  ): void {
+    this.advanceMotionRuntime(
+      this.playerMotion,
+      state.player.position,
+      deltaSeconds,
+    );
+
+    const liveEnemyIds = new Set<string>();
+    for (const enemy of state.enemies) {
+      liveEnemyIds.add(enemy.id);
+      let runtime = this.enemyMotions.get(enemy.id);
+      if (!runtime) {
+        runtime = createMotionRuntime(enemy.position);
+        this.enemyMotions.set(enemy.id, runtime);
+      }
+      this.advanceMotionRuntime(runtime, enemy.position, deltaSeconds);
+    }
+    for (const enemyId of this.enemyMotions.keys()) {
+      if (!liveEnemyIds.has(enemyId)) this.enemyMotions.delete(enemyId);
+    }
+
+    if (state.tick === this.lastMotionTick) return;
+    this.lastMotionTick = state.tick;
+    for (const event of state.events) {
+      if (event.type === 'weapon-fired') {
+        this.playerMotion.releaseAgeSeconds = 0;
+      } else if (event.type === 'projectile-hit') {
+        const target = this.enemyMotions.get(event.targetId);
+        if (target) target.hitAgeSeconds = 0;
+      } else if (event.type === 'enemy-attacked') {
+        const attacker = this.enemyMotions.get(event.enemyId);
+        if (attacker) attacker.releaseAgeSeconds = 0;
+      } else if (event.type === 'vehicle-hit') {
+        this.playerMotion.hitAgeSeconds = 0;
+        const attacker = this.enemyMotions.get(event.sourceId);
+        if (attacker) attacker.releaseAgeSeconds = 0;
+      } else if (event.type === 'boss-phase-changed') {
+        const boss = this.enemyMotions.get(event.bossId);
+        if (boss) boss.releaseAgeSeconds = 0;
+      }
+    }
+  }
+
+  private advanceMotionRuntime(
+    runtime: CharacterMotionRuntime,
+    position: number,
+    deltaSeconds: number,
+  ): void {
+    runtime.travelDistance += Math.abs(position - runtime.lastPosition);
+    runtime.lastPosition = position;
+    runtime.releaseAgeSeconds += deltaSeconds;
+    runtime.hitAgeSeconds += deltaSeconds;
   }
 
   private updateEffects(state: SimulationState, deltaSeconds: number): void {
