@@ -1,5 +1,9 @@
 import { resolveDamage } from '../simulation/damage';
-import type { CombatEvent, EnemyState } from '../simulation/types';
+import type {
+  CombatEvent,
+  EnemyProjectileVisualId,
+  EnemyState,
+} from '../simulation/types';
 
 const ENEMY_ENTRY_SPEED = 8;
 
@@ -7,6 +11,17 @@ export interface EnemyBehaviorResult {
   enemies: EnemyState[];
   playerHitPoints: number;
   events: CombatEvent[];
+  rangedAttacks: EnemyRangedAttack[];
+}
+
+export interface EnemyRangedAttack {
+  enemyId: string;
+  originPosition: number;
+  damage: number;
+  projectileSpeed: number;
+  projectileRadius: number;
+  maximumAgeSeconds: number;
+  visualId: EnemyProjectileVisualId;
 }
 
 export function stepEnemyBehaviors(
@@ -19,6 +34,7 @@ export function stepEnemyBehaviors(
 ): EnemyBehaviorResult {
   const nextEnemies: EnemyState[] = [];
   const events: CombatEvent[] = [];
+  const rangedAttacks: EnemyRangedAttack[] = [];
   let hitPoints = playerHitPoints;
 
   for (const enemy of enemies) {
@@ -56,42 +72,129 @@ export function stepEnemyBehaviors(
       continue;
     }
 
-    if (
-      (enemy.behaviorId === 'stopAndShoot' ||
-        enemy.behaviorId === 'bossFortress') &&
-      distance <= enemy.attackRange
-    ) {
-      if (attackCooldown === 0) {
-        const phaseMultiplier = enemy.bossPhase === 3 ? 1.5 : 1;
-        const damage = resolveDamage(
-          enemy.attackDamage * phaseMultiplier,
-          playerArmor,
-        );
-        hitPoints = Math.max(0, hitPoints - damage);
-        events.push({ type: 'enemy-attacked', enemyId: enemy.id });
-        events.push({ type: 'vehicle-hit', sourceId: enemy.id, damage });
+    const isRanged =
+      enemy.behaviorId === 'stopAndShoot' ||
+      enemy.behaviorId === 'bossFortress';
+    if (isRanged && distance <= enemy.attackRange) {
+      if (attackCooldown > 0) {
         nextEnemies.push({
           ...enemy,
           previousPosition: enemy.position,
-          contactCooldown:
-            enemy.bossPhase === 3
-              ? enemy.attackCooldownSeconds * 0.65
-              : enemy.attackCooldownSeconds,
+          contactCooldown: attackCooldown,
         });
         continue;
       }
-    } else {
+      if (enemy.attackWindupRemaining === undefined) {
+        events.push({ type: 'enemy-attack-windup', enemyId: enemy.id });
+        nextEnemies.push({
+          ...enemy,
+          previousPosition: enemy.position,
+          contactCooldown: 0,
+          attackWindupRemaining: enemy.attackWindupSeconds,
+        });
+        continue;
+      }
+      const windupRemaining = Math.max(
+        0,
+        enemy.attackWindupRemaining - deltaSeconds,
+      );
+      if (windupRemaining > 0) {
+        nextEnemies.push({
+          ...enemy,
+          previousPosition: enemy.position,
+          contactCooldown: 0,
+          attackWindupRemaining: windupRemaining,
+        });
+        continue;
+      }
+
+      const phaseMultiplier = enemy.bossPhase === 3 ? 1.5 : 1;
+      const isBoss = enemy.behaviorId === 'bossFortress';
+      rangedAttacks.push({
+        enemyId: enemy.id,
+        originPosition: enemy.position - enemy.radius * 0.55,
+        damage: enemy.attackDamage * phaseMultiplier,
+        projectileSpeed: isBoss ? (enemy.bossPhase === 3 ? 26 : 20) : 18,
+        projectileRadius: isBoss ? 0.8 : 0.55,
+        maximumAgeSeconds: isBoss ? 4.5 : 4,
+        visualId: isBoss
+          ? enemy.bossPhase === 3
+            ? 'boss-burst'
+            : 'boss-core'
+          : 'spore',
+      });
+      events.push({ type: 'enemy-attacked', enemyId: enemy.id });
+      nextEnemies.push({
+        ...enemy,
+        previousPosition: enemy.position,
+        contactCooldown:
+          enemy.bossPhase === 3
+            ? enemy.attackCooldownSeconds * 0.65
+            : enemy.attackCooldownSeconds,
+        attackWindupRemaining: undefined,
+      });
+      continue;
+    }
+
+    if (isRanged) {
+      nextPosition = Math.max(
+        minimumPosition,
+        enemy.position - enemy.speed * deltaSeconds,
+      );
+      nextEnemies.push({
+        ...enemy,
+        previousPosition: enemy.position,
+        position: nextPosition,
+        contactCooldown: attackCooldown,
+        attackWindupRemaining: undefined,
+      });
+      continue;
+    }
+
+    if (distance > enemy.radius + playerRadius) {
       const phaseSpeedMultiplier = enemy.bossPhase === 3 ? 2.2 : 1;
       nextPosition = Math.max(
         minimumPosition,
         enemy.position - enemy.speed * phaseSpeedMultiplier * deltaSeconds,
       );
+      nextEnemies.push({
+        ...enemy,
+        previousPosition: enemy.position,
+        position: nextPosition,
+        contactCooldown: attackCooldown,
+        attackWindupRemaining: undefined,
+      });
+      continue;
     }
 
-    const isTouching = nextPosition <= minimumPosition;
-    if (isTouching && attackCooldown === 0) {
+    if (attackCooldown > 0) {
+      nextEnemies.push({
+        ...enemy,
+        previousPosition: enemy.position,
+        position: minimumPosition,
+        contactCooldown: attackCooldown,
+      });
+      continue;
+    }
+    if (enemy.attackWindupRemaining === undefined) {
+      events.push({ type: 'enemy-attack-windup', enemyId: enemy.id });
+      nextEnemies.push({
+        ...enemy,
+        previousPosition: enemy.position,
+        position: minimumPosition,
+        contactCooldown: 0,
+        attackWindupRemaining: enemy.attackWindupSeconds,
+      });
+      continue;
+    }
+    const windupRemaining = Math.max(
+      0,
+      enemy.attackWindupRemaining - deltaSeconds,
+    );
+    if (windupRemaining === 0) {
       const damage = resolveDamage(enemy.contactDamage, playerArmor);
       hitPoints = Math.max(0, hitPoints - damage);
+      events.push({ type: 'enemy-attacked', enemyId: enemy.id });
       events.push({ type: 'vehicle-hit', sourceId: enemy.id, damage });
       if (enemy.behaviorId === 'suicideRush') continue;
       nextEnemies.push({
@@ -99,6 +202,7 @@ export function stepEnemyBehaviors(
         previousPosition: enemy.position,
         position: nextPosition,
         contactCooldown: enemy.attackCooldownSeconds,
+        attackWindupRemaining: undefined,
       });
       continue;
     }
@@ -106,10 +210,16 @@ export function stepEnemyBehaviors(
     nextEnemies.push({
       ...enemy,
       previousPosition: enemy.position,
-      position: nextPosition,
-      contactCooldown: attackCooldown,
+      position: minimumPosition,
+      contactCooldown: 0,
+      attackWindupRemaining: windupRemaining,
     });
   }
 
-  return { enemies: nextEnemies, playerHitPoints: hitPoints, events };
+  return {
+    enemies: nextEnemies,
+    playerHitPoints: hitPoints,
+    events,
+    rangedAttacks,
+  };
 }

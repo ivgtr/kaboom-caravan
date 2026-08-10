@@ -24,6 +24,7 @@ export function createEnemy(
     contactCooldown: 0,
     attackRange: definition.attackRange,
     attackDamage: definition.attackDamage,
+    attackWindupSeconds: definition.attackWindupSeconds,
     attackCooldownSeconds: definition.attackCooldownSeconds,
     frontlinePressure: definition.frontlinePressure,
     ...(typeId === 'kawaii-fortress' ? { bossPhase: 1 as const } : {}),

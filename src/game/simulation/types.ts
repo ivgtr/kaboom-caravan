@@ -54,10 +54,27 @@ export interface EnemyState {
   contactCooldown: number;
   attackRange: number;
   attackDamage: number;
+  attackWindupSeconds: number;
   attackCooldownSeconds: number;
   frontlinePressure: number;
   bossPhase?: 1 | 2 | 3;
   entryDestinationPosition?: number;
+  attackWindupRemaining?: number;
+}
+
+export type EnemyProjectileVisualId = 'spore' | 'boss-core' | 'boss-burst';
+
+export interface EnemyProjectileState {
+  id: EntityId;
+  ownerId: EntityId;
+  previousPosition: number;
+  position: number;
+  velocity: number;
+  radius: number;
+  damage: number;
+  ageSeconds: number;
+  maximumAgeSeconds: number;
+  visualId: EnemyProjectileVisualId;
 }
 
 export interface ProjectileState {
@@ -121,7 +138,21 @@ export type CombatEvent =
   | { type: 'overheated' }
   | { type: 'cooled' }
   | { type: 'skill-activated'; skillId: 'emergency-boost' }
+  | { type: 'enemy-attack-windup'; enemyId: EntityId }
   | { type: 'enemy-attacked'; enemyId: EntityId }
+  | {
+      type: 'enemy-projectile-fired';
+      enemyId: EntityId;
+      projectileId: EntityId;
+      visualId: EnemyProjectileVisualId;
+    }
+  | {
+      type: 'enemy-projectile-hit';
+      sourceId: EntityId;
+      projectileId: EntityId;
+      visualId: EnemyProjectileVisualId;
+      damage: number;
+    }
   | { type: 'wave-started'; waveId: WaveId }
   | { type: 'wave-completed'; waveId: WaveId }
   | { type: 'boss-phase-changed'; bossId: EntityId; phase: 2 | 3 }
@@ -138,6 +169,7 @@ export interface SimulationState {
   wave?: WaveState;
   enemies: EnemyState[];
   projectiles: ProjectileState[];
+  enemyProjectiles: EnemyProjectileState[];
   events: CombatEvent[];
 }
 

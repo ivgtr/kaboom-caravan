@@ -42,6 +42,7 @@ export function createSimulation(seed = 1): SimulationState {
       createEnemy('basic', 'enemy-2', 72),
     ],
     projectiles: [],
+    enemyProjectiles: [],
     events: [],
   };
 }

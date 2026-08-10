@@ -125,11 +125,15 @@ describe('trigger queue', () => {
         speed: 0,
       },
     ];
-    const damaged = stepSimulation(
+    let damaged = stepSimulation(
       damageState,
       IDLE_COMMAND,
       SIMULATION_STEP_SECONDS,
     );
+    for (let tick = 0; tick < 20; tick += 1) {
+      damaged = stepSimulation(damaged, IDLE_COMMAND, SIMULATION_STEP_SECONDS);
+      if (damaged.events.some(({ type }) => type === 'vehicle-hit')) break;
+    }
 
     expect(overheated.player.overheated).toBe(true);
     expect(overheated.player.energy).toBeCloseTo(73.17, 1);

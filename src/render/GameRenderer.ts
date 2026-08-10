@@ -3,7 +3,11 @@ import {
   createPresentationSnapshot,
   interpolatePosition,
 } from '../game/simulation/presentationSnapshot';
-import type { EnemyState, SimulationState } from '../game/simulation/types';
+import type {
+  EnemyProjectileVisualId,
+  EnemyState,
+  SimulationState,
+} from '../game/simulation/types';
 import { MODULE_ART, WEAPON_ART } from '../app/equipmentAssets';
 import {
   ENEMY_MOTION_ART,
@@ -57,6 +61,7 @@ interface VisualEffect {
   ageSeconds: number;
   durationSeconds: number;
   weaponId?: WeaponId;
+  vfxFamily?: VfxFamily;
 }
 
 interface CharacterMotionRuntime {
@@ -158,13 +163,19 @@ export class GameRenderer {
         ),
         this.groundY,
         enemy,
-        state.player.position,
-        state.player.radius,
       );
     }
 
     if (this.bossPreviewPhase !== undefined) {
       this.drawBossPreview(this.bossPreviewPhase);
+    }
+
+    for (const projectile of state.enemyProjectiles) {
+      const x = this.worldToScreen(
+        projectile.previousPosition +
+          (projectile.position - projectile.previousPosition) * alpha,
+      );
+      this.drawEnemyProjectile(x, projectile.visualId);
     }
 
     for (const projectile of state.projectiles) {
@@ -396,13 +407,7 @@ export class GameRenderer {
     context.restore();
   }
 
-  private drawMonster(
-    x: number,
-    groundY: number,
-    enemy: EnemyState,
-    playerPosition: number,
-    playerRadius: number,
-  ): void {
+  private drawMonster(x: number, groundY: number, enemy: EnemyState): void {
     const context = this.context;
     const typeId = enemy.typeId;
     const motionAsset = ENEMY_MOTION_ART[typeId];
@@ -425,12 +430,7 @@ export class GameRenderer {
           ),
         ) * motionAsset.displayScale;
       const runtime = this.enemyMotions.get(enemy.id);
-      const pose = this.selectEnemyPose(
-        enemy,
-        playerPosition,
-        playerRadius,
-        runtime,
-      );
+      const pose = this.selectEnemyPose(enemy, runtime);
       const hitOffset = runtime ? this.hitOffset(runtime, 1) : 0;
       this.drawMotionFrame(
         monster,
@@ -669,17 +669,12 @@ export class GameRenderer {
       contactCooldown: 0.1,
       attackRange: 52,
       attackDamage: 14,
+      attackWindupSeconds: 0.55,
       attackCooldownSeconds: 2.8,
       frontlinePressure: 4,
       bossPhase: phase,
     };
-    this.drawMonster(
-      this.worldToScreen(position),
-      this.groundY,
-      previewBoss,
-      0,
-      2.5,
-    );
+    this.drawMonster(this.worldToScreen(position), this.groundY, previewBoss);
   }
 
   private drawWheelRotationMarkers(size: number): void {
@@ -785,14 +780,12 @@ export class GameRenderer {
 
   private selectEnemyPose(
     enemy: EnemyState,
-    playerPosition: number,
-    playerRadius: number,
     runtime?: CharacterMotionRuntime,
   ): CharacterMotionPose {
     if (runtime?.releaseAgeSeconds !== undefined) {
       if (runtime.releaseAgeSeconds < 0.18) return 'release';
     }
-    if (this.isEnemyAnticipating(enemy, playerPosition, playerRadius)) {
+    if (this.isEnemyAnticipating(enemy)) {
       return 'anticipation';
     }
     const moving = Math.abs(enemy.position - enemy.previousPosition) > 0.0001;
@@ -808,22 +801,8 @@ export class GameRenderer {
       : 'idle';
   }
 
-  private isEnemyAnticipating(
-    enemy: EnemyState,
-    playerPosition: number,
-    playerRadius: number,
-  ): boolean {
-    const distance = enemy.position - playerPosition;
-    if (
-      enemy.behaviorId === 'stopAndShoot' ||
-      enemy.behaviorId === 'bossFortress'
-    ) {
-      const windUpSeconds = Math.min(0.34, enemy.attackCooldownSeconds * 0.18);
-      return (
-        distance <= enemy.attackRange && enemy.contactCooldown <= windUpSeconds
-      );
-    }
-    return distance <= enemy.radius + playerRadius;
+  private isEnemyAnticipating(enemy: EnemyState): boolean {
+    return enemy.attackWindupRemaining !== undefined;
   }
 
   private hitOffset(
@@ -978,6 +957,14 @@ export class GameRenderer {
               durationSeconds: 0.45,
             });
           }
+        } else if (event.type === 'enemy-projectile-hit') {
+          this.emitEffect({
+            kind: 'hit',
+            worldPosition: state.player.position,
+            ageSeconds: 0,
+            durationSeconds: 0.35,
+            vfxFamily: event.visualId === 'spore' ? 'energy' : 'explosive',
+          });
         } else if (event.type === 'overheated') {
           this.emitEffect({
             kind: 'smoke',
@@ -1029,9 +1016,9 @@ export class GameRenderer {
         continue;
       }
 
-      const family = effect.weaponId
-        ? WEAPON_VFX_FAMILY[effect.weaponId]
-        : 'explosive';
+      const family =
+        effect.vfxFamily ??
+        (effect.weaponId ? WEAPON_VFX_FAMILY[effect.weaponId] : 'explosive');
       const pose: VfxPose = effect.kind === 'muzzle' ? 'muzzle' : 'impact';
       if (!this.drawGeneratedVfx(family, pose, x, y, progress)) {
         this.drawFallbackVfx(effect, x, y, progress);
@@ -1194,6 +1181,7 @@ export class GameRenderer {
       recycled.ageSeconds = effect.ageSeconds;
       recycled.durationSeconds = effect.durationSeconds;
       recycled.weaponId = effect.weaponId;
+      recycled.vfxFamily = effect.vfxFamily;
       this.effects.push(recycled);
     } else {
       this.effects.push(effect);
@@ -1251,6 +1239,51 @@ export class GameRenderer {
       context.arc(x, y, weaponId === 'mine-launcher' ? 6 : 3.5, 0, Math.PI * 2);
       context.fill();
     }
+    context.restore();
+  }
+
+  private drawEnemyProjectile(
+    x: number,
+    visualId: EnemyProjectileVisualId,
+  ): void {
+    const context = this.context;
+    const y =
+      this.groundY - Math.min(88, Math.max(52, this.viewportHeight * 0.1));
+    const isSpore = visualId === 'spore';
+    const isBurst = visualId === 'boss-burst';
+    const radius = isSpore ? 7 : isBurst ? 12 : 10;
+    const core = isSpore ? '#72e0bd' : isBurst ? '#ff745f' : '#65e6ef';
+    const halo = isSpore ? '#d8ff9b' : '#ffe06a';
+
+    context.save();
+    context.lineCap = 'round';
+    context.strokeStyle = core;
+    context.globalAlpha = 0.55;
+    context.lineWidth = Math.max(3, radius * 0.45);
+    context.beginPath();
+    context.moveTo(x + radius * 0.8, y);
+    context.lineTo(x + radius * 2.8, y);
+    context.stroke();
+    context.globalAlpha = 1;
+    context.shadowColor = halo;
+    context.shadowBlur = radius * 1.2;
+    context.fillStyle = core;
+    context.strokeStyle = '#263249';
+    context.lineWidth = Math.max(2, radius * 0.24);
+    context.beginPath();
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+    context.fillStyle = halo;
+    context.beginPath();
+    context.arc(
+      x - radius * 0.28,
+      y - radius * 0.24,
+      radius * 0.35,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
     context.restore();
   }
 

@@ -9,6 +9,7 @@ import { stepSimulation } from '../simulation/stepSimulation';
 import { IDLE_COMMAND, SIMULATION_STEP_SECONDS } from '../simulation/types';
 import { createEnemy } from './createEnemy';
 import { stepEnemyBehaviors } from './enemyBehavior';
+import { completeWaveIfCleared } from '../wave/waveSystem';
 
 describe('enemy definitions and behaviors', () => {
   it('registers five role enemies and one boss with distinct behaviors', () => {
@@ -39,7 +40,7 @@ describe('enemy definitions and behaviors', () => {
 
   it('lets artillery stop and fire from range', () => {
     const artillery = createEnemy('artillery', 'artillery-1', 50);
-    const result = stepEnemyBehaviors(
+    let result = stepEnemyBehaviors(
       [artillery],
       10,
       2.5,
@@ -49,7 +50,32 @@ describe('enemy definitions and behaviors', () => {
     );
 
     expect(result.enemies[0]!.position).toBe(50);
-    expect(result.playerHitPoints).toBe(92);
+    expect(result.playerHitPoints).toBe(100);
+    expect(result.events).toContainEqual({
+      type: 'enemy-attack-windup',
+      enemyId: 'artillery-1',
+    });
+    expect(result.rangedAttacks).toHaveLength(0);
+
+    for (let tick = 0; tick < 26; tick += 1) {
+      result = stepEnemyBehaviors(
+        result.enemies,
+        10,
+        2.5,
+        1,
+        result.playerHitPoints,
+        SIMULATION_STEP_SECONDS,
+      );
+    }
+
+    expect(result.playerHitPoints).toBe(100);
+    expect(result.rangedAttacks).toEqual([
+      expect.objectContaining({
+        enemyId: 'artillery-1',
+        damage: 9,
+        visualId: 'spore',
+      }),
+    ]);
     expect(result.events).toContainEqual({
       type: 'enemy-attacked',
       enemyId: 'artillery-1',
@@ -86,7 +112,23 @@ describe('enemy definitions and behaviors', () => {
 
   it('removes a bomber after its contact attack', () => {
     const bomber = createEnemy('bomber', 'bomber-1', 14);
-    const result = stepEnemyBehaviors([bomber], 10, 2.5, 1, 100, 1);
+    const windup = stepEnemyBehaviors([bomber], 10, 2.5, 1, 100, 1);
+    const contact = stepEnemyBehaviors(
+      windup.enemies,
+      10,
+      2.5,
+      1,
+      windup.playerHitPoints,
+      1,
+    );
+    const result = stepEnemyBehaviors(
+      contact.enemies,
+      10,
+      2.5,
+      1,
+      contact.playerHitPoints,
+      1,
+    );
 
     expect(result.enemies).toHaveLength(0);
     expect(result.playerHitPoints).toBe(71);
@@ -94,6 +136,42 @@ describe('enemy definitions and behaviors', () => {
 });
 
 describe('wave and boss progression', () => {
+  it('keeps a cleared wave active while a hostile projectile is in flight', () => {
+    const initial = createWaveSimulation(123, 'prototype-wave');
+    const readyToClear = {
+      ...initial.wave!,
+      nextSpawnIndex: WAVE_DEFINITIONS['prototype-wave'].spawns.length,
+    };
+    const pending = completeWaveIfCleared(
+      readyToClear,
+      [],
+      [
+        {
+          id: 'enemy-projectile-1',
+          ownerId: 'artillery-1',
+          previousPosition: 50,
+          position: 49,
+          velocity: -18,
+          radius: 0.55,
+          damage: 9,
+          ageSeconds: 0.1,
+          maximumAgeSeconds: 4,
+          visualId: 'spore',
+        },
+      ],
+    );
+
+    expect(pending.wave.completed).toBe(false);
+    expect(pending.event).toBeUndefined();
+
+    const cleared = completeWaveIfCleared(readyToClear, [], []);
+    expect(cleared.wave.completed).toBe(true);
+    expect(cleared.event).toEqual({
+      type: 'wave-completed',
+      waveId: 'prototype-wave',
+    });
+  });
+
   it('spawns scheduled enemies and emits wave lifecycle events', () => {
     const initial = createWaveSimulation(123, 'prototype-wave');
     const started = stepSimulation(

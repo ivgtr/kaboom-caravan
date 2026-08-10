@@ -12,6 +12,7 @@ export interface EnemyDefinition {
   contactDamage: number;
   attackRange: number;
   attackDamage: number;
+  attackWindupSeconds: number;
   attackCooldownSeconds: number;
   frontlinePressure: number;
   assetId: string;
@@ -31,6 +32,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       contactDamage: 8,
       attackRange: 0,
       attackDamage: 0,
+      attackWindupSeconds: 0.18,
       attackCooldownSeconds: 1,
       frontlinePressure: 1,
       assetId: 'enm_basic',
@@ -47,6 +49,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       contactDamage: 12,
       attackRange: 0,
       attackDamage: 0,
+      attackWindupSeconds: 0.12,
       attackCooldownSeconds: 0.8,
       frontlinePressure: 1.4,
       assetId: 'enm_rusher',
@@ -63,6 +66,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       contactDamage: 16,
       attackRange: 0,
       attackDamage: 0,
+      attackWindupSeconds: 0.28,
       attackCooldownSeconds: 1.3,
       frontlinePressure: 1.8,
       assetId: 'enm_heavy',
@@ -79,6 +83,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       contactDamage: 5,
       attackRange: 44,
       attackDamage: 9,
+      attackWindupSeconds: 0.42,
       attackCooldownSeconds: 2.4,
       frontlinePressure: 1.2,
       assetId: 'enm_artillery',
@@ -95,6 +100,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       contactDamage: 30,
       attackRange: 0,
       attackDamage: 0,
+      attackWindupSeconds: 0.24,
       attackCooldownSeconds: 99,
       frontlinePressure: 1.5,
       assetId: 'enm_bomber',
@@ -112,6 +118,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       contactDamage: 24,
       attackRange: 52,
       attackDamage: 14,
+      attackWindupSeconds: 0.55,
       attackCooldownSeconds: 2.8,
       frontlinePressure: 4,
       assetId: 'boss_kawaii_fortress',

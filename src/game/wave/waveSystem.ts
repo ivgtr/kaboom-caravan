@@ -1,6 +1,11 @@
 import { createEnteringEnemy } from '../combat/createEnemy';
 import { WAVE_DEFINITIONS } from '../data/waveDefinitions';
-import type { CombatEvent, EnemyState, WaveState } from '../simulation/types';
+import type {
+  CombatEvent,
+  EnemyProjectileState,
+  EnemyState,
+  WaveState,
+} from '../simulation/types';
 import type { WaveId } from '../data/ids';
 
 export function createWaveState(id: WaveId): WaveState {
@@ -75,10 +80,13 @@ export function advanceWave(
 export function completeWaveIfCleared(
   wave: WaveState,
   enemies: readonly EnemyState[],
+  enemyProjectiles: readonly EnemyProjectileState[] = [],
 ): { wave: WaveState; event?: CombatEvent } {
   const definition = WAVE_DEFINITIONS[wave.id];
   const cleared =
-    wave.nextSpawnIndex >= definition.spawns.length && enemies.length === 0;
+    wave.nextSpawnIndex >= definition.spawns.length &&
+    enemies.length === 0 &&
+    enemyProjectiles.length === 0;
   if (!cleared || wave.completed) return { wave };
   return {
     wave: { ...wave, completed: true },

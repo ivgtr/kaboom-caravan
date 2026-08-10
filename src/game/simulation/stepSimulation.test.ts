@@ -160,17 +160,31 @@ describe('stepSimulation', () => {
       },
     ];
 
-    const firstHit = stepSimulation(
+    const windup = stepSimulation(
       initial,
       IDLE_COMMAND,
       SIMULATION_STEP_SECONDS,
     );
+    let firstHit = windup;
+    for (let tick = 0; tick < 20; tick += 1) {
+      firstHit = stepSimulation(
+        firstHit,
+        IDLE_COMMAND,
+        SIMULATION_STEP_SECONDS,
+      );
+      if (firstHit.events.some(({ type }) => type === 'vehicle-hit')) break;
+    }
     const cooldownTick = stepSimulation(
       firstHit,
       IDLE_COMMAND,
       SIMULATION_STEP_SECONDS,
     );
 
+    expect(windup.player.hitPoints).toBe(100);
+    expect(windup.events).toContainEqual({
+      type: 'enemy-attack-windup',
+      enemyId: 'enemy-1',
+    });
     expect(firstHit.player.hitPoints).toBe(93);
     expect(firstHit.events).toContainEqual({
       type: 'vehicle-hit',
@@ -178,6 +192,93 @@ describe('stepSimulation', () => {
       damage: 7,
     });
     expect(cooldownTick.player.hitPoints).toBe(93);
+  });
+
+  it('delays ranged damage until the hostile projectile reaches the player', () => {
+    const initial = createSimulation();
+    initial.enemies = [
+      {
+        ...initial.enemies[0]!,
+        id: 'artillery-1',
+        typeId: 'artillery',
+        behaviorId: 'stopAndShoot',
+        previousPosition: 50,
+        position: 50,
+        radius: 1.7,
+        attackRange: 44,
+        attackDamage: 9,
+        attackWindupSeconds: 0.42,
+        attackCooldownSeconds: 2.4,
+        speed: 1,
+      },
+    ];
+
+    let state = stepSimulation(initial, IDLE_COMMAND, SIMULATION_STEP_SECONDS);
+    expect(state.player.hitPoints).toBe(100);
+    expect(state.events).toContainEqual({
+      type: 'enemy-attack-windup',
+      enemyId: 'artillery-1',
+    });
+
+    for (let tick = 0; tick < 30; tick += 1) {
+      state = stepSimulation(state, IDLE_COMMAND, SIMULATION_STEP_SECONDS);
+      if (state.enemyProjectiles.length > 0) break;
+    }
+    expect(state.player.hitPoints).toBe(100);
+    expect(state.enemyProjectiles).toHaveLength(1);
+    expect(state.events).toContainEqual({
+      type: 'enemy-projectile-fired',
+      enemyId: 'artillery-1',
+      projectileId: 'enemy-projectile-1',
+      visualId: 'spore',
+    });
+
+    for (let tick = 0; tick < 180; tick += 1) {
+      state = stepSimulation(state, IDLE_COMMAND, SIMULATION_STEP_SECONDS);
+      if (state.events.some(({ type }) => type === 'enemy-projectile-hit')) {
+        break;
+      }
+    }
+    expect(state.enemyProjectiles).toHaveLength(0);
+    expect(state.player.hitPoints).toBe(92);
+    expect(state.events).toContainEqual({
+      type: 'enemy-projectile-hit',
+      sourceId: 'artillery-1',
+      projectileId: 'enemy-projectile-1',
+      visualId: 'spore',
+      damage: 8,
+    });
+  });
+
+  it('expires a hostile projectile that misses without damaging the player', () => {
+    const initial = createSimulation();
+    initial.enemies = [];
+    initial.enemyProjectiles = [
+      {
+        id: 'enemy-projectile-miss',
+        ownerId: 'artillery-1',
+        previousPosition: 50,
+        position: 50,
+        velocity: 18,
+        radius: 0.55,
+        damage: 9,
+        ageSeconds: 0,
+        maximumAgeSeconds: 0.01,
+        visualId: 'spore',
+      },
+    ];
+
+    const result = stepSimulation(
+      initial,
+      IDLE_COMMAND,
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(result.enemyProjectiles).toHaveLength(0);
+    expect(result.player.hitPoints).toBe(100);
+    expect(result.events).not.toContainEqual(
+      expect.objectContaining({ type: 'vehicle-hit' }),
+    );
   });
 
   it('does not mutate the previous state', () => {

@@ -530,8 +530,14 @@ function describeCombatEvent(event: CombatEvent): string {
       return 'READY!';
     case 'skill-activated':
       return 'EMERGENCY ESCAPE!';
+    case 'enemy-attack-windup':
+      return 'WATCH OUT!';
     case 'enemy-attacked':
       return 'INCOMING!';
+    case 'enemy-projectile-fired':
+      return 'INCOMING!';
+    case 'enemy-projectile-hit':
+      return `${event.damage.toFixed(0)} DAMAGE!`;
     case 'wave-started':
       return 'WAVE START!';
     case 'wave-completed':

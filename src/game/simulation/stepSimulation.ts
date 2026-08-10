@@ -20,6 +20,7 @@ import {
 } from './distance';
 import type {
   CombatEvent,
+  EnemyProjectileState,
   EnemyState,
   PlayerCommand,
   ProjectileState,
@@ -106,6 +107,66 @@ interface ProjectileResult {
   enemies: EnemyState[];
   projectiles: ProjectileState[];
   events: CombatEvent[];
+}
+
+interface EnemyProjectileResult {
+  projectiles: EnemyProjectileState[];
+  playerHitPoints: number;
+  events: CombatEvent[];
+}
+
+function moveEnemyProjectiles(
+  projectiles: EnemyProjectileState[],
+  playerPosition: number,
+  playerRadius: number,
+  playerArmor: number,
+  playerHitPoints: number,
+  deltaSeconds: number,
+): EnemyProjectileResult {
+  const remainingProjectiles: EnemyProjectileState[] = [];
+  const events: CombatEvent[] = [];
+  let hitPoints = playerHitPoints;
+
+  for (const projectile of projectiles) {
+    const movedProjectile = {
+      ...projectile,
+      previousPosition: projectile.position,
+      position: projectile.position + projectile.velocity * deltaSeconds,
+      ageSeconds: projectile.ageSeconds + deltaSeconds,
+    };
+    const hitPlayer = segmentIntersectsCircle1d(
+      movedProjectile.previousPosition,
+      movedProjectile.position,
+      playerPosition,
+      playerRadius + movedProjectile.radius,
+    );
+    if (hitPlayer) {
+      const damage = resolveDamage(movedProjectile.damage, playerArmor);
+      hitPoints = Math.max(0, hitPoints - damage);
+      events.push({
+        type: 'enemy-projectile-hit',
+        sourceId: movedProjectile.ownerId,
+        projectileId: movedProjectile.id,
+        visualId: movedProjectile.visualId,
+        damage,
+      });
+      events.push({
+        type: 'vehicle-hit',
+        sourceId: movedProjectile.ownerId,
+        damage,
+      });
+      continue;
+    }
+    if (movedProjectile.ageSeconds <= movedProjectile.maximumAgeSeconds) {
+      remainingProjectiles.push(movedProjectile);
+    }
+  }
+
+  return {
+    projectiles: remainingProjectiles,
+    playerHitPoints: hitPoints,
+    events,
+  };
 }
 
 function moveProjectiles(
@@ -332,6 +393,7 @@ export function stepSimulation(
   let overheated = state.player.overheated;
   let enemies = state.enemies;
   let projectiles = state.projectiles;
+  let enemyProjectiles = state.enemyProjectiles;
   let nextEntitySequence = state.nextEntitySequence;
   let wave = state.wave;
 
@@ -354,6 +416,28 @@ export function stepSimulation(
   enemies = behaviorResult.enemies;
   playerHitPoints = behaviorResult.playerHitPoints;
   events.push(...behaviorResult.events);
+  for (const attack of behaviorResult.rangedAttacks) {
+    const projectile: EnemyProjectileState = {
+      id: `enemy-projectile-${nextEntitySequence}`,
+      ownerId: attack.enemyId,
+      previousPosition: attack.originPosition,
+      position: attack.originPosition,
+      velocity: -attack.projectileSpeed,
+      radius: attack.projectileRadius,
+      damage: attack.damage,
+      ageSeconds: 0,
+      maximumAgeSeconds: attack.maximumAgeSeconds,
+      visualId: attack.visualId,
+    };
+    enemyProjectiles = [...enemyProjectiles, projectile];
+    nextEntitySequence += 1;
+    events.push({
+      type: 'enemy-projectile-fired',
+      enemyId: attack.enemyId,
+      projectileId: projectile.id,
+      visualId: projectile.visualId,
+    });
+  }
 
   if (overheated && heat <= OVERHEAT_RECOVERY_THRESHOLD) {
     overheated = false;
@@ -436,6 +520,18 @@ export function stepSimulation(
   projectiles = projectileResult.projectiles;
   events.push(...projectileResult.events);
 
+  const enemyProjectileResult = moveEnemyProjectiles(
+    enemyProjectiles,
+    playerPosition,
+    state.player.radius,
+    playerStats.armor,
+    playerHitPoints,
+    deltaSeconds,
+  );
+  enemyProjectiles = enemyProjectileResult.projectiles;
+  playerHitPoints = enemyProjectileResult.playerHitPoints;
+  events.push(...enemyProjectileResult.events);
+
   const killedEnemies = enemies.filter((enemy) => enemy.hitPoints <= 0);
   for (const enemy of killedEnemies) {
     events.push({ type: 'enemy-killed', enemyId: enemy.id });
@@ -478,7 +574,7 @@ export function stepSimulation(
   enemies = [...enemies, ...reinforcements];
 
   if (wave) {
-    const completion = completeWaveIfCleared(wave, enemies);
+    const completion = completeWaveIfCleared(wave, enemies, enemyProjectiles);
     wave = completion.wave;
     if (completion.event) events.push(completion.event);
   }
@@ -558,6 +654,7 @@ export function stepSimulation(
   else if (
     enemies.length === 0 &&
     projectiles.length === 0 &&
+    enemyProjectiles.length === 0 &&
     (!wave || wave.completed)
   ) {
     status = 'victory';
@@ -595,6 +692,7 @@ export function stepSimulation(
     ...(wave ? { wave } : {}),
     enemies,
     projectiles,
+    enemyProjectiles,
     events,
   };
 }
