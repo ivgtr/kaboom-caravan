@@ -58,3 +58,4 @@ npm run check
 - [フェーズ2プレイテスト](docs/playtest/phase2.md)：距離、前線、武器、リソースの確認手順
 - [G0開始前チェックポイント](docs/playtest/g0-readiness.md)：実アセット生成前の承認事項
 - [G0 Asset manifest](docs/assets/g0-manifest.md)：生成素材の出典、条件、採否記録
+- [MVP手動プレイテスト](docs/playtest/mvp-readiness.md)：固定Seed検証後の体感確認項目

@@ -39,6 +39,20 @@ test('hides diagnostic UI from the product view', async ({ page }) => {
   await expect(page.locator('.debug-panel')).toHaveCount(0);
 });
 
+test('shows a recoverable message when Canvas 2D is unavailable', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    HTMLCanvasElement.prototype.getContext = () => null;
+  });
+  await page.goto('/');
+
+  const error = page.getByRole('alert');
+  await expect(error).toContainText('DISPLAY ERROR');
+  await expect(error.getByRole('button', { name: '再読み込み' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '主武器' })).toHaveCount(0);
+});
+
 for (const viewport of [
   { width: 1440, height: 900 },
   { width: 1184, height: 689 },

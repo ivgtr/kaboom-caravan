@@ -97,6 +97,7 @@ export function GameApp() {
   );
   const [feedback, setFeedback] = useState('戦闘開始');
   const [showClear, setShowClear] = useState(false);
+  const [renderError, setRenderError] = useState<string>();
   const debug = new URLSearchParams(window.location.search).has('debug');
 
   useEffect(() => {
@@ -105,7 +106,19 @@ export function GameApp() {
     let lastSnapshotTick = -1;
     let lastPhase = sessionRef.current.phase;
     let clearTimer: number | undefined;
-    const renderer = new GameRenderer(canvas);
+    let renderer: GameRenderer;
+    try {
+      renderer = new GameRenderer(canvas);
+    } catch {
+      const errorTimer = window.setTimeout(
+        () =>
+          setRenderError(
+            'このブラウザでは戦闘画面を初期化できませんでした。Canvas 2Dを有効にして再読み込みしてください。',
+          ),
+        0,
+      );
+      return () => window.clearTimeout(errorTimer);
+    }
     const loop = new FixedStepLoop(
       (deltaSeconds) => {
         const session = stepGameSession(
@@ -172,104 +185,116 @@ export function GameApp() {
 
   const combatVisible = sessionView.phase === 'combat';
   return (
-    <main className={`game-shell phase-${sessionView.phase}`}>
+    <main
+      className={`game-shell phase-${renderError ? 'error' : sessionView.phase}`}
+    >
       <canvas ref={canvasRef} aria-label="戦闘フィールド" />
-      {combatVisible && (
-        <>
-          <section className="compact-hud" aria-label="車両耐久">
-            <GameIcon name="hp" />
-            <div>
-              <strong>CARAVAN</strong>
-              <progress value={hud.hitPoints} max={hud.maxHitPoints} />
-            </div>
-            <b>{Math.ceil(hud.hitPoints)}</b>
-          </section>
-          <section className="route-hud" aria-label="前線進行">
-            <span>SAFE</span>
-            <div className="battle-progress">
-              {MVP_ENCOUNTERS.map((encounter, index) => (
-                <i
-                  className={
-                    index < sessionView.encounterIndex
-                      ? 'cleared'
-                      : index === sessionView.encounterIndex
-                        ? 'current'
-                        : ''
-                  }
-                  key={encounter.id}
+      {renderError ? (
+        <section className="render-error" role="alert">
+          <strong>DISPLAY ERROR</strong>
+          <p>{renderError}</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            再読み込み
+          </button>
+        </section>
+      ) : (
+        combatVisible && (
+          <>
+            <section className="compact-hud" aria-label="車両耐久">
+              <GameIcon name="hp" />
+              <div>
+                <strong>CARAVAN</strong>
+                <progress value={hud.hitPoints} max={hud.maxHitPoints} />
+              </div>
+              <b>{Math.ceil(hud.hitPoints)}</b>
+            </section>
+            <section className="route-hud" aria-label="前線進行">
+              <span>SAFE</span>
+              <div className="battle-progress">
+                {MVP_ENCOUNTERS.map((encounter, index) => (
+                  <i
+                    className={
+                      index < sessionView.encounterIndex
+                        ? 'cleared'
+                        : index === sessionView.encounterIndex
+                          ? 'current'
+                          : ''
+                    }
+                    key={encounter.id}
+                  />
+                ))}
+              </div>
+              <span>DANGER</span>
+              <b>
+                BATTLE {sessionView.encounterIndex + 1}/10 · ×
+                {hud.rewardMultiplier.toFixed(1)}
+              </b>
+            </section>
+            <section className="enemy-chip">
+              <GameIcon name="enemy" />
+              <span>MONSTER</span>
+              <strong>{hud.enemies}</strong>
+            </section>
+            <p className="combat-feedback" aria-live="polite">
+              {feedback}
+            </p>
+            <section className="movement-controls" aria-label="移動操作">
+              <ControlButton
+                label="前進"
+                className="move forward"
+                {...bindControl('move-right')}
+              >
+                <GameIcon name="forward" />
+                <kbd>D</kbd>
+              </ControlButton>
+              <ControlButton
+                label="後退"
+                className="move backward"
+                {...bindControl('move-left')}
+              >
+                <GameIcon name="backward" />
+                <kbd>A</kbd>
+              </ControlButton>
+            </section>
+            <section className="weapon-controls" aria-label="武器操作">
+              <ControlButton
+                label="副武器"
+                className="weapon sub"
+                {...bindControl('secondary')}
+              >
+                <EquipmentGlyph id={sessionView.secondaryWeaponId} />
+                <small>SUB</small>
+                <Meter value={hud.secondaryCooldown} max={2.5} />
+              </ControlButton>
+              <ControlButton
+                label="主武器"
+                className={`weapon main ${hud.overheated ? 'overheat' : hud.primaryCooldown <= 0 ? 'ready' : ''}`}
+                {...bindControl('primary')}
+              >
+                <EquipmentGlyph id={sessionView.primaryWeaponId} />
+                <small>{hud.overheated ? 'OVERHEAT' : 'MAIN'}</small>
+                <span className="ammo">
+                  <GameIcon name="ammo" />
+                  {hud.ammo}
+                </span>
+                <Meter
+                  value={hud.overheated ? hud.heat : hud.primaryCooldown}
+                  max={hud.overheated ? 100 : 2.5}
                 />
-              ))}
-            </div>
-            <span>DANGER</span>
-            <b>
-              BATTLE {sessionView.encounterIndex + 1}/10 · ×
-              {hud.rewardMultiplier.toFixed(1)}
-            </b>
-          </section>
-          <section className="enemy-chip">
-            <GameIcon name="enemy" />
-            <span>MONSTER</span>
-            <strong>{hud.enemies}</strong>
-          </section>
-          <p className="combat-feedback" aria-live="polite">
-            {feedback}
-          </p>
-          <section className="movement-controls" aria-label="移動操作">
-            <ControlButton
-              label="前進"
-              className="move forward"
-              {...bindControl('move-right')}
-            >
-              <GameIcon name="forward" />
-              <kbd>D</kbd>
-            </ControlButton>
-            <ControlButton
-              label="後退"
-              className="move backward"
-              {...bindControl('move-left')}
-            >
-              <GameIcon name="backward" />
-              <kbd>A</kbd>
-            </ControlButton>
-          </section>
-          <section className="weapon-controls" aria-label="武器操作">
-            <ControlButton
-              label="副武器"
-              className="weapon sub"
-              {...bindControl('secondary')}
-            >
-              <EquipmentGlyph id={sessionView.secondaryWeaponId} />
-              <small>SUB</small>
-              <Meter value={hud.secondaryCooldown} max={2.5} />
-            </ControlButton>
-            <ControlButton
-              label="主武器"
-              className={`weapon main ${hud.overheated ? 'overheat' : hud.primaryCooldown <= 0 ? 'ready' : ''}`}
-              {...bindControl('primary')}
-            >
-              <EquipmentGlyph id={sessionView.primaryWeaponId} />
-              <small>{hud.overheated ? 'OVERHEAT' : 'MAIN'}</small>
-              <span className="ammo">
-                <GameIcon name="ammo" />
-                {hud.ammo}
-              </span>
-              <Meter
-                value={hud.overheated ? hud.heat : hud.primaryCooldown}
-                max={hud.overheated ? 100 : 2.5}
-              />
-            </ControlButton>
-            <ControlButton
-              label="緊急離脱"
-              className="weapon escape"
-              {...bindControl('escape')}
-            >
-              <GameIcon name="escape" />
-              <small>ESC</small>
-              <span className="energy">{Math.floor(hud.energy)}%</span>
-              <Meter value={hud.skillCooldown} max={5} />
-            </ControlButton>
-          </section>
-        </>
+              </ControlButton>
+              <ControlButton
+                label="緊急離脱"
+                className="weapon escape"
+                {...bindControl('escape')}
+              >
+                <GameIcon name="escape" />
+                <small>ESC</small>
+                <span className="energy">{Math.floor(hud.energy)}%</span>
+                <Meter value={hud.skillCooldown} max={5} />
+              </ControlButton>
+            </section>
+          </>
+        )
       )}
       {debug && (
         <aside className="debug-panel">
