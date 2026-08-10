@@ -56,6 +56,34 @@ describe('enemy definitions and behaviors', () => {
     });
   });
 
+  it('makes ranged enemies approach without attacking until within range', () => {
+    const artillery = createEnemy('artillery', 'artillery-1', 70);
+    const result = stepEnemyBehaviors([artillery], 10, 2.5, 1, 100, 1);
+
+    expect(result.enemies[0]!.position).toBe(69);
+    expect(result.playerHitPoints).toBe(100);
+    expect(result.events).not.toContainEqual({
+      type: 'enemy-attacked',
+      enemyId: 'artillery-1',
+    });
+  });
+
+  it('does not let melee enemies attack before their bodies touch', () => {
+    const basic = createEnemy('basic', 'basic-1', 16);
+    const result = stepEnemyBehaviors(
+      [basic],
+      10,
+      2.5,
+      1,
+      100,
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(result.enemies[0]!.position).toBeLessThan(16);
+    expect(result.playerHitPoints).toBe(100);
+    expect(result.events).toHaveLength(0);
+  });
+
   it('removes a bomber after its contact attack', () => {
     const bomber = createEnemy('bomber', 'bomber-1', 14);
     const result = stepEnemyBehaviors([bomber], 10, 2.5, 1, 100, 1);

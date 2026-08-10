@@ -20,6 +20,7 @@ import {
   getBossPhaseAuraSource,
   type BossPhase,
 } from './bossPhaseAssets';
+import { getEnemyEntryX } from './enemyPresentation';
 import {
   getVfxSource,
   VFX_ART,
@@ -67,6 +68,7 @@ interface CharacterMotionRuntime {
   hitAgeSeconds: number;
   phaseTransitionAgeSeconds: number;
   phaseClockSeconds: number;
+  spawnAgeSeconds: number;
 }
 
 interface ExhaustPuff {
@@ -83,6 +85,7 @@ const createMotionRuntime = (position: number): CharacterMotionRuntime => ({
   hitAgeSeconds: Number.POSITIVE_INFINITY,
   phaseTransitionAgeSeconds: Number.POSITIVE_INFINITY,
   phaseClockSeconds: 0,
+  spawnAgeSeconds: 0,
 });
 
 export class GameRenderer {
@@ -470,6 +473,9 @@ export class GameRenderer {
           ),
         ) * motionAsset.displayScale;
       const runtime = this.enemyMotions.get(enemy.id);
+      const entryX = runtime
+        ? getEnemyEntryX(x, this.viewportWidth, size, runtime.spawnAgeSeconds)
+        : x;
       const pose = this.selectEnemyPose(
         enemy,
         playerPosition,
@@ -480,13 +486,13 @@ export class GameRenderer {
       this.drawMotionFrame(
         monster,
         pose,
-        x - size * 0.5 + hitOffset,
+        entryX - size * 0.5 + hitOffset,
         groundY - size * motionAsset.groundAnchor,
         size,
       );
       if (typeId === 'kawaii-fortress') {
         this.drawBossPhaseAura(
-          x + hitOffset,
+          entryX + hitOffset,
           groundY,
           size,
           enemy.bossPhase ?? 1,
@@ -496,7 +502,7 @@ export class GameRenderer {
       }
       if (typeId === 'kawaii-fortress' && pose === 'anticipation') {
         this.drawBossAttackTelegraph(
-          x + hitOffset,
+          entryX + hitOffset,
           groundY,
           size,
           enemy.bossPhase ?? 1,
@@ -507,8 +513,17 @@ export class GameRenderer {
     }
     const scale =
       typeId === 'kawaii-fortress' ? 2.3 : typeId === 'heavy' ? 1.35 : 1;
+    const runtime = this.enemyMotions.get(enemy.id);
+    const entryX = runtime
+      ? getEnemyEntryX(
+          x,
+          this.viewportWidth,
+          60 * scale,
+          runtime.spawnAgeSeconds,
+        )
+      : x;
     context.save();
-    context.translate(x, groundY);
+    context.translate(entryX, groundY);
     context.scale(scale, scale);
     context.fillStyle = ENEMY_COLORS[typeId];
     context.strokeStyle = '#303447';
@@ -868,15 +883,7 @@ export class GameRenderer {
         distance <= enemy.attackRange && enemy.contactCooldown <= windUpSeconds
       );
     }
-    const anticipationDistance =
-      enemy.typeId === 'rusher'
-        ? 5
-        : enemy.typeId === 'bomber'
-          ? 4
-          : enemy.typeId === 'heavy'
-            ? 0.8
-            : 0.75;
-    return distance <= enemy.radius + anticipationDistance + playerRadius;
+    return distance <= enemy.radius + playerRadius;
   }
 
   private hitOffset(
@@ -958,6 +965,7 @@ export class GameRenderer {
     runtime.hitAgeSeconds += deltaSeconds;
     runtime.phaseTransitionAgeSeconds += deltaSeconds;
     runtime.phaseClockSeconds += deltaSeconds;
+    runtime.spawnAgeSeconds += deltaSeconds;
   }
 
   private updateExhaustPuffs(
