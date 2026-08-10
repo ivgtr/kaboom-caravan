@@ -1,7 +1,7 @@
 # Kaboom Caravan 戦闘表現・MVP収束計画
 
-- Status: Planned
-- Version: 1.0
+- Status: A–E Completed / User Playtest Required
+- Version: 1.1
 - Date: 2026-08-11
 - Scope: Enemy Attack Readability / Hit / Death / Quality / Balance Gate
 - Related:
@@ -41,14 +41,11 @@ Playtestでバランス値をFIXする。
 - Combat／Reward／Battle ClearのPhase別UI
 - Desktop／Tablet／Mobile Landscapeの自動E2E
 
-### 残る問題
+### User Playtestで確認する問題
 
-- 遠距離敵は`enemy-attacked`と`vehicle-hit`を同Tickで発生させ、弾の飛行時間がない
-- Playerは被弾理由を位置関係とEvent表示から推測する必要がある
-- 近接Hit、Enemy Hit、Deathの視覚的な時間軸が統一されていない
-- Bomber自爆と通常Enemy Deathの区別が弱い
-- Reduced Motion、Effect高負荷、Asset参照切れの検証が未完了
-- 敵入場とUI変更後の10戦自動所要時間が再計測されていない
+- 自動戦闘時間は85.717〜86.250秒で、要件の10〜20分より短い可能性が高い
+- 長距離維持戦略は最低HP 79〜91で全Seedを完走し、まだ安全すぎる可能性がある
+- 自動Reward方針がModule優先のため、武器交換による戦い方の変化は手動確認が必要
 - 細かなUI位置とバランス値はUser Playtest前の仮値である
 
 ## 3. 今回の完了状態
@@ -247,8 +244,8 @@ Status: Completed
 - Main／Sub発射数と使用率、Enemy Projectile発射／命中／回避をEventから集計
 - Reward選択列と最終Buildを記録し、同一Seed再実行との完全一致を検証
 - Seed別の期待BaselineをUnit Testへ固定し、意図しないBalance Driftを検出可能にした
-- 3 Seedすべて10戦Victory、総戦闘時間79.917〜80.000秒、最低HP 91〜92を確認
-- 敵弾は各Run 2発／2命中／0回避、Boss戦は0発であることを観測
+- 3 Seedすべて10戦Victory、総戦闘時間85.717〜86.250秒、最低HP 79〜91を確認
+- 敵弾は各Run 3発／3命中／0回避、Boss戦は1発命中することを観測
 - Gameplay数値は変更せず、詳細を`docs/playtest/mvp-balance-baseline.md`へ記録
 
 ### F. User Playtest Gate

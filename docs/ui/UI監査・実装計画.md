@@ -140,6 +140,7 @@
 - 生成UIフレーム4種と装備Render 16種をRuntimeへ登録
 - Combat / Battle Clear / Rewardの表示切替を実戦闘経路でE2E検証
 - Rewardでは3枚すべてに固有Equipment Visualを表示
+- Module 4枠時は、各Reward Cardへ交換される最古Module名を表示
 - 844×390ではHorizontal Snap Carousel、Desktopでは3列表示
 - Gameplay Logicは維持し、変更はPresentation / Input / Testへ限定
 - ボタン位置などの細部UI調整はユーザー確認後に別途FIXする
