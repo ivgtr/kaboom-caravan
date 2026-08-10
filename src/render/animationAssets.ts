@@ -21,15 +21,22 @@ export const MOTION_POSE_CELLS: Readonly<
 };
 
 export const PLAYER_CHASSIS_ART = {
-  source: '/assets/animation/veh_player_chassis_v004.png',
-  groundAnchor: 0.836,
+  source: '/assets/animation/veh_player_chassis_v005.png',
+  groundAnchor: 0.843,
   displayScale: 1,
   /** Local coordinates relative to the center X and ground Y of the sprite. */
   wheelAnchors: [
-    [-0.3157, -0.072],
-    [0.0347, -0.072],
+    [-0.3166, -0.0805],
+    [0.0332, -0.0805],
   ],
   markerOrbit: 0.027,
+  /** Rear rail slots first, then the roof auxiliary cradle. */
+  moduleMounts: [
+    { x: -0.42, y: -0.415, scale: 0.145, rotation: -3 },
+    { x: -0.42, y: -0.325, scale: 0.145, rotation: 2 },
+    { x: -0.42, y: -0.235, scale: 0.145, rotation: -2 },
+    { x: -0.34, y: -0.655, scale: 0.15, rotation: 0 },
+  ],
 } as const;
 
 export const PLAYER_RIG_ART = {

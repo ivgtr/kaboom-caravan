@@ -277,14 +277,14 @@ export class GameRenderer {
         2,
       );
       for (let index = 0; index < moduleIds.length; index += 1) {
-        const column = index % 2;
-        const row = Math.floor(index / 2);
-        this.drawEquipmentSprite(
+        const mount = PLAYER_CHASSIS_ART.moduleMounts[index];
+        if (!mount) continue;
+        this.drawInstalledModule(
           MODULE_ART[moduleIds[index]!],
-          -width * (0.29 - column * 0.11),
-          -width * (0.42 - row * 0.13),
-          width * 0.17,
-          index % 2 === 0 ? -4 : 4,
+          mount.x * size,
+          mount.y * size,
+          mount.scale * size,
+          mount.rotation,
         );
       }
       context.restore();
@@ -1107,6 +1107,83 @@ export class GameRenderer {
     context.translate(centerX, centerY);
     context.rotate((rotationDegrees * Math.PI) / 180);
     context.drawImage(image, -size / 2, -size / 2, size, size);
+    context.restore();
+  }
+
+  private drawInstalledModule(
+    source: string,
+    centerX: number,
+    centerY: number,
+    width: number,
+    rotationDegrees: number,
+  ): void {
+    const image = this.assets.get(source);
+    if (!image) return;
+    const context = this.context;
+    const height = width * (image.naturalHeight / image.naturalWidth);
+    const clampWidth = Math.max(2, width * 0.13);
+    const boltRadius = Math.max(0.9, width * 0.045);
+
+    context.save();
+    context.translate(centerX, centerY);
+    context.rotate((rotationDegrees * Math.PI) / 180);
+
+    // The connector and cradle sit behind the equipment illustration.
+    context.fillStyle = '#27344b';
+    context.strokeStyle = '#172238';
+    context.lineWidth = Math.max(1, width * 0.055);
+    context.beginPath();
+    context.roundRect(
+      width * 0.28,
+      -height * 0.2,
+      width * 0.42,
+      height * 0.4,
+      height * 0.12,
+    );
+    context.fill();
+    context.stroke();
+    context.beginPath();
+    context.roundRect(
+      -width * 0.54,
+      -height * 0.47,
+      width * 1.08,
+      height * 0.94,
+      height * 0.2,
+    );
+    context.stroke();
+
+    context.shadowColor = 'rgba(20, 29, 48, 0.5)';
+    context.shadowBlur = width * 0.12;
+    context.shadowOffsetY = width * 0.06;
+    context.drawImage(image, -width / 2, -height / 2, width, height);
+    context.shadowColor = 'transparent';
+    context.shadowBlur = 0;
+    context.shadowOffsetY = 0;
+
+    // Coral retainers and cyan bolts remain in front, visibly trapping the
+    // acquired device in the chassis rail rather than reading as a sticker.
+    context.fillStyle = '#ef715f';
+    context.strokeStyle = '#27344b';
+    context.lineWidth = Math.max(1, width * 0.045);
+    for (const x of [-width * 0.36, width * 0.36]) {
+      context.beginPath();
+      context.roundRect(
+        x - clampWidth / 2,
+        -height * 0.42,
+        clampWidth,
+        height * 0.84,
+        clampWidth / 2,
+      );
+      context.fill();
+      context.stroke();
+      for (const y of [-height * 0.3, height * 0.3]) {
+        context.fillStyle = '#70e5e7';
+        context.beginPath();
+        context.arc(x, y, boltRadius, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#ef715f';
+      }
+    }
     context.restore();
   }
 

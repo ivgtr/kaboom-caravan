@@ -47,7 +47,7 @@ test('keeps rolling with inertia after movement input is released', async ({
     response.url().endsWith('/assets/animation/veh_player_rig_parts_v003.png'),
   );
   const chassisAsset = page.waitForResponse((response) =>
-    response.url().endsWith('/assets/animation/veh_player_chassis_v004.png'),
+    response.url().endsWith('/assets/animation/veh_player_chassis_v005.png'),
   );
   await page.goto('/?debug=1');
   expect((await rigAsset).ok()).toBe(true);
@@ -67,12 +67,36 @@ test('keeps rolling with inertia after movement input is released', async ({
 
   if (process.env.CAPTURE_MOTION_REVIEW) {
     await page.screenshot({
-      path: 'artifacts/animation/review/caravan_chassis_1440x900_v004.png',
+      path: 'artifacts/animation/review/caravan_battery_1440x900_v005.png',
     });
     await page.goto('/?debug=motion');
     await expect(debug).toContainText('position 10.0');
     await page.screenshot({
-      path: 'artifacts/animation/review/caravan_wheel_axes_1440x900_v004.png',
+      path: 'artifacts/animation/review/caravan_wheel_axes_1440x900_v005.png',
+    });
+  }
+});
+
+test('renders an acquired module on the physical caravan mounts', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.keyboard.down('e');
+
+  const rewards = page.getByRole('dialog').filter({ hasText: 'SALVAGE TIME!' });
+  await expect(rewards).toBeVisible({ timeout: 45_000 });
+  await page.keyboard.up('e');
+  const moduleCard = rewards.locator('.reward-module').first();
+  await expect(moduleCard).toBeVisible();
+  await moduleCard.getByRole('button', { name: '装備する' }).click();
+
+  await expect(rewards).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+  if (process.env.CAPTURE_MOTION_REVIEW) {
+    await page.screenshot({
+      path: 'artifacts/animation/review/caravan_module_mounted_1440x900_v005.png',
     });
   }
 });

@@ -46,8 +46,16 @@ describe('character motion assets', () => {
     expect(rear[1]).toBe(front[1]);
     expect(rear[0]).toBeLessThan(front[0]);
     expect(PLAYER_CHASSIS_ART.groundAnchor + rear[1]).toBeCloseTo(
-      782 / 1024,
+      781 / 1024,
       3,
     );
+  });
+
+  it('provides one physical mount for every module slot', () => {
+    expect(PLAYER_CHASSIS_ART.moduleMounts).toHaveLength(4);
+    expect(
+      new Set(PLAYER_CHASSIS_ART.moduleMounts.map(({ x, y }) => `${x}:${y}`))
+        .size,
+    ).toBe(4);
   });
 });
