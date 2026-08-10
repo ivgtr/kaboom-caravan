@@ -4,9 +4,24 @@ import {
   interpolatePosition,
 } from '../game/simulation/presentationSnapshot';
 import type { SimulationState } from '../game/simulation/types';
+import { MODULE_ART, WEAPON_ART } from '../app/equipmentAssets';
+import { SpriteAssetManager } from './SpriteAssetManager';
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
+const WORLD_ART = {
+  player: '/assets/world/veh_player_base_v001.png',
+  background: '/assets/world/env_background_sunny_highway_v001.webp',
+  road: '/assets/world/env_road_v001.webp',
+} as const;
+const ENEMY_ART: Readonly<Record<EnemyTypeId, string>> = {
+  basic: '/assets/world/enm_basic_v001.png',
+  rusher: '/assets/world/enm_rusher_v001.png',
+  heavy: '/assets/world/enm_heavy_v001.png',
+  artillery: '/assets/world/enm_artillery_v001.png',
+  bomber: '/assets/world/enm_bomber_v001.png',
+  'kawaii-fortress': '/assets/world/enm_kawaii_fortress_v001.png',
+};
 const ENEMY_COLORS: Record<EnemyTypeId, string> = {
   basic: '#72d6a0',
   rusher: '#e45c78',
@@ -40,11 +55,18 @@ export class GameRenderer {
   private lastRenderTime = performance.now();
   private effects: VisualEffect[] = [];
   private readonly knownEntityPositions = new Map<string, number>();
+  private readonly assets = new SpriteAssetManager();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas 2D is not available');
     this.context = context;
+    this.assets.preload([
+      ...Object.values(WORLD_ART),
+      ...Object.values(ENEMY_ART),
+      ...Object.values(WEAPON_ART),
+      ...Object.values(MODULE_ART),
+    ]);
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(canvas);
     this.resize();
@@ -109,21 +131,44 @@ export class GameRenderer {
 
   private drawEnvironment(): void {
     const context = this.context;
-    const sky = context.createLinearGradient(0, 0, 0, this.groundY);
-    sky.addColorStop(0, '#77c8ef');
-    sky.addColorStop(1, '#e7f5d0');
-    context.fillStyle = sky;
-    context.fillRect(0, 0, this.viewportWidth, this.groundY);
+    const background = this.assets.get(WORLD_ART.background);
+    if (background) {
+      this.drawImageCover(
+        background,
+        0,
+        0,
+        this.viewportWidth,
+        this.viewportHeight,
+      );
+    } else {
+      const sky = context.createLinearGradient(0, 0, 0, this.groundY);
+      sky.addColorStop(0, '#77c8ef');
+      sky.addColorStop(1, '#e7f5d0');
+      context.fillStyle = sky;
+      context.fillRect(0, 0, this.viewportWidth, this.groundY);
+    }
 
-    context.fillStyle = '#91b96e';
-    context.fillRect(
-      0,
-      this.groundY - 12,
-      this.viewportWidth,
-      this.viewportHeight - this.groundY + 12,
-    );
-    context.fillStyle = '#e4bd83';
-    context.fillRect(0, this.groundY - 4, this.viewportWidth, 62);
+    const road = this.assets.get(WORLD_ART.road);
+    if (road) {
+      const roadHeight = Math.max(150, this.viewportHeight * 0.35);
+      this.drawImageCover(
+        road,
+        0,
+        this.groundY - roadHeight * 0.2,
+        this.viewportWidth,
+        roadHeight,
+      );
+    } else {
+      context.fillStyle = '#91b96e';
+      context.fillRect(
+        0,
+        this.groundY - 12,
+        this.viewportWidth,
+        this.viewportHeight - this.groundY + 12,
+      );
+      context.fillStyle = '#e4bd83';
+      context.fillRect(0, this.groundY - 4, this.viewportWidth, 62);
+    }
 
     const zones: Array<[number, number, string]> = [
       [0, 25, 'rgb(184 201 138 / 35%)'],
@@ -136,56 +181,6 @@ export class GameRenderer {
       const right = this.worldToScreen(maximum);
       context.fillStyle = color;
       context.fillRect(left, this.groundY - 4, right - left, 62);
-    }
-
-    context.fillStyle = 'rgb(255 255 255 / 58%)';
-    for (const [x, y, width] of [
-      [0.12, 0.18, 0.14],
-      [0.5, 0.12, 0.18],
-      [0.83, 0.22, 0.16],
-    ] as const) {
-      context.beginPath();
-      context.ellipse(
-        this.viewportWidth * x,
-        this.viewportHeight * y,
-        this.viewportWidth * width,
-        26,
-        0,
-        0,
-        Math.PI * 2,
-      );
-      context.fill();
-    }
-
-    context.fillStyle = 'rgb(94 133 122 / 28%)';
-    for (let index = 0; index < 7; index += 1) {
-      const width = 30 + (index % 3) * 12;
-      const height = 55 + (index % 4) * 18;
-      const x = (this.viewportWidth / 7) * index + 24;
-      context.fillRect(x, this.groundY - height - 12, width, height);
-      context.fillStyle = 'rgb(132 177 119 / 38%)';
-      context.fillRect(x - 4, this.groundY - height - 14, width + 8, 7);
-      context.fillStyle = 'rgb(94 133 122 / 28%)';
-    }
-
-    context.strokeStyle = 'rgb(113 83 67 / 28%)';
-    context.lineWidth = 2;
-    for (let index = 0; index < 9; index += 1) {
-      const x = 40 + index * (this.viewportWidth / 8);
-      context.beginPath();
-      context.moveTo(x, this.groundY + 18 + (index % 2) * 12);
-      context.lineTo(x + 16, this.groundY + 27 + (index % 3) * 7);
-      context.lineTo(x + 5, this.groundY + 39 + (index % 2) * 8);
-      context.stroke();
-    }
-
-    for (let index = 0; index < 18; index += 1) {
-      const x = 18 + index * (this.viewportWidth / 17);
-      const y = this.groundY + 76 + (index % 3) * 8;
-      context.fillStyle = index % 2 === 0 ? '#ff8fa3' : '#f2c14e';
-      context.beginPath();
-      context.arc(x, y, 3 + (index % 3), 0, Math.PI * 2);
-      context.fill();
     }
   }
 
@@ -211,6 +206,47 @@ export class GameRenderer {
     overheated: boolean,
   ): void {
     const context = this.context;
+    const player = this.assets.get(WORLD_ART.player);
+    if (player) {
+      const width = Math.min(190, Math.max(118, this.viewportHeight * 0.25));
+      const size = width;
+      const left = x - size * 0.5;
+      const top = groundY - size * 0.8;
+      context.save();
+      if (overheated) {
+        context.shadowColor = '#ff5d5d';
+        context.shadowBlur = 18;
+        context.globalAlpha = 0.92;
+      }
+      context.drawImage(player, left, top, size, size);
+      this.drawEquipmentSprite(
+        WEAPON_ART[primaryWeaponId],
+        x + width * 0.12,
+        groundY - width * 0.58,
+        width * 0.56,
+        -4,
+      );
+      this.drawEquipmentSprite(
+        WEAPON_ART[secondaryWeaponId],
+        x + width * 0.02,
+        groundY - width * 0.78,
+        width * 0.34,
+        2,
+      );
+      for (let index = 0; index < moduleIds.length; index += 1) {
+        const column = index % 2;
+        const row = Math.floor(index / 2);
+        this.drawEquipmentSprite(
+          MODULE_ART[moduleIds[index]!],
+          x - width * (0.29 - column * 0.14),
+          groundY - width * (0.55 - row * 0.14),
+          width * 0.2,
+          index % 2 === 0 ? -4 : 4,
+        );
+      }
+      context.restore();
+      return;
+    }
     context.save();
     context.translate(x, groundY);
 
@@ -298,6 +334,32 @@ export class GameRenderer {
 
   private drawMonster(x: number, groundY: number, typeId: EnemyTypeId): void {
     const context = this.context;
+    const monster = this.assets.get(ENEMY_ART[typeId]);
+    if (monster) {
+      const relativeSize: Record<EnemyTypeId, number> = {
+        basic: 0.14,
+        rusher: 0.17,
+        heavy: 0.2,
+        artillery: 0.2,
+        bomber: 0.14,
+        'kawaii-fortress': 0.4,
+      };
+      const size = Math.min(
+        typeId === 'kawaii-fortress' ? 360 : 150,
+        Math.max(
+          typeId === 'kawaii-fortress' ? 180 : 62,
+          this.viewportHeight * relativeSize[typeId],
+        ),
+      );
+      context.drawImage(
+        monster,
+        x - size * 0.5,
+        groundY - size * 0.82,
+        size,
+        size,
+      );
+      return;
+    }
     const scale =
       typeId === 'kawaii-fortress' ? 2.3 : typeId === 'heavy' ? 1.35 : 1;
     context.save();
@@ -498,6 +560,56 @@ export class GameRenderer {
     const normalized =
       (position - WORLD_MINIMUM) / (WORLD_MAXIMUM - WORLD_MINIMUM);
     return padding + normalized * (this.viewportWidth - padding * 2);
+  }
+
+  private drawEquipmentSprite(
+    source: string,
+    centerX: number,
+    centerY: number,
+    size: number,
+    rotationDegrees: number,
+  ): void {
+    const image = this.assets.get(source);
+    if (!image) return;
+    const context = this.context;
+    context.save();
+    context.translate(centerX, centerY);
+    context.rotate((rotationDegrees * Math.PI) / 180);
+    context.drawImage(image, -size / 2, -size / 2, size, size);
+    context.restore();
+  }
+
+  private drawImageCover(
+    image: HTMLImageElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
+    const sourceRatio = image.naturalWidth / image.naturalHeight;
+    const targetRatio = width / height;
+    let sourceWidth = image.naturalWidth;
+    let sourceHeight = image.naturalHeight;
+    let sourceX = 0;
+    let sourceY = 0;
+    if (sourceRatio > targetRatio) {
+      sourceWidth = image.naturalHeight * targetRatio;
+      sourceX = (image.naturalWidth - sourceWidth) / 2;
+    } else {
+      sourceHeight = image.naturalWidth / targetRatio;
+      sourceY = (image.naturalHeight - sourceHeight) / 2;
+    }
+    this.context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      x,
+      y,
+      width,
+      height,
+    );
   }
 
   private get groundY(): number {

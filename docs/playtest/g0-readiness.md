@@ -1,6 +1,6 @@
 # G0開始前チェックポイント
 
-- Status: Style Reference Review
+- Status: G0 Integrated
 - Date: 2026-08-10
 - 対象実装: `3883aad`
 
@@ -36,7 +36,9 @@ Railgun、Heavy、Explosion、HUDは上記のStyle承認後に追加する。ほ
 3. G0は通常Gitで管理し、Master総量が増える前にGit LFS導入を再判断する
 4. 3D素材・GLB・3D生成サービスをMVP対象外とする
 
-上記は2026-08-10に承認済み。現在は`REF_STYLE_001_CANDIDATE_V001`のStyle承認待ちであり、全アセット量産の承認を含まない。
+上記は2026-08-10に承認済み。Monster方針と2D素材方針の追加確認後、
+`REF_STYLE_001_CANDIDATE_V002`を`REF_STYLE_001`へ昇格した。Player、全Enemy、
+Background、Roadを分離生成し、Canvas描画へ統合済み。
 
 ## G0合格条件
 
@@ -61,4 +63,5 @@ Railgun、Heavy、Explosion、HUDは上記のStyle承認後に追加する。ほ
 - User review: Kawaiiの強さが幼児向けに寄りすぎていないか
 - User review: Modular Caravan、Monster生態系、詳細HUDをこの画面の方向でSTYLE LOCKしてよいか
 
-上の2点が承認されたら候補を`REF_STYLE_001`へ昇格し、分離素材の生成へ進む。
+上の2点は承認済み。候補を`artifacts/g0/style-reference/ref_style_001.png`
+へ昇格し、分離素材の生成とG0実装へ進んだ。
