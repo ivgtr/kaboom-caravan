@@ -115,7 +115,7 @@ Presentationはこの順序を変更しない。Audioや画面揺れを後から
 
 ### A. Enemy Attack Timeline基盤
 
-Status: Pending
+Status: Completed
 
 1. `EnemyProjectileState`と`enemyProjectiles`をSimulationへ追加
 2. 敵攻撃のWindup／Release用StateまたはCooldown Phaseを定義
@@ -126,6 +126,17 @@ Status: Pending
 7. Projectile残存中のWave完了条件を定義する
 
 完了条件：遠距離敵のRelease EventとPlayer Damageの間に、距離に応じた飛行時間がある。
+
+実装結果：
+
+- Player Weapon系と分離した`EnemyProjectileState`／`enemyProjectiles`を追加
+- 全Enemyへ明示的な`attackWindupSeconds`とWindup Stateを追加
+- ArtilleryはSpore、Boss Phase 1–2はCore、Phase 3はBurst定義で敵弾を生成
+- 敵弾のSegment Collision、Armor Damage、寿命切れを固定60Hzで処理
+- `enemy-attack-windup`、`enemy-projectile-fired`、`enemy-projectile-hit`を追加
+- 飛行中の敵弾が0件になるまでWave／Victoryを確定しない
+- Phase B Asset導入まで、Simulation座標へ追従する高視認性の仮ProjectileをCanvas描画
+- Unit 57件とE2E 16件で既存戦闘、Reward、Boss Preview、Responsiveを回帰確認
 
 ### B. Enemy Attack Visual
 
