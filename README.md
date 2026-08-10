@@ -50,5 +50,8 @@ npm run check
 - [デザイン設計書](docs/デザイン設計書.md)：世界観とアート方針の正本
 - [グラフィック指示書](docs/グラフィック指示書.md)：生成アセット制作工程の正本
 - [MVP判断記録](docs/adr/0001-mvp-scope.md)：実装開始時の仮決定と保留事項
+- [戦闘ロードアウト判断記録](docs/adr/0002-combat-loadout.md)：装備枠、共有リソース、特殊能力の確定事項
 - [MVP実装計画書](docs/実装計画書.md)：実装フェーズ、要件トレーサビリティ、完了条件
 - [フェーズ2プレイテスト](docs/playtest/phase2.md)：距離、前線、武器、リソースの確認手順
+- [G0開始前チェックポイント](docs/playtest/g0-readiness.md)：実アセット生成前の承認事項
+- [G0 Asset manifest](docs/assets/g0-manifest.md)：生成素材の出典、条件、採否記録
