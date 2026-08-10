@@ -20,8 +20,8 @@ G0で生成・採用・却下した素材の来歴を記録する。生成開始
 
 ## Assets
 
-G0生成承認後、1候補につき1行を追加する。
+1候補につき1行を追加する。
 
-| Asset ID        | Class | Status | File | Service / Model | Generated at | Prompt source | Input references | License / Terms checked | Decision   | Operator |
-| --------------- | ----- | ------ | ---- | --------------- | ------------ | ------------- | ---------------- | ----------------------- | ---------- | -------- |
-| _not generated_ | —     | —      | —    | —               | —            | —             | —                | —                       | G0承認待ち | —        |
+| Asset ID                       | Class     | Status      | File                                                            | Service / Model                               | Generated at              | Prompt source                                          | Input references | License / Terms checked                                                                                                                                                | Decision                                      | Operator                    |
+| ------------------------------ | --------- | ----------- | --------------------------------------------------------------- | --------------------------------------------- | ------------------------- | ------------------------------------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------- |
+| `REF_STYLE_001_CANDIDATE_V001` | `CONCEPT` | `candidate` | `artifacts/g0/style-reference/ref_style_001_candidate_v001.png` | OpenAI built-in `image_gen`（model ID非公開） | 2026-08-10T21:41:05+09:00 | `artifacts/g0/style-reference/ref_style_001_prompt.md` | 初稿を編集       | 2026-08-10に[公式Image Generationドキュメント](https://developers.openai.com/api/docs/guides/image-generation)を確認。Output利用はユーザーへ適用される契約・法令に従う | 指定外のMascotとPlayer旗を除去。Style承認待ち | Codex / User review pending |

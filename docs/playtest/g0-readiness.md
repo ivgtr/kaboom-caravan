@@ -1,6 +1,6 @@
 # G0開始前チェックポイント
 
-- Status: Awaiting Approval
+- Status: Style Reference Review
 - Date: 2026-08-10
 - 対象実装: `3883aad`
 
@@ -8,7 +8,7 @@
 
 プレースホルダ表示のまま、MVPの戦闘・ビルド・敵・報酬・10戦ランを一通り実装した。自動検証は武器6、Module 10、通常敵5、Boss 1、固有Wave 10と参照整合性を確認する。
 
-次のフェーズでは、量産前のG0として次だけを制作し、同じ画面へ並べてStyleを判断する。
+次のフェーズでは、量産前のG0として次だけを制作し、同じ画面へ並べてStyleを判断する。Presentationは[ADR 0003](../adr/0003-2d-layered-presentation.md)により、3Dモデルを使わない2Dレイヤー方式へ変更した。
 
 1. Style Reference 1枚
 2. Player Vehicle基準デザイン
@@ -23,9 +23,9 @@ Railgun、Heavy、Explosion、HUDは上記のStyle承認後に追加する。ほ
 - リポジトリの[グラフィック指示書](../グラフィック指示書.md)を固定プロンプトの正本にする
 - 最初は画像生成でStyle Referenceと2D Conceptのみを作る
 - 1アセットにつき少数案に制限し、採用・修正・却下を記録する
-- 3D生成サービスの選定とGLB化はStyle Reference承認後に行う
+- Style Reference承認後、車体・武器・敵・背景・VFXを独立した2D素材として生成する
 - 生成元、日時、プロンプト、採用判断、利用条件を[Asset manifest](../assets/g0-manifest.md)へ残す
-- 高解像度の生成Masterと将来のGLBはGit LFS、実行時に最適化した小さな画像は通常Gitで管理する
+- 生成MasterとPromptを`artifacts/g0/`、実行時に最適化した画像を`public/assets/`で管理する
 
 ## 開始に必要な承認
 
@@ -33,10 +33,10 @@ Railgun、Heavy、Explosion、HUDは上記のStyle承認後に追加する。ほ
 
 1. G0の2D生成に、この環境の画像生成機能を使用する
 2. 生成サービスの利用条件を確認し、Asset manifestに出典と生成条件を記録する
-3. 高解像度MasterとGLBへGit LFSを導入する
-4. 3D生成サービスの選定は2D Style承認後まで保留する
+3. G0は通常Gitで管理し、Master総量が増える前にGit LFS導入を再判断する
+4. 3D素材・GLB・3D生成サービスをMVP対象外とする
 
-この承認はG0の少数生成だけを対象とし、全アセット量産の承認を含まない。
+上記は2026-08-10に承認済み。現在は`REF_STYLE_001_CANDIDATE_V001`のStyle承認待ちであり、全アセット量産の承認を含まない。
 
 ## G0合格条件
 
@@ -45,3 +45,17 @@ Railgun、Heavy、Explosion、HUDは上記のStyle承認後に追加する。ほ
 - 横方向の戦闘でPlayer、敵、弾、前線を瞬時に識別できる
 - Playerと敵のシルエットが小さい表示でも区別できる
 - 配色、輪郭、カメラ、デフォルメ率をSTYLE LOCKとして固定できる
+
+## 現在の候補レビュー
+
+`artifacts/g0/style-reference/ref_style_001_candidate_v001.png`を確認対象とする。
+
+- Pass: 巨大な機関砲とExplosionが画面の主役になる
+- Pass: Coral系PlayerとBlue-Violet系Enemyを即座に区別できる
+- Pass: 背景の明度とDetail Densityが車両を邪魔しない
+- Pass: 固定横視点とGround Lineが2Dレイヤー化に適している
+- Pass: 小さい表示でもPlayer、敵、砲身、ExplosionのSilhouetteが読める
+- User review: Kawaiiの強さが幼児向けに寄りすぎていないか
+- User review: Coral / Mint / Blue-Violet / OrangeのPaletteをSTYLE LOCKしてよいか
+
+上の2点が承認されたら候補を`REF_STYLE_001`へ昇格し、分離素材の生成へ進む。
