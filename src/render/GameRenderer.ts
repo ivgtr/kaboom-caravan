@@ -28,6 +28,7 @@ import { ENEMY_DEATH_VFX_ART, getEnemyDeathVfxSource } from './deathVfxAssets';
 import { ENEMY_VFX_ART, getEnemyVfxSource } from './enemyVfxAssets';
 import {
   getVfxSource,
+  MINE_VFX_ART,
   VFX_ART,
   WEAPON_VFX_FAMILY,
   type VfxFamily,
@@ -39,6 +40,7 @@ import {
   getPlayerDamageShake,
   type CameraShakeSpec,
 } from './combatFeedback';
+import { runtimeAssetUrl } from '../runtimeAssets';
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
@@ -49,8 +51,10 @@ const PERFORMANCE_STRESS_PLAYER_PROJECTILES = 100;
 const PERFORMANCE_STRESS_ENEMY_PROJECTILES = 32;
 const PERFORMANCE_STRESS_EFFECTS = 48;
 const WORLD_ART = {
-  background: '/assets/world/env_background_sunny_highway_v001.webp',
-  road: '/assets/world/env_road_v001.webp',
+  background: runtimeAssetUrl(
+    'assets/world/env_background_sunny_highway_v001.webp',
+  ),
+  road: runtimeAssetUrl('assets/world/env_road_v001.webp'),
 } as const;
 const ENEMY_COLORS: Record<EnemyTypeId, string> = {
   basic: '#72d6a0',
@@ -172,6 +176,9 @@ export class GameRenderer {
   private readonly bossPreviewPhase = this.readBossPreviewPhase();
   private readonly enemyVfxPreview = this.readEnemyVfxPreview();
   private readonly deathVfxPreview = this.readDeathVfxPreview();
+  private readonly mineVfxPreview = new URLSearchParams(
+    window.location.search,
+  ).get('mineVfx');
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -185,6 +192,7 @@ export class GameRenderer {
       ...Object.values(WEAPON_ART),
       ...Object.values(MODULE_ART),
       ...Object.values(VFX_ART).map(({ source }) => source),
+      MINE_VFX_ART.source,
       ...Object.values(ENEMY_VFX_ART).map(({ source }) => source),
       ENEMY_DEATH_VFX_ART.source,
       BOSS_PHASE_AURA_ART.source,
@@ -272,6 +280,16 @@ export class GameRenderer {
       this.drawDeathVfxPreview(this.deathVfxPreview);
     }
 
+    if (this.mineVfxPreview === 'armed' || this.mineVfxPreview === '1') {
+      this.drawMineDeployable(this.worldToScreen(56), 1.25, 12);
+    } else if (this.mineVfxPreview === 'detonate') {
+      const x = this.worldToScreen(56);
+      const y =
+        this.groundY - Math.min(38, Math.max(24, this.viewportHeight * 0.045));
+      this.drawGeneratedVfx('explosive', 'impact', x, y, 0.22);
+      this.drawMineDetonationAccent(x, y, 0.22);
+    }
+
     for (const projectile of state.enemyProjectiles) {
       const x = this.worldToScreen(
         projectile.previousPosition +
@@ -285,7 +303,13 @@ export class GameRenderer {
         projectile.previousPosition +
           (projectile.position - projectile.previousPosition) * alpha,
       );
-      this.drawProjectile(x, projectile.weaponId, projectile.behavior);
+      this.drawProjectile(
+        x,
+        projectile.weaponId,
+        projectile.behavior,
+        projectile.ageSeconds,
+        projectile.maximumAgeSeconds,
+      );
     }
     if (this.performanceStress) this.drawPerformanceStressProjectiles();
     this.drawEffects();
@@ -1198,8 +1222,11 @@ export class GameRenderer {
         effect.kind === 'muzzle'
           ? this.groundY -
             Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
-          : this.groundY -
-            Math.min(80, Math.max(44, this.viewportHeight * 0.09));
+          : effect.kind === 'explosion' && effect.weaponId === 'mine-launcher'
+            ? this.groundY -
+              Math.min(38, Math.max(24, this.viewportHeight * 0.045))
+            : this.groundY -
+              Math.min(80, Math.max(44, this.viewportHeight * 0.09));
       if (effect.kind === 'smoke') {
         context.save();
         context.globalAlpha = 1 - progress;
@@ -1250,6 +1277,9 @@ export class GameRenderer {
         !this.drawGeneratedVfx(family, pose, x, y, progress)
       ) {
         this.drawFallbackVfx(effect, x, y, progress);
+      }
+      if (effect.kind === 'explosion' && effect.weaponId === 'mine-launcher') {
+        this.drawMineDetonationAccent(x, y, progress);
       }
       this.drawVfxParticles(effect, family, x, y, progress);
     }
@@ -1629,7 +1659,13 @@ export class GameRenderer {
     x: number,
     weaponId: WeaponId,
     behavior: SimulationState['projectiles'][number]['behavior'],
+    ageSeconds = 0,
+    maximumAgeSeconds = 12,
   ): void {
+    if (behavior === 'mine') {
+      this.drawMineDeployable(x, ageSeconds, maximumAgeSeconds);
+      return;
+    }
     const context = this.context;
     const y =
       this.groundY - Math.min(70, Math.max(42, this.viewportHeight * 0.075));
@@ -1670,7 +1706,130 @@ export class GameRenderer {
       context.globalAlpha = 1;
       context.fillStyle = color;
       context.beginPath();
-      context.arc(x, y, weaponId === 'mine-launcher' ? 6 : 3.5, 0, Math.PI * 2);
+      context.arc(x, y, 3.5, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.restore();
+  }
+
+  private drawMineDeployable(
+    x: number,
+    ageSeconds: number,
+    maximumAgeSeconds: number,
+  ): void {
+    const context = this.context;
+    const width = Math.min(
+      MINE_VFX_ART.maximumWidth,
+      Math.max(
+        MINE_VFX_ART.minimumWidth,
+        this.viewportHeight * MINE_VFX_ART.viewportHeightRatio,
+      ),
+    );
+    const image = this.assets.get(MINE_VFX_ART.source);
+    const aspect = image ? image.naturalHeight / image.naturalWidth : 0.8;
+    const height = width * aspect;
+    const deployProgress = Math.min(1, ageSeconds / MINE_VFX_ART.deploySeconds);
+    const lift = this.reducedMotion
+      ? 0
+      : (1 - deployProgress) * 24 - Math.sin(deployProgress * Math.PI) * 3;
+    const remainingSeconds = maximumAgeSeconds - ageSeconds;
+    const pulseSpeed = remainingSeconds <= 2 ? 18 : 8;
+    const pulse = this.reducedMotion
+      ? 0.5
+      : (Math.sin(ageSeconds * pulseSpeed) + 1) / 2;
+    const top =
+      this.groundY - height - MINE_VFX_ART.groundOffset - Math.max(0, lift);
+
+    context.save();
+    context.globalAlpha = 0.22 + deployProgress * 0.16;
+    context.fillStyle = '#263249';
+    context.beginPath();
+    context.ellipse(
+      x,
+      this.groundY - 2,
+      width * (0.3 + deployProgress * 0.12),
+      Math.max(3, height * 0.09),
+      0,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+
+    if (deployProgress >= 1) {
+      context.globalAlpha = 0.22 + pulse * 0.32;
+      context.strokeStyle = remainingSeconds <= 2 ? '#ffcc58' : '#69ddca';
+      context.lineWidth = 2.5;
+      context.beginPath();
+      context.ellipse(
+        x,
+        this.groundY - 4,
+        width * (0.38 + pulse * 0.18),
+        height * (0.1 + pulse * 0.04),
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.stroke();
+    }
+
+    context.globalAlpha = 1;
+    if (image) {
+      context.drawImage(image, x - width / 2, top, width, height);
+    } else {
+      context.fillStyle = '#fff0ce';
+      context.strokeStyle = '#263249';
+      context.lineWidth = 3;
+      context.beginPath();
+      context.ellipse(
+        x,
+        top + height * 0.58,
+        width * 0.42,
+        height * 0.34,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+      context.stroke();
+    }
+
+    if (deployProgress >= 1) {
+      context.globalCompositeOperation = 'screen';
+      context.globalAlpha = 0.14 + pulse * 0.2;
+      context.fillStyle = '#69f4ee';
+      context.beginPath();
+      context.arc(x, top + height * 0.34, width * 0.13, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.restore();
+  }
+
+  private drawMineDetonationAccent(
+    x: number,
+    y: number,
+    progress: number,
+  ): void {
+    const context = this.context;
+    context.save();
+    context.globalAlpha = Math.max(0, (1 - progress) * 0.9);
+    context.strokeStyle = progress < 0.3 ? '#eaffff' : '#69ddca';
+    context.lineWidth = Math.max(2, 5 - progress * 3);
+    context.beginPath();
+    context.ellipse(
+      x,
+      this.groundY - 4,
+      12 + progress * 70,
+      4 + progress * 12,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    context.stroke();
+    if (progress < 0.28) {
+      context.globalAlpha = 1 - progress / 0.28;
+      context.fillStyle = '#eaffff';
+      context.beginPath();
+      context.arc(x, y, 16 + progress * 24, 0, Math.PI * 2);
       context.fill();
     }
     context.restore();

@@ -10,6 +10,7 @@
 | `vfx_enemy_boss_core_pair_v001`  | Boss phase 1–2 projectile / impact | OpenAI built-in `image_gen` | 1254 family master / 1024 runtime  | v001    | accepted / integrated | `GameRenderer` |
 | `vfx_enemy_boss_burst_pair_v001` | Boss phase 3 projectile / impact   | OpenAI built-in `image_gen` | 1254 family master / 1024 runtime  | v001    | accepted / integrated | `GameRenderer` |
 | `vfx_enemy_death_pair_v001`      | Normal death puff / Boss core stop | OpenAI built-in `image_gen` | 1774×887 master / 1024×512 runtime | v001    | accepted / integrated | `GameRenderer` |
+| `vfx_mine_deployable_v001`       | Grounded armed mine sprite         | OpenAI built-in `image_gen` | 1044×842 master / 512×413 runtime  | v001    | accepted / integrated | `GameRenderer` |
 
 Prompt source:
 [`combat_vfx_prompts_v001.md`](../../artifacts/vfx/prompts/combat_vfx_prompts_v001.md)
@@ -20,12 +21,16 @@ Enemy attack prompt source:
 Enemy death prompt source:
 [`enemy_death_vfx_prompt_v001.md`](../../artifacts/vfx/prompts/enemy_death_vfx_prompt_v001.md)
 
+Mine prompt source:
+[`mine_deployable_prompt_v001.md`](../../artifacts/vfx/prompts/mine_deployable_prompt_v001.md)
+
 ## Runtime assignment
 
 - Machine Cannon / Scatter Cannon: Ballistic
 - Railgun: Energy
 - Flamethrower: Fire
 - Rocket Launcher / Mine Launcher: Explosive
+- Mine Launcher projectile: dedicated grounded deployable with landing and armed pulse
 - Weapon-independent enemy death: Explosive impact
 - Artillery: Enemy Spore projectile / impact
 - Boss phase 1–2: Enemy Boss Core projectile / impact
@@ -49,3 +54,6 @@ dust. Generated assets do not contain baked translucent glow.
 - Contact / death family sheet: `artifacts/vfx/review/vfx_enemy_death_pair_v001.png`
 - Contact / death Desktop comparison: `artifacts/vfx/review/enemy_contact_death_desktop_comparison_v001.png`
 - Contact / death Mobile comparison: `artifacts/vfx/review/enemy_contact_death_mobile_comparison_v001.png`
+- Mine armed Desktop: `artifacts/vfx/review/mine_deployable_desktop_v001.png`
+- Mine armed Mobile Landscape: `artifacts/vfx/review/mine_deployable_mobile_v001.png`
+- Mine detonation Desktop: `artifacts/vfx/review/mine_detonation_desktop_v001.png`

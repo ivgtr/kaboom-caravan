@@ -1,4 +1,5 @@
 import type { WeaponId } from '../game/data/ids';
+import { runtimeAssetUrl } from '../runtimeAssets';
 
 export type VfxFamily = 'ballistic' | 'energy' | 'fire' | 'explosive';
 export type VfxPose = 'muzzle' | 'impact';
@@ -11,27 +12,36 @@ export interface VfxFamilyAsset {
   impactScale: number;
 }
 
+export const MINE_VFX_ART = {
+  source: runtimeAssetUrl('assets/vfx/vfx_mine_deployable_v001.png'),
+  minimumWidth: 46,
+  maximumWidth: 76,
+  viewportHeightRatio: 0.11,
+  groundOffset: 2,
+  deploySeconds: 0.24,
+} as const;
+
 export const VFX_ART: Readonly<Record<VfxFamily, VfxFamilyAsset>> = {
   ballistic: {
-    source: '/assets/vfx/vfx_ballistic_pair_v001.png',
+    source: runtimeAssetUrl('assets/vfx/vfx_ballistic_pair_v001.png'),
     muzzleOriginX: 0.68,
     muzzleScale: 0.82,
     impactScale: 0.82,
   },
   energy: {
-    source: '/assets/vfx/vfx_energy_pair_v001.png',
+    source: runtimeAssetUrl('assets/vfx/vfx_energy_pair_v001.png'),
     muzzleOriginX: 0.25,
     muzzleScale: 1.02,
     impactScale: 1,
   },
   fire: {
-    source: '/assets/vfx/vfx_fire_pair_v001.png',
+    source: runtimeAssetUrl('assets/vfx/vfx_fire_pair_v001.png'),
     muzzleOriginX: 0.3,
     muzzleScale: 1.08,
     impactScale: 0.96,
   },
   explosive: {
-    source: '/assets/vfx/vfx_explosive_pair_v001.png',
+    source: runtimeAssetUrl('assets/vfx/vfx_explosive_pair_v001.png'),
     muzzleOriginX: 0.32,
     muzzleScale: 1,
     impactScale: 1.28,

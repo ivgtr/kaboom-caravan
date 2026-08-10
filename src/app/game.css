@@ -83,8 +83,7 @@ button {
   min-width: 220px;
   min-height: 68px;
   padding: 10px 22px;
-  background: url('/assets/ui/ui_hud_ornament_v001.png') center/100% 100%
-    no-repeat;
+  background: var(--hud-ornament-image) center/100% 100% no-repeat;
 }
 .compact-hud div {
   display: grid;
@@ -237,8 +236,7 @@ button {
   display: grid;
   place-items: center;
   border: 0;
-  background: url('/assets/ui/ui_control_frame_v001.png') center/contain
-    no-repeat;
+  background: var(--control-frame-image) center/contain no-repeat;
   color: #fff8df;
   cursor: pointer;
   filter: drop-shadow(0 7px 4px rgb(25 35 53 / 35%));
@@ -423,8 +421,7 @@ button {
   width: min(760px, 76vw);
   aspect-ratio: 8/3;
   padding: 7% 13%;
-  background: url('/assets/ui/ui_battle_clear_frame_v001.png') center/contain
-    no-repeat;
+  background: var(--battle-clear-frame-image) center/contain no-repeat;
   transform: translate(-50%, -50%);
   animation: clear-pop 0.65s both;
 }
@@ -505,8 +502,7 @@ button {
   height: auto;
   padding: 0;
   border: 0;
-  background: url('/assets/ui/ui_reward_frame_v001.png') center/100% 100%
-    no-repeat;
+  background: var(--reward-frame-image) center/100% 100% no-repeat;
   filter: drop-shadow(0 9px 6px rgb(21 28 43 / 35%));
   animation: card-pop 0.45s backwards;
 }

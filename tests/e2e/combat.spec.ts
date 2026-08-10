@@ -169,6 +169,28 @@ for (const viewport of [
   { width: 1184, height: 689 },
   { width: 844, height: 390 },
 ]) {
+  test(`renders the grounded mine VFX at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const mineAsset = page.waitForResponse((response) =>
+      response.url().endsWith('/assets/vfx/vfx_mine_deployable_v001.png'),
+    );
+    await page.goto('/?debug=1&mineVfx=armed');
+    expect((await mineAsset).ok()).toBe(true);
+    if (process.env.CAPTURE_VFX_REVIEW) {
+      await page.waitForTimeout(300);
+      await page.screenshot({
+        path: `artifacts/vfx/review/mine_deployable_${viewport.width}x${viewport.height}_v001.png`,
+      });
+    }
+  });
+}
+
+for (const viewport of [
+  { width: 1184, height: 689 },
+  { width: 844, height: 390 },
+]) {
   test(`renders generated combat VFX at ${viewport.width}x${viewport.height}`, async ({
     page,
   }) => {

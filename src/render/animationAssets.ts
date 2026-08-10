@@ -1,4 +1,5 @@
 import type { EnemyTypeId } from '../game/data/ids';
+import { runtimeAssetUrl } from '../runtimeAssets';
 
 export type CharacterMotionPose = 'idle' | 'move' | 'anticipation' | 'release';
 
@@ -21,7 +22,7 @@ export const MOTION_POSE_CELLS: Readonly<
 };
 
 export const PLAYER_CHASSIS_ART = {
-  source: '/assets/animation/veh_player_chassis_v005.png',
+  source: runtimeAssetUrl('assets/animation/veh_player_chassis_v005.png'),
   groundAnchor: 0.843,
   displayScale: 1,
   /** Local coordinates relative to the center X and ground Y of the sprite. */
@@ -40,7 +41,7 @@ export const PLAYER_CHASSIS_ART = {
 } as const;
 
 export const PLAYER_RIG_ART = {
-  source: '/assets/animation/veh_player_rig_parts_v003.png',
+  source: runtimeAssetUrl('assets/animation/veh_player_rig_parts_v003.png'),
   cells: {
     'smoke-small': [1, 0],
     'smoke-medium': [0, 1],
@@ -55,32 +56,34 @@ export const ENEMY_MOTION_ART: Readonly<
   Record<EnemyTypeId, CharacterMotionAsset>
 > = {
   basic: {
-    source: '/assets/animation/enm_basic_motion_v002.png',
+    source: runtimeAssetUrl('assets/animation/enm_basic_motion_v002.png'),
     groundAnchor: 0.88,
     displayScale: 1,
   },
   rusher: {
-    source: '/assets/animation/enm_rusher_motion_v002.png',
+    source: runtimeAssetUrl('assets/animation/enm_rusher_motion_v002.png'),
     groundAnchor: 0.87,
     displayScale: 1.08,
   },
   heavy: {
-    source: '/assets/animation/enm_heavy_motion_v002.png',
+    source: runtimeAssetUrl('assets/animation/enm_heavy_motion_v002.png'),
     groundAnchor: 0.88,
     displayScale: 1.08,
   },
   artillery: {
-    source: '/assets/animation/enm_artillery_motion_v002.png',
+    source: runtimeAssetUrl('assets/animation/enm_artillery_motion_v002.png'),
     groundAnchor: 0.9,
     displayScale: 1.05,
   },
   bomber: {
-    source: '/assets/animation/enm_bomber_motion_v002.png',
+    source: runtimeAssetUrl('assets/animation/enm_bomber_motion_v002.png'),
     groundAnchor: 0.89,
     displayScale: 1,
   },
   'kawaii-fortress': {
-    source: '/assets/animation/enm_kawaii_fortress_motion_v002.png',
+    source: runtimeAssetUrl(
+      'assets/animation/enm_kawaii_fortress_motion_v002.png',
+    ),
     groundAnchor: 0.88,
     displayScale: 1.08,
   },

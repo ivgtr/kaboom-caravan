@@ -1,7 +1,9 @@
+import { runtimeAssetUrl } from '../runtimeAssets';
+
 export type EnemyDeathVfxPose = 'puff' | 'boss-core';
 
 export const ENEMY_DEATH_VFX_ART = {
-  source: '/assets/vfx/vfx_enemy_death_pair_v001.png',
+  source: runtimeAssetUrl('assets/vfx/vfx_enemy_death_pair_v001.png'),
   puffScale: 0.92,
   bossCoreScale: 1.18,
 } as const;

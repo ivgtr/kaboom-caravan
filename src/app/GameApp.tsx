@@ -30,7 +30,15 @@ import {
 import type { CombatEvent, SimulationState } from '../game/simulation/types';
 import { InputManager, type VirtualControl } from '../input/InputManager';
 import { GameRenderer } from '../render/GameRenderer';
+import { runtimeAssetUrl } from '../runtimeAssets';
 import { getEquipmentArt } from './equipmentAssets';
+
+const UI_ASSET_STYLES = {
+  '--hud-ornament-image': `url("${runtimeAssetUrl('assets/ui/ui_hud_ornament_v001.png')}")`,
+  '--control-frame-image': `url("${runtimeAssetUrl('assets/ui/ui_control_frame_v001.png')}")`,
+  '--battle-clear-frame-image': `url("${runtimeAssetUrl('assets/ui/ui_battle_clear_frame_v001.png')}")`,
+  '--reward-frame-image': `url("${runtimeAssetUrl('assets/ui/ui_reward_frame_v001.png')}")`,
+} as CSSProperties;
 
 interface HudSnapshot {
   tick: number;
@@ -230,6 +238,7 @@ export function GameApp() {
   return (
     <main
       className={`game-shell phase-${renderError ? 'error' : sessionView.phase}`}
+      style={UI_ASSET_STYLES}
     >
       <canvas ref={canvasRef} aria-label="戦闘フィールド" />
       {renderError ? (

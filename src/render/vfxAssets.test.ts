@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { WeaponId } from '../game/data/ids';
-import { getVfxSource, VFX_ART, WEAPON_VFX_FAMILY } from './vfxAssets';
+import {
+  getVfxSource,
+  MINE_VFX_ART,
+  VFX_ART,
+  WEAPON_VFX_FAMILY,
+} from './vfxAssets';
 
 describe('VFX assets', () => {
   it('assigns every weapon to one generated visual family', () => {
@@ -21,5 +26,12 @@ describe('VFX assets', () => {
   it('crops square muzzle and impact cells without distorting the pair sheet', () => {
     expect(getVfxSource(1024, 1024, 'muzzle')).toEqual([0, 256, 512, 512]);
     expect(getVfxSource(1024, 1024, 'impact')).toEqual([512, 256, 512, 512]);
+  });
+
+  it('uses a dedicated grounded sprite for deployed mines', () => {
+    expect(MINE_VFX_ART.source).toBe(
+      '/assets/vfx/vfx_mine_deployable_v001.png',
+    );
+    expect(MINE_VFX_ART.minimumWidth).toBeLessThan(MINE_VFX_ART.maximumWidth);
   });
 });

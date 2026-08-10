@@ -1,7 +1,9 @@
+import { runtimeAssetUrl } from '../runtimeAssets';
+
 export type BossPhase = 1 | 2 | 3;
 
 export const BOSS_PHASE_AURA_ART = {
-  source: '/assets/animation/boss_phase_aura_v001.png',
+  source: runtimeAssetUrl('assets/animation/boss_phase_aura_v001.png'),
   scaleByPhase: {
     1: 0.33,
     2: 0.45,
