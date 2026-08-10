@@ -46,8 +46,12 @@ test('keeps rolling with inertia after movement input is released', async ({
   const rigAsset = page.waitForResponse((response) =>
     response.url().endsWith('/assets/animation/veh_player_rig_parts_v003.png'),
   );
+  const chassisAsset = page.waitForResponse((response) =>
+    response.url().endsWith('/assets/animation/veh_player_chassis_v004.png'),
+  );
   await page.goto('/?debug=1');
   expect((await rigAsset).ok()).toBe(true);
+  expect((await chassisAsset).ok()).toBe(true);
 
   const debug = page.locator('.debug-panel');
   const readPosition = async () => {
@@ -63,7 +67,12 @@ test('keeps rolling with inertia after movement input is released', async ({
 
   if (process.env.CAPTURE_MOTION_REVIEW) {
     await page.screenshot({
-      path: 'artifacts/animation/review/caravan_inertia_1440x900_v003.png',
+      path: 'artifacts/animation/review/caravan_chassis_1440x900_v004.png',
+    });
+    await page.goto('/?debug=motion');
+    await expect(debug).toContainText('position 10.0');
+    await page.screenshot({
+      path: 'artifacts/animation/review/caravan_wheel_axes_1440x900_v004.png',
     });
   }
 });

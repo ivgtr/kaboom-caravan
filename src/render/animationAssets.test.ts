@@ -5,6 +5,7 @@ import {
   getMotionFrameSource,
   getPlayerRigPartSource,
   MOTION_POSE_CELLS,
+  PLAYER_CHASSIS_ART,
 } from './animationAssets';
 
 describe('character motion assets', () => {
@@ -38,5 +39,15 @@ describe('character motion assets', () => {
     expect(getPlayerRigPartSource(1024, 1024, 'smoke-medium')).toEqual([
       0, 512, 512, 512,
     ]);
+  });
+
+  it('keeps both player wheel axes on one measured baseline', () => {
+    const [rear, front] = PLAYER_CHASSIS_ART.wheelAnchors;
+    expect(rear[1]).toBe(front[1]);
+    expect(rear[0]).toBeLessThan(front[0]);
+    expect(PLAYER_CHASSIS_ART.groundAnchor + rear[1]).toBeCloseTo(
+      782 / 1024,
+      3,
+    );
   });
 });

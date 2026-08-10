@@ -9,7 +9,7 @@ import {
   ENEMY_MOTION_ART,
   getMotionFrameSource,
   getPlayerRigPartSource,
-  PLAYER_MOTION_ART,
+  PLAYER_CHASSIS_ART,
   PLAYER_RIG_ART,
   type CharacterMotionPose,
   type PlayerRigPart,
@@ -85,7 +85,8 @@ export class GameRenderer {
   private readonly enemyMotions = new Map<string, CharacterMotionRuntime>();
   private exhaustPuffs: ExhaustPuff[] = [];
   private exhaustEmissionSeconds = 0;
-  private playerPitch = 0;
+  private readonly showMotionDebug =
+    new URLSearchParams(window.location.search).get('debug') === 'motion';
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -93,7 +94,7 @@ export class GameRenderer {
     this.context = context;
     this.assets.preload([
       ...Object.values(WORLD_ART),
-      PLAYER_MOTION_ART.source,
+      PLAYER_CHASSIS_ART.source,
       PLAYER_RIG_ART.source,
       ...Object.values(ENEMY_MOTION_ART).map(({ source }) => source),
       ...Object.values(WEAPON_ART),
@@ -240,14 +241,12 @@ export class GameRenderer {
     overheated: boolean,
   ): void {
     const context = this.context;
-    const player = this.assets.get(PLAYER_MOTION_ART.source);
+    const player = this.assets.get(PLAYER_CHASSIS_ART.source);
     if (player) {
       const width = Math.min(190, Math.max(118, this.viewportHeight * 0.25));
-      const size = width * PLAYER_MOTION_ART.displayScale;
+      const size = width * PLAYER_CHASSIS_ART.displayScale;
       const recoil = this.weaponRecoil(primaryWeaponId);
       const hitOffset = this.hitOffset(this.playerMotion, -1);
-      const recoilSink = Math.sin(recoil * Math.PI) * width * 0.018;
-      const rig = this.assets.get(PLAYER_RIG_ART.source);
       context.save();
       context.translate(x + hitOffset, groundY);
       if (overheated) {
@@ -255,28 +254,26 @@ export class GameRenderer {
         context.shadowBlur = 18;
         context.globalAlpha = 0.92;
       }
-      context.save();
-      context.translate(0, recoilSink);
-      context.rotate(this.playerPitch - recoil * 0.012);
-      this.drawMotionFrame(
+      context.drawImage(
         player,
-        'idle',
         -size * 0.5,
-        -size * PLAYER_MOTION_ART.groundAnchor,
+        -size * PLAYER_CHASSIS_ART.groundAnchor,
+        size,
         size,
       );
+      this.drawWheelRotationMarkers(size);
       this.drawEquipmentSprite(
         WEAPON_ART[primaryWeaponId],
-        width * (0.12 - recoil * 0.05),
-        -width * 0.72,
-        width * 0.56,
+        width * (-0.03 - recoil * 0.055),
+        -width * 0.67,
+        width * 0.54,
         -4,
       );
       this.drawEquipmentSprite(
         WEAPON_ART[secondaryWeaponId],
-        -width * 0.08,
-        -width * 0.84,
-        width * 0.34,
+        -width * 0.2,
+        -width * 0.62,
+        width * 0.29,
         2,
       );
       for (let index = 0; index < moduleIds.length; index += 1) {
@@ -284,38 +281,10 @@ export class GameRenderer {
         const row = Math.floor(index / 2);
         this.drawEquipmentSprite(
           MODULE_ART[moduleIds[index]!],
-          -width * (0.29 - column * 0.14),
-          -width * (0.55 - row * 0.14),
-          width * 0.2,
+          -width * (0.29 - column * 0.11),
+          -width * (0.42 - row * 0.13),
+          width * 0.17,
           index % 2 === 0 ? -4 : 4,
-        );
-      }
-      context.restore();
-      if (rig) {
-        const wheelRotation = this.playerMotion.wheelRotation;
-        this.drawPlayerRigPart(
-          rig,
-          'wheel',
-          -width * 0.28,
-          -width * 0.12,
-          width * 0.25,
-          wheelRotation,
-        );
-        this.drawPlayerRigPart(
-          rig,
-          'wheel',
-          width * 0.02,
-          -width * 0.12,
-          width * 0.29,
-          wheelRotation,
-        );
-        this.drawPlayerRigPart(
-          rig,
-          'wheel',
-          width * 0.31,
-          -width * 0.11,
-          width * 0.23,
-          wheelRotation,
         );
       }
       context.restore();
@@ -556,6 +525,51 @@ export class GameRenderer {
     );
   }
 
+  private drawWheelRotationMarkers(size: number): void {
+    const context = this.context;
+    const angle = this.playerMotion.wheelRotation;
+    const orbit = size * PLAYER_CHASSIS_ART.markerOrbit;
+    const markerRadius = Math.max(1.4, size * 0.009);
+    const anchors = PLAYER_CHASSIS_ART.wheelAnchors.map(
+      ([normalizedX, normalizedY]) => ({
+        x: normalizedX * size,
+        y: normalizedY * size,
+      }),
+    );
+
+    for (const anchor of anchors) {
+      const markerX = anchor.x + Math.cos(angle) * orbit;
+      const markerY = anchor.y + Math.sin(angle) * orbit;
+      context.fillStyle = '#67e7ef';
+      context.strokeStyle = '#26344c';
+      context.lineWidth = Math.max(1, size * 0.007);
+      context.beginPath();
+      context.arc(markerX, markerY, markerRadius, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    }
+
+    if (!this.showMotionDebug) return;
+    context.save();
+    context.strokeStyle = '#2af5ff';
+    context.lineWidth = 1;
+    context.setLineDash([4, 3]);
+    context.beginPath();
+    context.moveTo(anchors[0]!.x, anchors[0]!.y);
+    context.lineTo(anchors[1]!.x, anchors[1]!.y);
+    context.stroke();
+    context.setLineDash([]);
+    for (const anchor of anchors) {
+      context.beginPath();
+      context.moveTo(anchor.x - 5, anchor.y);
+      context.lineTo(anchor.x + 5, anchor.y);
+      context.moveTo(anchor.x, anchor.y - 5);
+      context.lineTo(anchor.x, anchor.y + 5);
+      context.stroke();
+    }
+    context.restore();
+  }
+
   private drawPlayerRigPart(
     image: HTMLImageElement,
     part: PlayerRigPart,
@@ -684,12 +698,6 @@ export class GameRenderer {
       state.player.position,
       deltaSeconds,
     );
-    const targetPitch = Math.max(
-      -0.03,
-      Math.min(0.03, -state.player.velocity * 0.0025),
-    );
-    const pitchResponse = 1 - Math.exp(-deltaSeconds * 5);
-    this.playerPitch += (targetPitch - this.playerPitch) * pitchResponse;
     this.updateExhaustPuffs(
       state.player.position,
       state.player.velocity,

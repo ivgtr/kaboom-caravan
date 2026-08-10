@@ -2,8 +2,7 @@ import type { EnemyTypeId } from '../game/data/ids';
 
 export type CharacterMotionPose = 'idle' | 'move' | 'anticipation' | 'release';
 
-export type PlayerRigPart =
-  'wheel' | 'smoke-small' | 'smoke-medium' | 'smoke-large';
+export type PlayerRigPart = 'smoke-small' | 'smoke-medium' | 'smoke-large';
 
 export interface CharacterMotionAsset {
   source: string;
@@ -21,16 +20,21 @@ export const MOTION_POSE_CELLS: Readonly<
   release: [1, 1],
 };
 
-export const PLAYER_MOTION_ART: CharacterMotionAsset = {
-  source: '/assets/animation/veh_player_motion_v002.png',
-  groundAnchor: 0.89,
+export const PLAYER_CHASSIS_ART = {
+  source: '/assets/animation/veh_player_chassis_v004.png',
+  groundAnchor: 0.836,
   displayScale: 1,
-};
+  /** Local coordinates relative to the center X and ground Y of the sprite. */
+  wheelAnchors: [
+    [-0.3157, -0.072],
+    [0.0347, -0.072],
+  ],
+  markerOrbit: 0.027,
+} as const;
 
 export const PLAYER_RIG_ART = {
   source: '/assets/animation/veh_player_rig_parts_v003.png',
   cells: {
-    wheel: [0, 0],
     'smoke-small': [1, 0],
     'smoke-medium': [0, 1],
     'smoke-large': [1, 1],
