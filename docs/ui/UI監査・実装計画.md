@@ -1,6 +1,6 @@
 # Kaboom Caravan UI監査・実装計画
 
-- Status: Active
+- Status: Implemented（細部UI調整は後続）
 - Date: 2026-08-10
 - Theme: Kawaii Garage UI
 - Visual source: [REF_STYLE_001 V2](../../artifacts/g0/style-reference/ref_style_001_candidate_v002.png)
@@ -134,3 +134,12 @@
 - Dynamic情報と小型IconはCSS / SVGのまま読みやすい
 - 5つの対象解像度で中央戦闘領域を塞がない
 - Gameplay Logicへ変更を入れない
+
+## 8. 実装結果
+
+- 生成UIフレーム4種と装備Render 16種をRuntimeへ登録
+- Combat / Battle Clear / Rewardの表示切替を実戦闘経路でE2E検証
+- Rewardでは3枚すべてに固有Equipment Visualを表示
+- 844×390ではHorizontal Snap Carousel、Desktopでは3列表示
+- Gameplay Logicは維持し、変更はPresentation / Input / Testへ限定
+- ボタン位置などの細部UI調整はユーザー確認後に別途FIXする

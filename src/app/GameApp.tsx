@@ -24,6 +24,7 @@ import {
 import type { CombatEvent, SimulationState } from '../game/simulation/types';
 import { InputManager, type VirtualControl } from '../input/InputManager';
 import { GameRenderer } from '../render/GameRenderer';
+import { getEquipmentArt } from './equipmentAssets';
 
 interface HudSnapshot {
   tick: number;
@@ -118,7 +119,7 @@ export function GameApp() {
         const phaseChanged = session.phase !== lastPhase;
         if (phaseChanged && session.phase === 'reward') {
           setShowClear(true);
-          clearTimer = window.setTimeout(() => setShowClear(false), 900);
+          clearTimer = window.setTimeout(() => setShowClear(false), 1200);
         }
         if (phaseChanged || session.combat.tick - lastSnapshotTick >= 6) {
           lastSnapshotTick = session.combat.tick;
@@ -359,7 +360,10 @@ function RewardPanel({
       </header>
       <div className="reward-grid">
         {choices.map((choice) => (
-          <article className={`reward-card ${choice.type}`} key={choice.id}>
+          <article
+            className={`reward-card reward-${choice.type}`}
+            key={choice.id}
+          >
             <span className="reward-type">
               <GameIcon name={choice.type === 'weapon' ? 'weapon' : 'module'} />
               {choice.type.toUpperCase()}
@@ -393,6 +397,10 @@ function RewardPanel({
 }
 
 function EquipmentGlyph({ id }: { id: string }) {
+  const equipmentArt = getEquipmentArt(id);
+  if (equipmentArt) {
+    return <img className="equipment-art" src={equipmentArt} alt="" />;
+  }
   const shape =
     id.includes('rocket') || id.includes('explosive')
       ? 'rocket'

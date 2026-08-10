@@ -1,6 +1,6 @@
 # Kaboom Caravan UI Asset仕様
 
-- Status: Planned
+- Status: Adopted
 - Date: 2026-08-10
 - Generator: built-in `image_gen`
 - Style reference: `artifacts/g0/style-reference/ref_style_001_candidate_v002.png`

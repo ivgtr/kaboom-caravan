@@ -40,6 +40,45 @@ test('hides diagnostic UI from the product view', async ({ page }) => {
 });
 
 for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 844, height: 390 },
+]) {
+  test(`shows battle clear then visual rewards at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.keyboard.down('e');
+
+    const clear = page.locator('.battle-clear');
+    await expect(clear).toBeVisible({ timeout: 45_000 });
+    if (process.env.CAPTURE_UI_REVIEW) {
+      await waitForAnimations(clear);
+      await page.screenshot({
+        path: `artifacts/ui/review/battle_clear_${viewport.width}x${viewport.height}.png`,
+      });
+    }
+
+    const rewards = page
+      .getByRole('dialog')
+      .filter({ hasText: 'SALVAGE TIME!' });
+    await expect(rewards).toBeVisible();
+    await page.keyboard.up('e');
+
+    await expect(page.getByRole('button', { name: '主武器' })).toHaveCount(0);
+    await expect(rewards.locator('.reward-card')).toHaveCount(3);
+    await expect(rewards.locator('.equipment-art')).toHaveCount(3);
+    if (process.env.CAPTURE_UI_REVIEW) {
+      await waitForAnimations(rewards.locator('.reward-card').last());
+      await page.screenshot({
+        path: `artifacts/ui/review/reward_${viewport.width}x${viewport.height}.png`,
+      });
+    }
+  });
+}
+
+for (const viewport of [
   { width: 1920, height: 1080 },
   { width: 1024, height: 768 },
   { width: 932, height: 430 },
@@ -107,4 +146,12 @@ function overlap(
     left.y + left.height <= right.y ||
     right.y + right.height <= left.y
   );
+}
+
+async function waitForAnimations(locator: import('@playwright/test').Locator) {
+  await locator.evaluate(async (element) => {
+    await Promise.all(
+      element.getAnimations().map(async (animation) => animation.finished),
+    );
+  });
 }

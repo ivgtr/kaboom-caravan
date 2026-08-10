@@ -282,6 +282,13 @@ button {
   height: 50%;
   overflow: visible;
 }
+.equipment-art {
+  width: 66%;
+  height: 58%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 1px rgb(16 26 44 / 32%));
+  pointer-events: none;
+}
 .equipment-glyph .body,
 .equipment-glyph .barrel {
   fill: #f17869;
@@ -302,6 +309,10 @@ button {
 }
 .weapon.sub .equipment-glyph {
   width: 56%;
+}
+.weapon.sub .equipment-art {
+  width: 58%;
+  height: 52%;
 }
 .ammo {
   position: absolute;
@@ -367,7 +378,7 @@ button {
   background: url('/assets/ui/ui_battle_clear_frame_v001.png') center/contain
     no-repeat;
   transform: translate(-50%, -50%);
-  animation: clear-pop 0.9s both;
+  animation: clear-pop 0.65s both;
 }
 .battle-clear strong {
   color: #ef6267;
@@ -423,11 +434,9 @@ button {
 }
 .reward-card {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(100px, 1fr) auto minmax(38px, auto) auto;
-  gap: 5px;
+  display: block;
   height: min(650px, calc(100vh - 100px));
-  padding: 8% 10% 7%;
+  padding: 0;
   border: 0;
   background: url('/assets/ui/ui_reward_frame_v001.png') center/100% 100%
     no-repeat;
@@ -446,6 +455,10 @@ button {
   filter: drop-shadow(0 13px 8px rgb(90 236 210 / 35%));
 }
 .reward-type {
+  position: absolute;
+  z-index: 1;
+  top: 2.5%;
+  left: 8%;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -462,13 +475,17 @@ button {
   width: 20px;
   height: 20px;
 }
-.module .reward-type {
+.reward-module .reward-type {
   background: #257f7d;
 }
 .equipment-visual {
+  position: absolute;
+  top: 8%;
+  right: 8%;
+  left: 8%;
   display: grid;
   place-items: center;
-  min-height: 0;
+  height: 52%;
 }
 .equipment-visual .equipment-glyph {
   width: 94%;
@@ -476,17 +493,34 @@ button {
   filter: drop-shadow(0 7px 0 rgb(38 50 73 / 12%));
   transform: rotate(-5deg);
 }
+.equipment-visual .equipment-art {
+  width: 96%;
+  height: 94%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 2px rgb(38 50 73 / 18%));
+  transform: rotate(-3deg);
+}
 .equipment-visual .equipment-glyph .body,
 .equipment-visual .equipment-glyph .barrel {
   stroke: #263249;
   stroke-width: 6;
 }
 .reward-card h2 {
+  position: absolute;
+  top: 63%;
+  right: 8%;
+  left: 8%;
   margin: 0;
   color: #263249;
   font-size: clamp(15px, 2vw, 22px);
 }
 .reward-card p {
+  position: absolute;
+  top: 69%;
+  right: 8%;
+  left: 8%;
+  max-height: 10%;
+  overflow: hidden;
   margin: 0;
   color: #5a6070;
   font-size: clamp(10px, 1.2vw, 13px);
@@ -503,6 +537,14 @@ button {
   font-weight: 1000;
   cursor: pointer;
   box-shadow: 0 4px 0 #263249;
+}
+.reward-card > button,
+.reward-actions {
+  position: absolute;
+  right: 7%;
+  bottom: 3%;
+  left: 7%;
+  height: 8%;
 }
 .reward-actions {
   display: flex;
@@ -605,8 +647,6 @@ button {
   }
   .reward-card {
     height: calc(100vh - 72px);
-    padding: 7% 9% 6%;
-    grid-template-rows: auto minmax(70px, 1fr) auto minmax(28px, auto) auto;
   }
   .reward-card p {
     font-size: 10px;
@@ -714,8 +754,7 @@ button {
   }
   .reward-card {
     flex: 0 0 244px;
-    height: calc(100vh - 50px);
-    padding: 18px 24px 16px;
+    height: calc(100dvh - 58px);
     scroll-snap-align: center;
   }
   .reward-card p {
