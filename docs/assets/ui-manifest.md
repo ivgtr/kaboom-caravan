@@ -9,4 +9,4 @@
 
 Prompt set: `artifacts/ui/prompts/ui_asset_prompts.md`.
 
-Equipment illustrations are code-native SVG renders so all sixteen definitions share the same camera, palette and silhouette rules without AI shape drift. Small icons, dynamic rings, text and rarity treatment are also SVG/CSS. This is the intentional responsibility split recorded in `docs/ui/UIアセット仕様.md`.
+The sixteen generated equipment renders are registered in `docs/assets/equipment-manifest.md`. Small icons, dynamic rings, text and rarity treatment remain SVG/CSS for legibility and state control.
