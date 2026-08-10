@@ -437,6 +437,14 @@ button {
 .battle-clear span {
   font-weight: 1000;
 }
+.battle-clear b {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: #263249;
+  color: #fff4d9;
+  font-size: clamp(13px, 2vw, 20px);
+  letter-spacing: 0.08em;
+}
 .reward-panel,
 .result-panel {
   position: absolute;
@@ -788,6 +796,15 @@ button {
   color: #ffce59;
   font-size: clamp(36px, 8vw, 80px);
   text-shadow: 0 5px #263249;
+}
+.run-time-score {
+  padding: 8px 18px;
+  border: 2px solid #fff4d9;
+  border-radius: 999px;
+  background: #263249;
+  color: #69ddca;
+  font-size: clamp(18px, 3vw, 28px);
+  letter-spacing: 0.06em;
 }
 .result-panel button {
   min-width: 180px;

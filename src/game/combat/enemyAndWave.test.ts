@@ -273,7 +273,7 @@ describe('wave and boss progression', () => {
   it('changes boss phases and deploys reinforcements at phase two', () => {
     const initial = createSimulation();
     const boss = createEnemy('kawaii-fortress', 'boss-1', 78);
-    boss.hitPoints = 270;
+    boss.hitPoints = 210;
     initial.enemies = [boss];
 
     const phaseTwo = stepSimulation(
@@ -300,7 +300,7 @@ describe('wave and boss progression', () => {
       ...phaseTwo,
       enemies: phaseTwo.enemies
         .filter((enemy) => enemy.id === 'boss-1')
-        .map((enemy) => ({ ...enemy, hitPoints: 130 })),
+        .map((enemy) => ({ ...enemy, hitPoints: 100 })),
     };
     const phaseThree = stepSimulation(
       phaseThreeState,

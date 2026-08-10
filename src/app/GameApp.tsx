@@ -14,7 +14,10 @@ import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
 import type { ModuleId } from '../game/data/ids';
 import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
 import { MODULE_DEFINITIONS } from '../game/data/moduleDefinitions';
-import type { RewardChoice } from '../game/reward/rewardSystem';
+import {
+  generateRewardChoices,
+  type RewardChoice,
+} from '../game/reward/rewardSystem';
 import {
   createGameSession,
   restartGameSession,
@@ -53,6 +56,16 @@ interface SessionView {
   primaryWeaponId: keyof typeof WEAPON_DEFINITIONS;
   secondaryWeaponId: keyof typeof WEAPON_DEFINITIONS;
   moduleIds: ModuleId[];
+  elapsedCombatTicks: number;
+  lastEncounterTicks: number;
+}
+
+function formatTimeScore(ticks: number): string {
+  const centiseconds = Math.floor((ticks * 100) / 60);
+  const minutes = Math.floor(centiseconds / 6000);
+  const seconds = Math.floor((centiseconds % 6000) / 100);
+  const fraction = centiseconds % 100;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(fraction).padStart(2, '0')}`;
 }
 
 function toHudSnapshot(state: SimulationState): HudSnapshot {
@@ -84,13 +97,42 @@ function toSessionView(session: GameSessionState): SessionView {
     primaryWeaponId: build.primaryWeaponId,
     secondaryWeaponId: build.secondaryWeaponId,
     moduleIds: [...build.moduleIds],
+    elapsedCombatTicks: session.run.elapsedCombatTicks,
+    lastEncounterTicks: session.run.lastEncounterTicks,
   };
+}
+
+function createInitialGameSession(): GameSessionState {
+  const session = createGameSession(1);
+  const parameters = new URLSearchParams(window.location.search);
+  if (
+    !parameters.has('debug') ||
+    parameters.get('rewardPreview') !== 'full-modules'
+  ) {
+    return session;
+  }
+
+  session.run.build.moduleIds = [
+    'cooling-fan',
+    'generator',
+    'ammo-box',
+    'armor',
+  ];
+  session.combat.build = structuredClone(session.run.build);
+  session.phase = 'reward';
+  session.rewardChoices = generateRewardChoices(
+    session.run.seed,
+    session.run.encounterIndex,
+    session.run.build,
+    1,
+  );
+  return session;
 }
 
 export function GameApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [input] = useState(() => new InputManager());
-  const [initialSession] = useState(() => createGameSession(1));
+  const [initialSession] = useState(createInitialGameSession);
   const sessionRef = useRef(initialSession);
   const [hud, setHud] = useState(() => toHudSnapshot(initialSession.combat));
   const [sessionView, setSessionView] = useState(() =>
@@ -315,6 +357,7 @@ export function GameApp() {
         <section className="battle-clear" role="status">
           <strong>BATTLE CLEAR!</strong>
           <span>{sessionView.encounterName} 制圧完了</span>
+          <b>TIME {formatTimeScore(sessionView.lastEncounterTicks)}</b>
         </section>
       )}
       {(sessionView.phase === 'victory' || sessionView.phase === 'defeat') && (
@@ -327,6 +370,10 @@ export function GameApp() {
               ? 'カワイイ・フォートレスを撃破！'
               : 'キャラバンが停止しました'}
           </span>
+          <b className="run-time-score">
+            {sessionView.phase === 'victory' ? 'RUN TIME' : 'SURVIVAL TIME'}{' '}
+            {formatTimeScore(sessionView.elapsedCombatTicks)}
+          </b>
           <button type="button" onClick={restart}>
             新しいラン
           </button>

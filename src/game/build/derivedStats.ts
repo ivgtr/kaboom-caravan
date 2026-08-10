@@ -23,7 +23,7 @@ const BASE_PLAYER_STATS: PlayerDerivedStats = {
   moveSpeed: 12,
   coolingPerSecond: 12,
   energyPerSecond: 10,
-  maximumAmmo: 30,
+  maximumAmmo: 50,
   maximumEnergy: 100,
   maximumHitPoints: 100,
   armor: 1,

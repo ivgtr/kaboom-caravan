@@ -27,7 +27,7 @@ describe('weapon-specific behaviors', () => {
 
     expect(result.projectiles).toHaveLength(3);
     expect(new Set(result.projectiles.map(({ id }) => id)).size).toBe(3);
-    expect(result.player.ammo).toBe(28);
+    expect(result.player.ammo).toBe(48);
   });
 
   it('lets flame and railgun hit multiple enemies in one simulation step', () => {

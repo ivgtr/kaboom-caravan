@@ -22,6 +22,8 @@ export interface RunState {
   encounterIndex: number;
   build: BuildState;
   vehicleHitPoints: number;
+  elapsedCombatTicks: number;
+  lastEncounterTicks: number;
 }
 
 export interface GameSessionState {
@@ -62,10 +64,12 @@ export function createGameSession(seed = 1): GameSessionState {
     encounterIndex: 0,
     build: {
       primaryWeaponId: 'machine-cannon',
-      secondaryWeaponId: 'railgun',
+      secondaryWeaponId: 'scatter-cannon',
       moduleIds: [],
     },
     vehicleHitPoints: 100,
+    elapsedCombatTicks: 0,
+    lastEncounterTicks: 0,
   };
   return {
     phase: 'combat',
@@ -83,11 +87,17 @@ export function stepGameSession(
   if (session.phase !== 'combat') return session;
   const combat = stepSimulation(session.combat, command, deltaSeconds);
   if (combat.status === 'active') return { ...session, combat };
+  const encounterTicks = combat.tick;
+  const timedRun: RunState = {
+    ...session.run,
+    vehicleHitPoints: combat.player.hitPoints,
+    elapsedCombatTicks: session.run.elapsedCombatTicks + encounterTicks,
+    lastEncounterTicks: encounterTicks,
+  };
   if (combat.status === 'defeat') {
-    return { ...session, phase: 'defeat', combat };
+    return { ...session, phase: 'defeat', combat, run: timedRun };
   }
 
-  const vehicleHitPoints = combat.player.hitPoints;
   const isFinalEncounter =
     session.run.encounterIndex >= MVP_ENCOUNTERS.length - 1;
   if (isFinalEncounter) {
@@ -95,7 +105,7 @@ export function stepGameSession(
       ...session,
       phase: 'victory',
       combat,
-      run: { ...session.run, vehicleHitPoints },
+      run: timedRun,
     };
   }
 
@@ -103,7 +113,7 @@ export function stepGameSession(
     ...session,
     phase: 'reward',
     combat,
-    run: { ...session.run, vehicleHitPoints },
+    run: timedRun,
     rewardChoices: generateRewardChoices(
       session.run.seed,
       session.run.encounterIndex,

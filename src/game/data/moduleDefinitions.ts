@@ -43,7 +43,7 @@ export const MODULE_DEFINITIONS: Readonly<Record<ModuleId, ModuleDefinition>> =
           target: 'player',
           stat: 'maximumAmmo',
           operation: 'additive',
-          value: 12,
+          value: 20,
         },
       ],
       triggers: [],

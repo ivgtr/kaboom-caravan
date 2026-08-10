@@ -5,6 +5,7 @@ import {
 } from '../simulation/types';
 import type { BuildState } from '../simulation/types';
 import { MVP_ENCOUNTERS } from '../data/runDefinitions';
+import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
 import {
   createGameSession,
   selectReward,
@@ -68,20 +69,20 @@ interface ExpectedRunBaseline {
 
 const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
   1: {
-    elapsedTicks: 5175,
-    encounterTicks: [292, 288, 303, 387, 316, 422, 464, 453, 471, 1779],
-    endingHitPoints: [100, 100, 115, 125, 125, 125, 92, 91, 100, 79],
+    elapsedTicks: 7584,
+    encounterTicks: [445, 287, 432, 947, 467, 755, 851, 959, 1131, 1310],
+    endingHitPoints: [100, 100, 115, 125, 120, 125, 95, 94, 100, 58],
     forwardDistances: [
-      55.045, 52.99, 55.73, 54.4, 56.603, 66.315, 53.4, 59.575, 54.4, 40.8,
+      70, 53.593, 63.543, 67.8, 57.958, 87.943, 79.953, 91.438, 112.197, 141.58,
     ],
-    primaryShots: 41,
-    secondaryShots: 35,
-    enemyProjectiles: [3, 3, 0],
+    primaryShots: 113,
+    secondaryShots: 44,
+    enemyProjectiles: [12, 6, 6],
     rewardIds: [
-      'module:armor',
+      'weapon:railgun',
       'module:shield-generator',
       'module:capacitor',
-      'module:radar',
+      'module:armor',
       'module:cooling-fan',
       'module:heat-recycler',
       'module:explosive-magazine',
@@ -100,62 +101,57 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     },
   },
   42: {
-    elapsedTicks: 5175,
-    encounterTicks: [292, 288, 303, 387, 308, 414, 464, 453, 480, 1786],
-    endingHitPoints: [100, 100, 100, 100, 100, 100, 92, 92, 100, 83],
+    elapsedTicks: 7877,
+    encounterTicks: [445, 287, 432, 947, 467, 607, 851, 906, 1625, 1310],
+    endingHitPoints: [100, 100, 100, 100, 92, 107, 114, 117, 109, 61],
     forwardDistances: [
-      55.045, 52.99, 55.73, 54.4, 56.423, 66.315, 53.4, 59.575, 54.4, 40.8,
+      70, 53.593, 63.543, 67.8, 57.958, 69.105, 79.953, 94.122, 114.177, 141.58,
     ],
-    primaryShots: 41,
-    secondaryShots: 35,
-    enemyProjectiles: [3, 3, 0],
+    primaryShots: 130,
+    secondaryShots: 41,
+    enemyProjectiles: [14, 8, 6],
     rewardIds: [
-      'module:generator',
+      'weapon:railgun',
       'module:capacitor',
-      'module:heat-recycler',
-      'module:ammo-box',
-      'module:magnetic-armor',
       'module:radar',
       'module:generator',
+      'module:shield-generator',
+      'module:magnetic-armor',
+      'module:ammo-box',
       'module:capacitor',
-      'module:armor',
+      'module:generator',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'railgun',
-      moduleIds: ['radar', 'generator', 'capacitor', 'armor'],
+      moduleIds: ['magnetic-armor', 'ammo-box', 'capacitor', 'generator'],
     },
   },
   2026: {
-    elapsedTicks: 5143,
-    encounterTicks: [292, 288, 303, 387, 308, 414, 456, 445, 471, 1779],
-    endingHitPoints: [100, 100, 100, 100, 100, 100, 91, 91, 106, 100],
+    elapsedTicks: 8580,
+    encounterTicks: [445, 453, 471, 784, 725, 666, 851, 967, 1625, 1593],
+    endingHitPoints: [100, 100, 100, 100, 92, 100, 92, 92, 91, 7],
     forwardDistances: [
-      55.045, 52.99, 55.73, 54.4, 56.423, 66.315, 53.4, 59.575, 54.4, 40.8,
+      70, 70, 63.212, 73.177, 82.743, 65.247, 79.953, 91.438, 114.177, 159.017,
     ],
-    primaryShots: 41,
-    secondaryShots: 35,
-    enemyProjectiles: [3, 3, 0],
+    primaryShots: 168,
+    secondaryShots: 46,
+    enemyProjectiles: [17, 11, 6],
     rewardIds: [
       'module:generator',
-      'module:ammo-box',
-      'module:heat-recycler',
+      'weapon:rocket-launcher',
+      'module:radar',
       'module:magnetic-armor',
-      'module:capacitor',
-      'module:explosive-magazine',
-      'module:generator',
-      'module:shield-generator',
       'module:heat-recycler',
+      'weapon:railgun',
+      'module:ammo-box',
+      'module:shield-generator',
+      'module:radar',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'railgun',
-      moduleIds: [
-        'explosive-magazine',
-        'generator',
-        'shield-generator',
-        'heat-recycler',
-      ],
+      moduleIds: ['heat-recycler', 'ammo-box', 'shield-generator', 'radar'],
     },
   },
 };
@@ -189,35 +185,59 @@ function combatCommand(session: GameSessionState): PlayerCommand {
   );
   const distance = nearestEnemy - session.combat.player.position;
   const hasTarget = Number.isFinite(distance);
-  const bossActive = session.combat.enemies.some(
-    (enemy) => enemy.typeId === 'kawaii-fortress',
+  const primary = WEAPON_DEFINITIONS[session.run.build.primaryWeaponId];
+  const secondary = WEAPON_DEFINITIONS[session.run.build.secondaryWeaponId];
+  const incomingProjectile = session.combat.enemyProjectiles.some(
+    (projectile) =>
+      projectile.position > session.combat.player.position &&
+      projectile.position - session.combat.player.position < 24,
   );
-  const targetDistance = bossActive ? 60 : 37;
-  const canUseRailgun =
+  const targetDistance = Math.max(
+    10,
+    Math.min(primary.optimalRangeMaximum, secondary.optimalRangeMaximum) - 2,
+  );
+  const canFire = (weapon: typeof primary) =>
     hasTarget &&
-    distance <= 78 &&
-    session.combat.player.energy >= 32 &&
-    session.combat.player.heat <= 74;
+    distance <= weapon.maximumRange &&
+    session.combat.player.ammo >= weapon.ammoCost &&
+    session.combat.player.energy >= weapon.energyCost &&
+    session.combat.player.heat + weapon.heatGenerated < 100;
   return {
-    move: !hasTarget
-      ? 0
-      : distance > targetDistance + 5
-        ? 1
-        : distance < targetDistance - 5
-          ? -1
-          : 0,
-    firePrimary:
-      hasTarget &&
-      distance <= 42 &&
-      (!canUseRailgun || session.combat.player.secondaryCooldown > 0.35),
-    fireSecondary: canUseRailgun,
+    move: incomingProjectile
+      ? -1
+      : !hasTarget
+        ? 0
+        : distance > targetDistance + 5
+          ? 1
+          : distance < targetDistance - 5
+            ? -1
+            : 0,
+    firePrimary: canFire(primary),
+    fireSecondary: canFire(secondary),
     activateSkill:
-      session.combat.player.overheated && session.combat.player.energy >= 25,
+      (incomingProjectile || session.combat.player.overheated) &&
+      session.combat.player.energy >= 25,
   };
 }
 
 function chooseReward(session: GameSessionState) {
+  const weaponRank = {
+    'scatter-cannon': 0,
+    'rocket-launcher': 1,
+    railgun: 2,
+  } as const;
+  const currentRank =
+    weaponRank[
+      session.run.build.secondaryWeaponId as keyof typeof weaponRank
+    ] ?? -1;
+  const preferredWeapon = session.rewardChoices.find(
+    (choice) =>
+      choice.type === 'weapon' &&
+      choice.weaponId in weaponRank &&
+      weaponRank[choice.weaponId as keyof typeof weaponRank] > currentRank,
+  );
   return (
+    preferredWeapon ??
     session.rewardChoices.find((choice) => choice.type === 'module') ??
     session.rewardChoices[0]!
   );
@@ -311,7 +331,7 @@ function simulateMvpRun(seed: number): {
     }
     if (session.phase === 'reward') {
       const reward = chooseReward(session);
-      const weaponSlot = encounters.length % 2 === 0 ? 'primary' : 'secondary';
+      const weaponSlot = 'secondary' as const;
       rewardsSelected.push({
         afterEncounter: encounters.length,
         rewardId: reward.id,
@@ -415,6 +435,10 @@ describe('fixed-seed MVP run', () => {
         );
       }
       expect(metrics.finalBuild).toEqual(session.run.build);
+      expect(session.run.elapsedCombatTicks).toBe(metrics.elapsedTicks);
+      expect(session.run.lastEncounterTicks).toBe(
+        metrics.encounters.at(-1)?.elapsedTicks,
+      );
       expect(toRunBaseline(metrics)).toEqual(EXPECTED_RUN_BASELINES[seed]);
       expect(replay.metrics).toEqual(metrics);
       expect(replay.session.run).toEqual(session.run);

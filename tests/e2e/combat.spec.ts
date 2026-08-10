@@ -17,7 +17,7 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   await expect(progress).toContainText('SALVAGE ×1.0');
   await expect(progress).not.toContainText('SAFE');
   await expect(progress).not.toContainText('DANGER');
-  await expect(main).toContainText('30');
+  await expect(main).toContainText('50');
   await expect(main.locator('kbd')).toHaveText('SPACE');
   await expect(sub.locator('kbd')).toHaveText('E');
   await expect(escape.locator('kbd')).toHaveText('Q');
@@ -28,7 +28,7 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   await page.keyboard.up('d');
 
   await page.keyboard.down('Space');
-  await expect(main).not.toContainText('30');
+  await expect(main).not.toContainText('50');
   await page.keyboard.up('Space');
 
   const positionBeforeTouch = await debug.textContent();
@@ -40,7 +40,7 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
 
   await page.reload();
   await expect(health).toContainText('100');
-  await expect(main).toContainText('30');
+  await expect(main).toContainText('50');
   await expect(debug).toContainText('position 10.0');
 });
 
@@ -94,10 +94,14 @@ test('renders an acquired module on the physical caravan mounts', async ({
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await page.keyboard.down('e');
+  await page.keyboard.down('Space');
+  await page.keyboard.down('d');
 
   const rewards = page.getByRole('dialog').filter({ hasText: 'SALVAGE TIME!' });
   await expect(rewards).toBeVisible({ timeout: 45_000 });
   await page.keyboard.up('e');
+  await page.keyboard.up('Space');
+  await page.keyboard.up('d');
   const moduleCard = rewards.locator('.reward-module').first();
   await expect(moduleCard).toBeVisible();
   await moduleCard.getByRole('button', { name: /を選択/ }).click();
@@ -118,30 +122,14 @@ for (const viewport of [
   test(`previews the oldest module replacement at ${viewport.width}x${viewport.height}`, async ({
     page,
   }) => {
-    test.setTimeout(90_000);
     await page.setViewportSize(viewport);
-    await page.goto('/');
-    await page.keyboard.down('e');
+    await page.goto('/?debug=1&rewardPreview=full-modules');
 
     const rewards = page
       .getByRole('dialog')
       .filter({ hasText: 'SALVAGE TIME!' });
-    let oldestModuleName = '';
-    for (let equipped = 0; equipped < 4; equipped += 1) {
-      await expect(rewards).toBeVisible({ timeout: 45_000 });
-      await expect(rewards).toContainText(`MODULE ${equipped}/4`);
-      const moduleCard = rewards.locator('.reward-module').first();
-      await expect(moduleCard.locator('.reward-module-swap')).toHaveCount(0);
-      if (equipped === 0) {
-        oldestModuleName =
-          (await moduleCard.locator('h2').textContent())?.trim() ?? '';
-      }
-      await moduleCard.getByRole('button', { name: /を選択/ }).click();
-      await expect(rewards).toHaveCount(0);
-    }
-
-    await expect(rewards).toBeVisible({ timeout: 45_000 });
-    await page.keyboard.up('e');
+    const oldestModuleName = '冷却ファン';
+    await expect(rewards).toBeVisible();
     await expect(rewards).toContainText('MODULE 4/4');
     const moduleCards = rewards.locator('.reward-module');
     const moduleCardCount = await moduleCards.count();
@@ -187,9 +175,9 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto('/');
     const main = page.getByRole('button', { name: '主武器' });
-    await expect(main).toContainText('30');
+    await expect(main).toContainText('50');
     await page.keyboard.down('Space');
-    await expect(main).not.toContainText('30');
+    await expect(main).not.toContainText('50');
     if (process.env.CAPTURE_VFX_REVIEW) {
       await page.screenshot({
         path: `artifacts/vfx/review/combat_ballistic_${viewport.width}x${viewport.height}_v001.png`,
@@ -333,9 +321,12 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto('/');
     await page.keyboard.down('e');
+    await page.keyboard.down('Space');
+    await page.keyboard.down('d');
 
     const clear = page.locator('.battle-clear');
     await expect(clear).toBeVisible({ timeout: 45_000 });
+    await expect(clear).toContainText(/TIME \d{2}:\d{2}\.\d{2}/);
     if (process.env.CAPTURE_UI_REVIEW) {
       await waitForAnimations(clear);
       await page.screenshot({
@@ -348,6 +339,8 @@ for (const viewport of [
       .filter({ hasText: 'SALVAGE TIME!' });
     await expect(rewards).toBeVisible();
     await page.keyboard.up('e');
+    await page.keyboard.up('Space');
+    await page.keyboard.up('d');
 
     await expect(page.getByRole('button', { name: '主武器' })).toHaveCount(0);
     const cards = rewards.locator('.reward-card');

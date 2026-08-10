@@ -48,7 +48,7 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       description: '接近して複数弾を叩き込む近距離武器。',
       behavior: 'scatter',
       tags: ['ballistic', 'projectile', 'close-range'],
-      damage: 9,
+      damage: 7,
       cooldownSeconds: 0.8,
       projectileSpeed: 55,
       maximumRange: 26,

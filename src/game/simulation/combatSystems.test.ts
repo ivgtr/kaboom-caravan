@@ -46,14 +46,14 @@ describe('weapon resources', () => {
       SIMULATION_STEP_SECONDS,
     );
 
-    expect(primary.player.ammo).toBe(29);
+    expect(primary.player.ammo).toBe(49);
     expect(primary.player.energy).toBe(98);
     expect(primary.player.primaryCooldown).toBe(0.25);
     expect(primary.player.secondaryCooldown).toBe(0);
-    expect(secondary.player.ammo).toBe(28);
-    expect(secondary.player.energy).toBe(68);
+    expect(secondary.player.ammo).toBe(48);
+    expect(secondary.player.energy).toBe(97);
     expect(secondary.player.primaryCooldown).toBe(0);
-    expect(secondary.player.secondaryCooldown).toBe(2.2);
+    expect(secondary.player.secondaryCooldown).toBe(0.8);
   });
 
   it('locks weapons on overheat until heat falls to the recovery threshold', () => {
@@ -133,7 +133,7 @@ describe('frontline and combat outcome', () => {
 
   it('ends in defeat when the frontline collapses', () => {
     const initial = createSimulation();
-    initial.frontline.position = 0.01;
+    initial.frontline.position = 0.005;
     initial.enemies = [
       {
         ...initial.enemies[0]!,

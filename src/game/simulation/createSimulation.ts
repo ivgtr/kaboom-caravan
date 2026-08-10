@@ -11,7 +11,7 @@ export function createSimulation(seed = 1): SimulationState {
     status: 'active',
     build: {
       primaryWeaponId: 'machine-cannon',
-      secondaryWeaponId: 'railgun',
+      secondaryWeaponId: 'scatter-cannon',
       moduleIds: [],
     },
     player: {
@@ -25,7 +25,7 @@ export function createSimulation(seed = 1): SimulationState {
       armor: 1,
       heat: 0,
       energy: 100,
-      ammo: 30,
+      ammo: 50,
       primaryCooldown: 0,
       secondaryCooldown: 0,
       skillCooldown: 0,

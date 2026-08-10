@@ -113,7 +113,7 @@ describe('stepSimulation', () => {
       projectileId: 'projectile-1',
       weaponId: 'machine-cannon',
     });
-    expect(hit.enemies[0]!.hitPoints).toBe(26.5);
+    expect(hit.enemies[0]!.hitPoints).toBe(38.5);
     expect(hit.events).toContainEqual({
       type: 'projectile-hit',
       projectileId: 'projectile-1',

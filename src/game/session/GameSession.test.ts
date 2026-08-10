@@ -45,6 +45,8 @@ describe('game session', () => {
     expect(MVP_ENCOUNTERS).toHaveLength(10);
     expect(session.phase).toBe('combat');
     expect(session.run.encounterIndex).toBe(0);
+    expect(session.run.elapsedCombatTicks).toBe(0);
+    expect(session.run.lastEncounterTicks).toBe(0);
     expect(session.combat.wave?.id).toBe('battle-01-wave');
   });
 
@@ -57,6 +59,8 @@ describe('game session', () => {
 
     expect(reward.phase).toBe('reward');
     expect(reward.rewardChoices).toHaveLength(3);
+    expect(reward.run.elapsedCombatTicks).toBe(1);
+    expect(reward.run.lastEncounterTicks).toBe(1);
     expect(next.phase).toBe('combat');
     expect(next.run.encounterIndex).toBe(1);
     expect(next.run.build.moduleIds).toContain(
@@ -114,6 +118,8 @@ describe('game session', () => {
     expect(restarted.run.seed).toBe(11);
     expect(restarted.run.encounterIndex).toBe(0);
     expect(restarted.run.build.moduleIds).toEqual([]);
+    expect(defeated.run.elapsedCombatTicks).toBe(1);
+    expect(restarted.run.elapsedCombatTicks).toBe(0);
   });
 
   it('ends the run after the tenth encounter boss', () => {
