@@ -140,7 +140,7 @@ Status: Completed
 
 ### B. Enemy Attack Visual
 
-Status: Pending
+Status: Completed
 
 最低限、次を生成または既存Assetから再利用する。
 
@@ -159,6 +159,17 @@ Status: Pending
 5. Asset Prompt、Master、Runtime、採否をRegistryへ記録
 
 完了条件：Event文やHP数値を見なくても、どの敵から何が飛来したか判断できる。
+
+実装結果：
+
+- Artillery Spore、Boss Core、Boss Phase 3 BurstのProjectile／Impactを同一Style Lockで生成
+- 3×2 Masterから各Familyを透過2-cell Runtime Assetへ分割し、Fallback付きで統合
+- Artilleryは半径の0.48、Bossは半径の0.92だけPlayer側へ寄せた発射Anchorへ補正
+- 速度方向を持つ生成Trailと、着弾Core＋局所Ring／粒子をSimulation Eventへ同期
+- 被弾時のCaravanに短い押し戻しとBrightness Flashを適用
+- 通常近接Hitは既存Impact／Dust、通常DeathとBomber自爆は既存Explosive Familyを再利用
+- 1184×689と844×390で全3系統を比較し、背景上の輪郭と強度差を確認
+- Prompt、Master、Runtime、Review画像、採否をVFX Registryへ記録
 
 ### C. Melee／Hit／Death
 

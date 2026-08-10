@@ -112,7 +112,9 @@ export function stepEnemyBehaviors(
       const isBoss = enemy.behaviorId === 'bossFortress';
       rangedAttacks.push({
         enemyId: enemy.id,
-        originPosition: enemy.position - enemy.radius * 0.55,
+        // Both ranged sprites face left. The boss cannon projects farther from
+        // its body than the artillery mushroom's cap-mounted muzzle.
+        originPosition: enemy.position - enemy.radius * (isBoss ? 0.92 : 0.48),
         damage: enemy.attackDamage * phaseMultiplier,
         projectileSpeed: isBoss ? (enemy.bossPhase === 3 ? 26 : 20) : 18,
         projectileRadius: isBoss ? 0.8 : 0.55,

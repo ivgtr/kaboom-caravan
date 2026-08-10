@@ -24,6 +24,7 @@ import {
   getBossPhaseAuraSource,
   type BossPhase,
 } from './bossPhaseAssets';
+import { ENEMY_VFX_ART, getEnemyVfxSource } from './enemyVfxAssets';
 import {
   getVfxSource,
   VFX_ART,
@@ -62,6 +63,7 @@ interface VisualEffect {
   durationSeconds: number;
   weaponId?: WeaponId;
   vfxFamily?: VfxFamily;
+  enemyVisualId?: EnemyProjectileVisualId;
 }
 
 interface CharacterMotionRuntime {
@@ -109,6 +111,7 @@ export class GameRenderer {
   private readonly showMotionDebug =
     new URLSearchParams(window.location.search).get('debug') === 'motion';
   private readonly bossPreviewPhase = this.readBossPreviewPhase();
+  private readonly enemyVfxPreview = this.readEnemyVfxPreview();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -122,6 +125,7 @@ export class GameRenderer {
       ...Object.values(WEAPON_ART),
       ...Object.values(MODULE_ART),
       ...Object.values(VFX_ART).map(({ source }) => source),
+      ...Object.values(ENEMY_VFX_ART).map(({ source }) => source),
       BOSS_PHASE_AURA_ART.source,
     ]);
     this.resizeObserver = new ResizeObserver(this.resize);
@@ -168,6 +172,10 @@ export class GameRenderer {
 
     if (this.bossPreviewPhase !== undefined) {
       this.drawBossPreview(this.bossPreviewPhase);
+    }
+
+    if (this.enemyVfxPreview !== undefined) {
+      this.drawEnemyVfxPreview(this.enemyVfxPreview);
     }
 
     for (const projectile of state.enemyProjectiles) {
@@ -279,8 +287,12 @@ export class GameRenderer {
       const size = width * PLAYER_CHASSIS_ART.displayScale;
       const recoil = this.weaponRecoil(primaryWeaponId);
       const hitOffset = this.hitOffset(this.playerMotion, -1);
+      const isHitFlashing = this.playerMotion.hitAgeSeconds < 0.12;
       context.save();
       context.translate(x + hitOffset, groundY);
+      if (isHitFlashing) {
+        context.filter = 'brightness(1.7) saturate(0.65) sepia(0.2)';
+      }
       if (overheated) {
         context.shadowColor = '#ff5d5d';
         context.shadowBlur = 18;
@@ -964,6 +976,7 @@ export class GameRenderer {
             ageSeconds: 0,
             durationSeconds: 0.35,
             vfxFamily: event.visualId === 'spore' ? 'energy' : 'explosive',
+            enemyVisualId: event.visualId,
           });
         } else if (event.type === 'overheated') {
           this.emitEffect({
@@ -1020,7 +1033,19 @@ export class GameRenderer {
         effect.vfxFamily ??
         (effect.weaponId ? WEAPON_VFX_FAMILY[effect.weaponId] : 'explosive');
       const pose: VfxPose = effect.kind === 'muzzle' ? 'muzzle' : 'impact';
-      if (!this.drawGeneratedVfx(family, pose, x, y, progress)) {
+      const drewEnemyImpact =
+        effect.enemyVisualId !== undefined &&
+        this.drawGeneratedEnemyVfx(
+          effect.enemyVisualId,
+          'impact',
+          x,
+          y,
+          progress,
+        );
+      if (
+        !drewEnemyImpact &&
+        !this.drawGeneratedVfx(family, pose, x, y, progress)
+      ) {
         this.drawFallbackVfx(effect, x, y, progress);
       }
       this.drawVfxParticles(effect, family, x, y, progress);
@@ -1182,6 +1207,7 @@ export class GameRenderer {
       recycled.durationSeconds = effect.durationSeconds;
       recycled.weaponId = effect.weaponId;
       recycled.vfxFamily = effect.vfxFamily;
+      recycled.enemyVisualId = effect.enemyVisualId;
       this.effects.push(recycled);
     } else {
       this.effects.push(effect);
@@ -1247,8 +1273,43 @@ export class GameRenderer {
     visualId: EnemyProjectileVisualId,
   ): void {
     const context = this.context;
+    const asset = ENEMY_VFX_ART[visualId];
     const y =
-      this.groundY - Math.min(88, Math.max(52, this.viewportHeight * 0.1));
+      this.groundY -
+      Math.min(
+        visualId === 'spore' ? 68 : 92,
+        Math.max(
+          visualId === 'spore' ? 36 : 54,
+          this.viewportHeight * asset.flightHeightRatio,
+        ),
+      );
+    const image = this.assets.get(asset.source);
+    if (image) {
+      const [sourceX, sourceY, sourceWidth, sourceHeight] = getEnemyVfxSource(
+        image.naturalWidth,
+        image.naturalHeight,
+        'projectile',
+      );
+      const baseSize = Math.min(110, Math.max(64, this.viewportHeight * 0.14));
+      const size = baseSize * asset.projectileScale;
+      context.save();
+      context.shadowColor = visualId === 'spore' ? '#8af0c5' : '#65e6ef';
+      context.shadowBlur = Math.max(5, size * 0.08);
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        x - size / 2,
+        y - size / 2,
+        size,
+        size,
+      );
+      context.restore();
+      return;
+    }
+
     const isSpore = visualId === 'spore';
     const isBurst = visualId === 'boss-burst';
     const radius = isSpore ? 7 : isBurst ? 12 : 10;
@@ -1287,6 +1348,55 @@ export class GameRenderer {
     context.restore();
   }
 
+  private drawGeneratedEnemyVfx(
+    visualId: EnemyProjectileVisualId,
+    pose: 'projectile' | 'impact',
+    x: number,
+    y: number,
+    progress: number,
+  ): boolean {
+    const asset = ENEMY_VFX_ART[visualId];
+    const image = this.assets.get(asset.source);
+    if (!image) return false;
+    const [sourceX, sourceY, sourceWidth, sourceHeight] = getEnemyVfxSource(
+      image.naturalWidth,
+      image.naturalHeight,
+      pose,
+    );
+    const baseSize = Math.min(
+      pose === 'impact' ? 156 : 110,
+      Math.max(
+        pose === 'impact' ? 84 : 64,
+        this.viewportHeight * (pose === 'impact' ? 0.18 : 0.14),
+      ),
+    );
+    const scale = pose === 'impact' ? asset.impactScale : asset.projectileScale;
+    const animatedScale =
+      pose === 'impact'
+        ? scale * (0.82 + Math.sin(progress * Math.PI) * 0.28)
+        : scale;
+    const size = baseSize * animatedScale;
+    const context = this.context;
+    context.save();
+    context.globalAlpha =
+      pose === 'impact' ? Math.min(1, (1 - progress) * 1.8) : 1;
+    context.shadowColor = visualId === 'spore' ? '#8af0c5' : '#65e6ef';
+    context.shadowBlur = Math.max(6, size * 0.08);
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      x - size / 2,
+      y - size / 2,
+      size,
+      size,
+    );
+    context.restore();
+    return true;
+  }
+
   private drawBurst(
     x: number,
     y: number,
@@ -1320,6 +1430,28 @@ export class GameRenderer {
       new URLSearchParams(window.location.search).get('bossPhase'),
     );
     return phase === 1 || phase === 2 || phase === 3 ? phase : undefined;
+  }
+
+  private readEnemyVfxPreview(): EnemyProjectileVisualId | undefined {
+    const visualId = new URLSearchParams(window.location.search).get(
+      'enemyVfx',
+    );
+    return visualId === 'spore' ||
+      visualId === 'boss-core' ||
+      visualId === 'boss-burst'
+      ? visualId
+      : undefined;
+  }
+
+  private drawEnemyVfxPreview(visualId: EnemyProjectileVisualId): void {
+    this.drawEnemyProjectile(this.viewportWidth * 0.62, visualId);
+    this.drawGeneratedEnemyVfx(
+      visualId,
+      'impact',
+      this.viewportWidth * 0.76,
+      this.groundY - Math.max(44, this.viewportHeight * 0.09),
+      0.35,
+    );
   }
 
   private drawEquipmentSprite(

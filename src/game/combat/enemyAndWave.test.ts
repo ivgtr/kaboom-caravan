@@ -72,6 +72,7 @@ describe('enemy definitions and behaviors', () => {
     expect(result.rangedAttacks).toEqual([
       expect.objectContaining({
         enemyId: 'artillery-1',
+        originPosition: 49.184,
         damage: 9,
         visualId: 'spore',
       }),
@@ -80,6 +81,41 @@ describe('enemy definitions and behaviors', () => {
       type: 'enemy-attacked',
       enemyId: 'artillery-1',
     });
+  });
+
+  it('releases boss projectiles from the forward cannon anchor', () => {
+    const boss = createEnemy('kawaii-fortress', 'boss-1', 50);
+    let result = stepEnemyBehaviors(
+      [boss],
+      10,
+      2.5,
+      1,
+      100,
+      SIMULATION_STEP_SECONDS,
+    );
+
+    for (
+      let tick = 0;
+      tick < 40 && result.rangedAttacks.length === 0;
+      tick += 1
+    ) {
+      result = stepEnemyBehaviors(
+        result.enemies,
+        10,
+        2.5,
+        1,
+        result.playerHitPoints,
+        SIMULATION_STEP_SECONDS,
+      );
+    }
+
+    expect(result.rangedAttacks).toEqual([
+      expect.objectContaining({
+        enemyId: 'boss-1',
+        originPosition: 45.4,
+        visualId: 'boss-core',
+      }),
+    ]);
   });
 
   it('makes ranged enemies approach without attacking until within range', () => {
