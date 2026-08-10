@@ -44,6 +44,7 @@ interface VisualEffect {
   worldPosition: number;
   ageSeconds: number;
   durationSeconds: number;
+  weaponId?: WeaponId;
 }
 
 export class GameRenderer {
@@ -54,6 +55,7 @@ export class GameRenderer {
   private lastProcessedTick = -1;
   private lastRenderTime = performance.now();
   private effects: VisualEffect[] = [];
+  private readonly recycledEffects: VisualEffect[] = [];
   private readonly knownEntityPositions = new Map<string, number>();
   private readonly assets = new SpriteAssetManager();
 
@@ -95,6 +97,7 @@ export class GameRenderer {
       state.build.secondaryWeaponId,
       state.build.moduleIds,
       state.player.overheated,
+      state.player.position !== state.player.previousPosition,
     );
 
     for (const enemy of snapshot.enemies) {
@@ -111,11 +114,7 @@ export class GameRenderer {
         projectile.previousPosition +
           (projectile.position - projectile.previousPosition) * alpha,
       );
-      const radius = projectile.behavior === 'flame' ? 7 : 3;
-      context.beginPath();
-      context.fillStyle = PROJECTILE_COLORS[projectile.weaponId];
-      context.arc(x, this.groundY - 30, radius, 0, Math.PI * 2);
-      context.fill();
+      this.drawProjectile(x, projectile.weaponId, projectile.behavior);
     }
     this.drawEffects();
 
@@ -204,6 +203,7 @@ export class GameRenderer {
     secondaryWeaponId: WeaponId,
     moduleIds: ModuleId[],
     overheated: boolean,
+    moving: boolean,
   ): void {
     const context = this.context;
     const player = this.assets.get(WORLD_ART.player);
@@ -211,7 +211,9 @@ export class GameRenderer {
       const width = Math.min(190, Math.max(118, this.viewportHeight * 0.25));
       const size = width;
       const left = x - size * 0.5;
-      const top = groundY - size * 0.8;
+      const bob = moving ? Math.sin(performance.now() * 0.015) * 2 : 0;
+      const top = groundY - size * 0.8 + bob;
+      const recoil = this.weaponRecoil(primaryWeaponId);
       context.save();
       if (overheated) {
         context.shadowColor = '#ff5d5d';
@@ -221,15 +223,15 @@ export class GameRenderer {
       context.drawImage(player, left, top, size, size);
       this.drawEquipmentSprite(
         WEAPON_ART[primaryWeaponId],
-        x + width * 0.12,
-        groundY - width * 0.58,
+        x + width * (0.12 - recoil * 0.05),
+        groundY - width * 0.58 + bob,
         width * 0.56,
         -4,
       );
       this.drawEquipmentSprite(
         WEAPON_ART[secondaryWeaponId],
         x + width * 0.02,
-        groundY - width * 0.78,
+        groundY - width * 0.78 + bob,
         width * 0.34,
         2,
       );
@@ -239,7 +241,7 @@ export class GameRenderer {
         this.drawEquipmentSprite(
           MODULE_ART[moduleIds[index]!],
           x - width * (0.29 - column * 0.14),
-          groundY - width * (0.55 - row * 0.14),
+          groundY - width * (0.55 - row * 0.14) + bob,
           width * 0.2,
           index % 2 === 0 ? -4 : 4,
         );
@@ -354,7 +356,10 @@ export class GameRenderer {
       context.drawImage(
         monster,
         x - size * 0.5,
-        groundY - size * 0.82,
+        groundY -
+          size * 0.82 +
+          Math.sin(performance.now() * 0.008 + x * 0.04) *
+            (typeId === 'rusher' ? 3 : 1.5),
         size,
         size,
       );
@@ -450,17 +455,18 @@ export class GameRenderer {
                 ?.position ?? this.knownEntityPositions.get(event.targetId))
             : undefined;
         if (event.type === 'weapon-fired') {
-          this.effects.push({
+          this.emitEffect({
             kind: 'muzzle',
             worldPosition: state.player.position + 4,
             ageSeconds: 0,
             durationSeconds: 0.14,
+            weaponId: event.weaponId,
           });
         } else if (
           event.type === 'projectile-hit' &&
           targetPosition !== undefined
         ) {
-          this.effects.push({
+          this.emitEffect({
             kind:
               event.weaponId === 'rocket-launcher' ||
               event.weaponId === 'mine-launcher'
@@ -469,11 +475,12 @@ export class GameRenderer {
             worldPosition: targetPosition,
             ageSeconds: 0,
             durationSeconds: 0.35,
+            weaponId: event.weaponId,
           });
         } else if (event.type === 'enemy-killed') {
           const position = this.knownEntityPositions.get(event.enemyId);
           if (position !== undefined) {
-            this.effects.push({
+            this.emitEffect({
               kind: 'explosion',
               worldPosition: position,
               ageSeconds: 0,
@@ -481,7 +488,7 @@ export class GameRenderer {
             });
           }
         } else if (event.type === 'overheated') {
-          this.effects.push({
+          this.emitEffect({
             kind: 'smoke',
             worldPosition: state.player.position,
             ageSeconds: 0,
@@ -491,12 +498,14 @@ export class GameRenderer {
       }
     }
 
-    this.effects = this.effects
-      .map((effect) => ({
-        ...effect,
-        ageSeconds: effect.ageSeconds + deltaSeconds,
-      }))
-      .filter((effect) => effect.ageSeconds < effect.durationSeconds);
+    for (let index = this.effects.length - 1; index >= 0; index -= 1) {
+      const effect = this.effects[index]!;
+      effect.ageSeconds += deltaSeconds;
+      if (effect.ageSeconds >= effect.durationSeconds) {
+        this.effects.splice(index, 1);
+        this.recycledEffects.push(effect);
+      }
+    }
   }
 
   private drawEffects(): void {
@@ -504,40 +513,140 @@ export class GameRenderer {
     for (const effect of this.effects) {
       const progress = effect.ageSeconds / effect.durationSeconds;
       const x = this.worldToScreen(effect.worldPosition);
-      const y = this.groundY - 28;
+      const y =
+        effect.kind === 'muzzle'
+          ? this.groundY -
+            Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.52
+          : this.groundY -
+            Math.min(80, Math.max(44, this.viewportHeight * 0.09));
       context.save();
-      context.globalAlpha = 1 - progress;
-      if (effect.kind === 'muzzle' || effect.kind === 'hit') {
-        context.strokeStyle = effect.kind === 'muzzle' ? '#fff4a3' : '#ffffff';
-        context.lineWidth = 4;
-        const radius = 10 + progress * 20;
-        for (let index = 0; index < 8; index += 1) {
-          const angle = (Math.PI * 2 * index) / 8;
+      if (effect.kind === 'muzzle') {
+        const accent = effect.weaponId
+          ? PROJECTILE_COLORS[effect.weaponId]
+          : '#fff4a3';
+        context.globalAlpha = 1 - progress;
+        context.strokeStyle = accent;
+        context.lineWidth = 3;
+        context.beginPath();
+        context.arc(x, y, 8 + progress * 22, 0, Math.PI * 2);
+        context.stroke();
+        context.fillStyle = '#fffdf0';
+        context.beginPath();
+        context.ellipse(
+          x + 10,
+          y,
+          17 * (1 - progress * 0.45),
+          5,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+        context.fillStyle = accent;
+        this.drawBurst(x + 8, y, 18 + progress * 18, 7, 0.34);
+        context.fillStyle = 'rgb(68 72 84 / 55%)';
+        for (let index = 0; index < 3; index += 1) {
+          context.beginPath();
+          context.arc(
+            x - 4 - progress * (10 + index * 5),
+            y - 3 - index * 4,
+            3 + progress * 4,
+            0,
+            Math.PI * 2,
+          );
+          context.fill();
+        }
+        context.strokeStyle = '#d89945';
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(x - 5, y + 5);
+        context.lineTo(x - 13 - progress * 17, y + 13 + progress * 10);
+        context.stroke();
+      } else if (effect.kind === 'hit') {
+        context.globalAlpha = 1 - progress;
+        context.fillStyle = '#ffffff';
+        this.drawBurst(x, y, 10 + progress * 26, 8, 0.45);
+        context.strokeStyle = effect.weaponId
+          ? PROJECTILE_COLORS[effect.weaponId]
+          : '#fff4a3';
+        context.lineWidth = 3;
+        for (let index = 0; index < 7; index += 1) {
+          const angle = (Math.PI * 2 * index) / 7 + 0.2;
+          const inner = 8 + progress * 10;
+          const outer = 18 + progress * 35;
           context.beginPath();
           context.moveTo(
-            x + Math.cos(angle) * radius * 0.35,
-            y + Math.sin(angle) * radius * 0.35,
+            x + Math.cos(angle) * inner,
+            y + Math.sin(angle) * inner,
           );
           context.lineTo(
-            x + Math.cos(angle) * radius,
-            y + Math.sin(angle) * radius,
+            x + Math.cos(angle) * outer,
+            y + Math.sin(angle) * outer,
           );
           context.stroke();
         }
       } else if (effect.kind === 'explosion') {
-        const radius = 12 + progress * 35;
-        for (const [color, ratio] of [
-          ['#5a3d45', 1],
-          ['#ff7a3d', 0.78],
-          ['#f2c14e', 0.52],
-          ['#fff9cf', 0.25],
-        ] as const) {
-          context.fillStyle = color;
+        const growth = Math.sin(Math.min(1, progress) * Math.PI * 0.72);
+        const radius = 16 + growth * 42;
+        context.globalAlpha = Math.min(1, (1 - progress) * 1.6);
+        for (let index = 0; index < 8; index += 1) {
+          const angle = (Math.PI * 2 * index) / 8 + 0.3;
+          const orbit = radius * (0.28 + (index % 3) * 0.08);
+          const lobe = radius * (0.32 + (index % 2) * 0.1);
+          context.fillStyle = index % 3 === 0 ? '#ff743d' : '#f5b83f';
           context.beginPath();
-          context.arc(x, y, radius * ratio, 0, Math.PI * 2);
+          context.arc(
+            x + Math.cos(angle) * orbit,
+            y + Math.sin(angle) * orbit,
+            lobe,
+            0,
+            Math.PI * 2,
+          );
           context.fill();
         }
+        context.fillStyle = progress < 0.45 ? '#fffbd2' : '#ff8b43';
+        context.beginPath();
+        context.arc(x, y, radius * (0.48 - progress * 0.12), 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = 'rgb(63 57 70 / 78%)';
+        for (let index = 0; index < 5; index += 1) {
+          const angle = -2.7 + index * 0.48;
+          context.beginPath();
+          context.arc(
+            x + Math.cos(angle) * radius * (0.45 + progress),
+            y + Math.sin(angle) * radius * (0.3 + progress * 0.65),
+            5 + progress * 9,
+            0,
+            Math.PI * 2,
+          );
+          context.fill();
+        }
+        context.strokeStyle = '#554657';
+        context.lineWidth = 3;
+        for (let index = 0; index < 6; index += 1) {
+          const angle = -2.8 + index * 0.55;
+          context.beginPath();
+          context.moveTo(x, y);
+          context.lineTo(
+            x + Math.cos(angle) * radius * (0.8 + progress),
+            y + Math.sin(angle) * radius * (0.8 + progress),
+          );
+          context.stroke();
+        }
+        context.fillStyle = 'rgb(226 189 131 / 65%)';
+        context.beginPath();
+        context.ellipse(
+          x,
+          this.groundY - 3,
+          radius * 0.9,
+          radius * 0.18,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
       } else {
+        context.globalAlpha = 1 - progress;
         context.fillStyle = '#596273';
         for (let index = 0; index < 4; index += 1) {
           context.beginPath();
@@ -553,6 +662,95 @@ export class GameRenderer {
       }
       context.restore();
     }
+  }
+
+  private emitEffect(effect: VisualEffect): void {
+    const recycled = this.recycledEffects.pop();
+    if (recycled) {
+      recycled.kind = effect.kind;
+      recycled.worldPosition = effect.worldPosition;
+      recycled.ageSeconds = effect.ageSeconds;
+      recycled.durationSeconds = effect.durationSeconds;
+      recycled.weaponId = effect.weaponId;
+      this.effects.push(recycled);
+    } else {
+      this.effects.push(effect);
+    }
+    if (this.effects.length > 96) {
+      this.recycledEffects.push(this.effects.shift()!);
+    }
+  }
+
+  private drawProjectile(
+    x: number,
+    weaponId: WeaponId,
+    behavior: SimulationState['projectiles'][number]['behavior'],
+  ): void {
+    const context = this.context;
+    const y =
+      this.groundY - Math.min(70, Math.max(42, this.viewportHeight * 0.075));
+    const color = PROJECTILE_COLORS[weaponId];
+    context.save();
+    if (weaponId === 'railgun') {
+      context.strokeStyle = 'rgb(119 231 255 / 38%)';
+      context.lineWidth = 8;
+      context.beginPath();
+      context.moveTo(x - 44, y);
+      context.lineTo(x + 8, y);
+      context.stroke();
+      context.strokeStyle = '#eaffff';
+      context.lineWidth = 2;
+      context.stroke();
+    } else if (behavior === 'flame') {
+      for (let index = 3; index >= 0; index -= 1) {
+        context.globalAlpha = 0.35 + index * 0.14;
+        context.fillStyle = index < 2 ? '#ff7a3d' : '#fff16a';
+        context.beginPath();
+        context.arc(
+          x - index * 5,
+          y + (index % 2) * 3,
+          5 + index,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      }
+    } else {
+      context.strokeStyle = color;
+      context.globalAlpha = 0.45;
+      context.lineWidth = weaponId === 'rocket-launcher' ? 5 : 3;
+      context.beginPath();
+      context.moveTo(x - 18, y);
+      context.lineTo(x, y);
+      context.stroke();
+      context.globalAlpha = 1;
+      context.fillStyle = color;
+      context.beginPath();
+      context.arc(x, y, weaponId === 'mine-launcher' ? 6 : 3.5, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.restore();
+  }
+
+  private drawBurst(
+    x: number,
+    y: number,
+    radius: number,
+    points: number,
+    innerRatio: number,
+  ): void {
+    const context = this.context;
+    context.beginPath();
+    for (let index = 0; index < points * 2; index += 1) {
+      const angle = -Math.PI / 2 + (Math.PI * index) / points;
+      const distance = index % 2 === 0 ? radius : radius * innerRatio;
+      const pointX = x + Math.cos(angle) * distance;
+      const pointY = y + Math.sin(angle) * distance;
+      if (index === 0) context.moveTo(pointX, pointY);
+      else context.lineTo(pointX, pointY);
+    }
+    context.closePath();
+    context.fill();
   }
 
   private worldToScreen(position: number): number {
@@ -577,6 +775,15 @@ export class GameRenderer {
     context.rotate((rotationDegrees * Math.PI) / 180);
     context.drawImage(image, -size / 2, -size / 2, size, size);
     context.restore();
+  }
+
+  private weaponRecoil(weaponId: WeaponId): number {
+    let recoil = 0;
+    for (const effect of this.effects) {
+      if (effect.kind !== 'muzzle' || effect.weaponId !== weaponId) continue;
+      recoil = Math.max(recoil, 1 - effect.ageSeconds / effect.durationSeconds);
+    }
+    return recoil;
   }
 
   private drawImageCover(
