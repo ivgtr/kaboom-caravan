@@ -58,4 +58,6 @@ npm run check
 - [フェーズ2プレイテスト](docs/playtest/phase2.md)：距離、前線、武器、リソースの確認手順
 - [G0開始前チェックポイント](docs/playtest/g0-readiness.md)：実アセット生成前の承認事項
 - [G0 Asset manifest](docs/assets/g0-manifest.md)：生成素材の出典、条件、採否記録
+- [Animation Asset Registry](docs/assets/animation-manifest.md)：Character Motion素材のPrompt、採否、Runtime参照
 - [MVP手動プレイテスト](docs/playtest/mvp-readiness.md)：固定Seed検証後の体感確認項目
+- [2D Animation実装計画](docs/アニメーション実装計画.md)：分離Raster Rig、短尺Clip、VFX素材の制作・統合手順
