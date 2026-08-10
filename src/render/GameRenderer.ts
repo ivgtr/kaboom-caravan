@@ -4,6 +4,17 @@ import {
   interpolatePosition,
 } from '../game/simulation/presentationSnapshot';
 import type { EntityId, SimulationState } from '../game/simulation/types';
+import type { EnemyTypeId } from '../game/data/ids';
+import type { PresentationEntitySnapshot } from '../game/simulation/presentationSnapshot';
+
+const ENEMY_COLORS: Record<EnemyTypeId, string> = {
+  basic: '#687ec9',
+  rusher: '#e45c78',
+  heavy: '#4d596f',
+  artillery: '#8566ad',
+  bomber: '#dc7d3f',
+  'kawaii-fortress': '#d34f91',
+};
 
 export class GameRenderer {
   private readonly scene = new THREE.Scene();
@@ -78,11 +89,7 @@ export class GameRenderer {
     this.syncEntityViews(
       snapshot.enemies,
       this.enemyViews,
-      () =>
-        new THREE.Mesh(
-          new THREE.BoxGeometry(3, 2, 2.5),
-          new THREE.MeshStandardMaterial({ color: '#687ec9' }),
-        ),
+      (entity) => this.createEnemyView(entity),
       1,
       alpha,
     );
@@ -110,7 +117,7 @@ export class GameRenderer {
   private syncEntityViews(
     entities: ReturnType<typeof createPresentationSnapshot>['enemies'],
     views: Map<EntityId, THREE.Mesh>,
-    createView: () => THREE.Mesh,
+    createView: (entity: PresentationEntitySnapshot) => THREE.Mesh,
     height: number,
     alpha: number,
   ): void {
@@ -118,7 +125,7 @@ export class GameRenderer {
     for (const entity of entities) {
       let view = views.get(entity.id);
       if (!view) {
-        view = createView();
+        view = createView(entity);
         view.position.y = height;
         views.set(entity.id, view);
         this.scene.add(view);
@@ -132,6 +139,20 @@ export class GameRenderer {
         views.delete(id);
       }
     }
+  }
+
+  private createEnemyView(entity: PresentationEntitySnapshot): THREE.Mesh {
+    const typeId = entity.typeId ?? 'basic';
+    const isBoss = typeId === 'kawaii-fortress';
+    const isHeavy = typeId === 'heavy';
+    return new THREE.Mesh(
+      new THREE.BoxGeometry(
+        isBoss ? 9 : isHeavy ? 4 : 3,
+        isBoss ? 6 : isHeavy ? 3 : 2,
+        isBoss ? 5 : isHeavy ? 3.5 : 2.5,
+      ),
+      new THREE.MeshStandardMaterial({ color: ENEMY_COLORS[typeId] }),
+    );
   }
 
   private disposeViews(views: Map<EntityId, THREE.Mesh>): void {

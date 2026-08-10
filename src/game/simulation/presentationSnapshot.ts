@@ -1,9 +1,11 @@
 import type { EntityId, SimulationState } from './types';
+import type { EnemyTypeId } from '../data/ids';
 
 export interface PresentationEntitySnapshot {
   id: EntityId;
   previousPosition: number;
   position: number;
+  typeId?: EnemyTypeId;
 }
 
 export interface PresentationSnapshot {
@@ -25,11 +27,14 @@ export function createPresentationSnapshot(
       previousPosition: state.player.previousPosition,
       position: state.player.position,
     },
-    enemies: state.enemies.map(({ id, previousPosition, position }) => ({
-      id,
-      previousPosition,
-      position,
-    })),
+    enemies: state.enemies.map(
+      ({ id, previousPosition, position, typeId }) => ({
+        id,
+        previousPosition,
+        position,
+        typeId,
+      }),
+    ),
     projectiles: state.projectiles.map(
       ({ id, previousPosition, position }) => ({
         id,

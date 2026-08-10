@@ -40,4 +40,17 @@ export type EnemyBehaviorId =
   | 'suicideRush'
   | 'bossFortress';
 
-export type WaveId = 'prototype-wave' | 'mixed-wave' | 'boss-wave';
+export type WaveId =
+  | 'prototype-wave'
+  | 'mixed-wave'
+  | 'boss-wave'
+  | 'battle-01-wave'
+  | 'battle-02-wave'
+  | 'battle-03-wave'
+  | 'battle-04-wave'
+  | 'battle-05-wave'
+  | 'battle-06-wave'
+  | 'battle-07-wave'
+  | 'battle-08-wave'
+  | 'battle-09-wave'
+  | 'battle-10-wave';

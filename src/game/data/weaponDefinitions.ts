@@ -1,9 +1,13 @@
 import type { WeaponId, WeaponTag } from './ids';
 
+export type WeaponBehavior =
+  'projectile' | 'scatter' | 'flame' | 'rocket' | 'railgun' | 'mine';
+
 export interface WeaponDefinition {
   id: WeaponId;
   displayName: string;
   description: string;
+  behavior: WeaponBehavior;
   tags: readonly WeaponTag[];
   damage: number;
   cooldownSeconds: number;
@@ -24,6 +28,7 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       id: 'machine-cannon',
       displayName: '機関砲',
       description: '中距離で安定する低消費の連射武器。',
+      behavior: 'projectile',
       tags: ['ballistic', 'projectile'],
       damage: 10,
       cooldownSeconds: 0.25,
@@ -41,8 +46,9 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       id: 'scatter-cannon',
       displayName: '散弾砲',
       description: '接近して複数弾を叩き込む近距離武器。',
+      behavior: 'scatter',
       tags: ['ballistic', 'projectile', 'close-range'],
-      damage: 24,
+      damage: 9,
       cooldownSeconds: 0.8,
       projectileSpeed: 55,
       maximumRange: 26,
@@ -58,6 +64,7 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       id: 'flamethrower',
       displayName: '火炎放射器',
       description: '至近距離を焼き払い、Heatを積極的に利用する。',
+      behavior: 'flame',
       tags: ['fire', 'heat', 'close-range'],
       damage: 7,
       cooldownSeconds: 0.15,
@@ -75,6 +82,7 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       id: 'rocket-launcher',
       displayName: 'ロケットランチャー',
       description: '中長距離へ高威力の爆発弾を発射する。',
+      behavior: 'rocket',
       tags: ['explosive', 'projectile'],
       damage: 30,
       cooldownSeconds: 1.35,
@@ -92,6 +100,7 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       id: 'railgun',
       displayName: 'レールガン',
       description: '高消費だが長距離で最大性能を発揮する。',
+      behavior: 'railgun',
       tags: ['energy', 'long-range', 'projectile'],
       damage: 42,
       cooldownSeconds: 2.2,
@@ -109,6 +118,7 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponId, WeaponDefinition>> =
       id: 'mine-launcher',
       displayName: '地雷射出機',
       description: '後退しながら敵の進路を制御する設置武器。',
+      behavior: 'mine',
       tags: ['explosive', 'deployable'],
       damage: 34,
       cooldownSeconds: 1.5,

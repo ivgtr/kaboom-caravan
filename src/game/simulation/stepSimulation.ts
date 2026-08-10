@@ -44,27 +44,54 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function createProjectile(
+function createProjectiles(
   state: SimulationState,
   position: number,
   definition: WeaponDefinition,
   sequence: number,
-): ProjectileState {
-  return {
-    id: `projectile-${sequence}`,
+): ProjectileState[] {
+  const projectileCount = definition.behavior === 'scatter' ? 3 : 1;
+  return Array.from({ length: projectileCount }, (_, index) => ({
+    id: `projectile-${sequence + index}`,
     ownerId: state.player.id,
     previousPosition: position,
     position,
     originPosition: position,
-    velocity: definition.projectileSpeed,
-    radius: definition.id === 'railgun' ? 0.35 : 0.2,
+    velocity:
+      definition.behavior === 'mine'
+        ? 0
+        : definition.projectileSpeed * (1 - index * 0.08),
+    radius:
+      definition.behavior === 'flame'
+        ? 3
+        : definition.behavior === 'mine'
+          ? 2
+          : definition.behavior === 'railgun'
+            ? 0.35
+            : 0.2,
     damage: definition.damage,
     maximumRange: definition.maximumRange,
     weaponId: definition.id,
     optimalRangeMinimum: definition.optimalRangeMinimum,
     optimalRangeMaximum: definition.optimalRangeMaximum,
     offRangeDamageMultiplier: definition.offRangeDamageMultiplier,
-  };
+    behavior: definition.behavior,
+    remainingHits:
+      definition.behavior === 'flame'
+        ? 5
+        : definition.behavior === 'railgun'
+          ? 3
+          : 1,
+    hitEnemyIds: [],
+    explosionRadius: definition.behavior === 'rocket' ? 7 : 0,
+    ageSeconds: 0,
+    maximumAgeSeconds:
+      definition.behavior === 'mine'
+        ? 12
+        : definition.behavior === 'flame'
+          ? 0.65
+          : 4,
+  }));
 }
 
 interface ProjectileResult {
@@ -87,49 +114,94 @@ function moveProjectiles(
       ...projectile,
       previousPosition: projectile.position,
       position: projectile.position + projectile.velocity * deltaSeconds,
+      ageSeconds: projectile.ageSeconds + deltaSeconds,
     };
-    const target = nextEnemies
-      .filter((enemy) =>
-        segmentIntersectsCircle1d(
-          movedProjectile.previousPosition,
-          movedProjectile.position,
-          enemy.position,
-          enemy.radius + movedProjectile.radius,
-        ),
+    const collisionTargets = nextEnemies
+      .filter(
+        (enemy) =>
+          enemy.hitPoints > 0 &&
+          !movedProjectile.hitEnemyIds.includes(enemy.id) &&
+          segmentIntersectsCircle1d(
+            movedProjectile.previousPosition,
+            movedProjectile.position,
+            enemy.position,
+            enemy.radius + movedProjectile.radius,
+          ),
       )
-      .sort((left, right) => left.position - right.position)[0];
+      .sort((left, right) => left.position - right.position)
+      .slice(
+        0,
+        movedProjectile.behavior === 'railgun' ||
+          movedProjectile.behavior === 'flame'
+          ? movedProjectile.remainingHits
+          : 1,
+      );
 
-    if (target) {
-      const traveledDistance = Math.abs(
-        target.position - movedProjectile.originPosition,
-      );
-      const distanceMultiplier = getDistanceDamageMultiplier(traveledDistance, {
-        optimalMinimum: movedProjectile.optimalRangeMinimum,
-        optimalMaximum: movedProjectile.optimalRangeMaximum,
-        offRangeDamageMultiplier: movedProjectile.offRangeDamageMultiplier,
-      });
-      const damage = resolveDamage(
-        movedProjectile.damage * distanceMultiplier,
-        target.armor,
-      );
-      nextEnemies = nextEnemies.map((enemy) =>
-        enemy.id === target.id
-          ? { ...enemy, hitPoints: enemy.hitPoints - damage }
-          : enemy,
-      );
-      events.push({
-        type: 'projectile-hit',
-        projectileId: projectile.id,
-        targetId: target.id,
-        weaponId: projectile.weaponId,
-        damage,
-      });
+    if (collisionTargets.length > 0) {
+      const target = collisionTargets[0]!;
+      const impactedEnemies =
+        movedProjectile.behavior === 'rocket'
+          ? nextEnemies.filter(
+              (enemy) =>
+                enemy.hitPoints > 0 &&
+                Math.abs(enemy.position - target.position) <=
+                  movedProjectile.explosionRadius + enemy.radius,
+            )
+          : collisionTargets;
+
+      for (const impactedEnemy of impactedEnemies) {
+        const traveledDistance = Math.abs(
+          impactedEnemy.position - movedProjectile.originPosition,
+        );
+        const distanceMultiplier = getDistanceDamageMultiplier(
+          traveledDistance,
+          {
+            optimalMinimum: movedProjectile.optimalRangeMinimum,
+            optimalMaximum: movedProjectile.optimalRangeMaximum,
+            offRangeDamageMultiplier: movedProjectile.offRangeDamageMultiplier,
+          },
+        );
+        const damage = resolveDamage(
+          movedProjectile.damage * distanceMultiplier,
+          impactedEnemy.armor,
+        );
+        nextEnemies = nextEnemies.map((enemy) =>
+          enemy.id === impactedEnemy.id
+            ? { ...enemy, hitPoints: enemy.hitPoints - damage }
+            : enemy,
+        );
+        events.push({
+          type: 'projectile-hit',
+          projectileId: projectile.id,
+          targetId: impactedEnemy.id,
+          weaponId: projectile.weaponId,
+          damage,
+        });
+      }
+
+      const remainingHits =
+        movedProjectile.remainingHits - collisionTargets.length;
+      if (
+        remainingHits > 0 &&
+        movedProjectile.behavior !== 'rocket' &&
+        movedProjectile.behavior !== 'mine'
+      ) {
+        remainingProjectiles.push({
+          ...movedProjectile,
+          remainingHits,
+          hitEnemyIds: [
+            ...movedProjectile.hitEnemyIds,
+            ...collisionTargets.map(({ id }) => id),
+          ],
+        });
+      }
       continue;
     }
 
     if (
       Math.abs(movedProjectile.position - movedProjectile.originPosition) <=
-      movedProjectile.maximumRange
+        movedProjectile.maximumRange &&
+      movedProjectile.ageSeconds <= movedProjectile.maximumAgeSeconds
     ) {
       remainingProjectiles.push(movedProjectile);
     }
@@ -143,7 +215,7 @@ function moveProjectiles(
 }
 
 interface FireResult {
-  projectile?: ProjectileState;
+  projectiles: ProjectileState[];
   ammo: number;
   energy: number;
   heat: number;
@@ -165,12 +237,12 @@ function tryFireWeapon(
     ammo >= definition.ammoCost &&
     energy >= definition.energyCost;
 
-  if (!canFire) return { ammo, energy, heat, cooldown };
+  if (!canFire) return { projectiles: [], ammo, energy, heat, cooldown };
 
   return {
-    projectile: createProjectile(
+    projectiles: createProjectiles(
       state,
-      state.player.position + 2.8,
+      state.player.position + (definition.behavior === 'mine' ? 8 : 2.8),
       definition,
       sequence,
     ),
@@ -293,13 +365,14 @@ export function stepSimulation(
     energy = result.energy;
     heat = result.heat;
     primaryCooldown = result.cooldown;
-    if (result.projectile) {
-      projectiles = [...projectiles, result.projectile];
-      nextEntitySequence += 1;
+    if (result.projectiles.length > 0) {
+      const firedProjectile = result.projectiles[0]!;
+      projectiles = [...projectiles, ...result.projectiles];
+      nextEntitySequence += result.projectiles.length;
       events.push({
         type: 'weapon-fired',
-        projectileId: result.projectile.id,
-        weaponId: result.projectile.weaponId,
+        projectileId: firedProjectile.id,
+        weaponId: firedProjectile.weaponId,
       });
     }
   }
@@ -310,13 +383,14 @@ export function stepSimulation(
     energy = result.energy;
     heat = result.heat;
     secondaryCooldown = result.cooldown;
-    if (result.projectile) {
-      projectiles = [...projectiles, result.projectile];
-      nextEntitySequence += 1;
+    if (result.projectiles.length > 0) {
+      const firedProjectile = result.projectiles[0]!;
+      projectiles = [...projectiles, ...result.projectiles];
+      nextEntitySequence += result.projectiles.length;
       events.push({
         type: 'weapon-fired',
-        projectileId: result.projectile.id,
-        weaponId: result.projectile.weaponId,
+        projectileId: firedProjectile.id,
+        weaponId: firedProjectile.weaponId,
       });
     }
   }

@@ -45,7 +45,7 @@ describe('game session', () => {
     expect(MVP_ENCOUNTERS).toHaveLength(10);
     expect(session.phase).toBe('combat');
     expect(session.run.encounterIndex).toBe(0);
-    expect(session.combat.wave?.id).toBe('prototype-wave');
+    expect(session.combat.wave?.id).toBe('battle-01-wave');
   });
 
   it('moves from combat to reward and carries the selected module forward', () => {

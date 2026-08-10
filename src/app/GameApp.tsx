@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
 import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
+import { MODULE_DEFINITIONS } from '../game/data/moduleDefinitions';
 import type { RewardChoice } from '../game/reward/rewardSystem';
 import {
   createGameSession,
@@ -85,7 +86,9 @@ function toSessionView(session: GameSessionState): SessionView {
     primaryWeaponName: WEAPON_DEFINITIONS[build.primaryWeaponId].displayName,
     secondaryWeaponName:
       WEAPON_DEFINITIONS[build.secondaryWeaponId].displayName,
-    moduleNames: [...build.moduleIds],
+    moduleNames: build.moduleIds.map(
+      (moduleId) => MODULE_DEFINITIONS[moduleId].displayName,
+    ),
   };
 }
 
@@ -207,6 +210,9 @@ export function GameApp() {
           name="緊急ブースト"
           cooldown={hud.skillCooldown}
         />
+        <span className="module-loadout">
+          MODULE: {sessionView.moduleNames.join(' / ') || 'なし'}
+        </span>
       </section>
       <aside className="debug-panel">
         tick {hud.tick} / position {hud.position.toFixed(1)}

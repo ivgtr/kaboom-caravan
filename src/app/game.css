@@ -118,6 +118,12 @@ input {
   font-size: 10px;
 }
 
+.module-loadout {
+  max-width: 360px;
+  color: #5d5564;
+  font-size: 11px;
+}
+
 .weapon-ready {
   color: #176d65;
   font-weight: 800;

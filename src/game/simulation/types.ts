@@ -5,6 +5,7 @@ import type {
   WeaponId,
   WaveId,
 } from '../data/ids';
+import type { WeaponBehavior } from '../data/weaponDefinitions';
 
 export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
@@ -71,6 +72,12 @@ export interface ProjectileState {
   optimalRangeMinimum: number;
   optimalRangeMaximum: number;
   offRangeDamageMultiplier: number;
+  behavior: WeaponBehavior;
+  remainingHits: number;
+  hitEnemyIds: EntityId[];
+  explosionRadius: number;
+  ageSeconds: number;
+  maximumAgeSeconds: number;
 }
 
 export interface FrontlineState {
