@@ -11,7 +11,7 @@ test('moves, fires both weapons, activates the skill and restores a fresh sessio
 
   await expect(hud).toContainText('HP 100');
   await expect(hud).toContainText('AMMO 30');
-  await expect(weapons).toContainText('機関砲 12–38m READY');
+  await expect(weapons).toContainText('機関砲 MAIN READY');
 
   await page.keyboard.down('d');
   await expect(debug).not.toContainText('position 10.0');
@@ -22,7 +22,7 @@ test('moves, fires both weapons, activates the skill and restores a fresh sessio
   await page.keyboard.up('Space');
 
   await page.keyboard.down('e');
-  await expect(weapons).toContainText(/レールガン 30–72m \d+\.\ds/);
+  await expect(weapons).toContainText(/レールガン SUB \d+\.\ds/);
   await page.keyboard.up('e');
 
   await page.keyboard.down('q');

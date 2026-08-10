@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
-import { createSimulation } from '../game/simulation/createSimulation';
-import { stepSimulation } from '../game/simulation/stepSimulation';
+import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
+import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
+import type { RewardChoice } from '../game/reward/rewardSystem';
+import {
+  createGameSession,
+  restartGameSession,
+  selectReward,
+  stepGameSession,
+  type GameSessionState,
+  type SessionPhase,
+  type WeaponSlot,
+} from '../game/session/GameSession';
 import type { CombatEvent, SimulationState } from '../game/simulation/types';
 import { InputManager } from '../input/InputManager';
 import { GameRenderer } from '../render/GameRenderer';
@@ -25,6 +35,15 @@ interface HudSnapshot {
   overheated: boolean;
   nearestEnemyDistance?: number;
   nearestEnemyHitPoints?: number;
+}
+
+interface SessionView {
+  phase: SessionPhase;
+  encounterIndex: number;
+  rewardChoices: RewardChoice[];
+  primaryWeaponName: string;
+  secondaryWeaponName: string;
+  moduleNames: string[];
 }
 
 function toHudSnapshot(state: SimulationState): HudSnapshot {
@@ -57,10 +76,27 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
   };
 }
 
+function toSessionView(session: GameSessionState): SessionView {
+  const { build } = session.run;
+  return {
+    phase: session.phase,
+    encounterIndex: session.run.encounterIndex,
+    rewardChoices: session.rewardChoices,
+    primaryWeaponName: WEAPON_DEFINITIONS[build.primaryWeaponId].displayName,
+    secondaryWeaponName:
+      WEAPON_DEFINITIONS[build.secondaryWeaponId].displayName,
+    moduleNames: [...build.moduleIds],
+  };
+}
+
 export function GameApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hud, setHud] = useState(() => toHudSnapshot(createSimulation()));
-  const [runVersion, setRunVersion] = useState(0);
+  const [initialSession] = useState(() => createGameSession(1));
+  const sessionRef = useRef(initialSession);
+  const [hud, setHud] = useState(() => toHudSnapshot(initialSession.combat));
+  const [sessionView, setSessionView] = useState(() =>
+    toSessionView(initialSession),
+  );
   const [feedback, setFeedback] = useState(
     '戦闘開始。敵との距離を調整してください。',
   );
@@ -69,25 +105,29 @@ export function GameApp() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    let simulation = createSimulation(1);
     let lastSnapshotTick = -1;
+    let lastPhase = sessionRef.current.phase;
     const input = new InputManager();
     const renderer = new GameRenderer(canvas);
     const loop = new FixedStepLoop(
       (deltaSeconds) => {
-        simulation = stepSimulation(
-          simulation,
+        const session = stepGameSession(
+          sessionRef.current,
           input.readCommand(),
           deltaSeconds,
         );
-        const latestEvent = simulation.events.at(-1);
+        sessionRef.current = session;
+        const latestEvent = session.combat.events.at(-1);
         if (latestEvent) setFeedback(describeCombatEvent(latestEvent));
-        if (simulation.tick - lastSnapshotTick >= 6) {
-          lastSnapshotTick = simulation.tick;
-          setHud(toHudSnapshot(simulation));
+        const phaseChanged = session.phase !== lastPhase;
+        if (phaseChanged || session.combat.tick - lastSnapshotTick >= 6) {
+          lastSnapshotTick = session.combat.tick;
+          lastPhase = session.phase;
+          setHud(toHudSnapshot(session.combat));
+          setSessionView(toSessionView(session));
         }
       },
-      (alpha) => renderer.render(simulation, alpha),
+      (alpha) => renderer.render(sessionRef.current.combat, alpha),
     );
 
     input.connect();
@@ -98,13 +138,35 @@ export function GameApp() {
       input.disconnect();
       renderer.dispose();
     };
-  }, [runVersion]);
+  }, []);
+
+  const chooseReward = (
+    rewardId: string,
+    weaponSlot: WeaponSlot = 'secondary',
+  ) => {
+    const session = selectReward(sessionRef.current, rewardId, weaponSlot);
+    sessionRef.current = session;
+    setHud(toHudSnapshot(session.combat));
+    setSessionView(toSessionView(session));
+    setFeedback(`戦闘${session.run.encounterIndex + 1}を開始。`);
+  };
+
+  const restart = () => {
+    const session = restartGameSession(sessionRef.current);
+    sessionRef.current = session;
+    setHud(toHudSnapshot(session.combat));
+    setSessionView(toSessionView(session));
+    setFeedback('新しいSeedでランを開始しました。');
+  };
 
   return (
     <main className="game-shell">
       <canvas ref={canvasRef} aria-label="戦闘フィールド" />
       <section className="hud" aria-label="車両状態">
-        <strong>Kaboom Caravan / Combat Vertical Slice</strong>
+        <strong>
+          Kaboom Caravan / Battle {sessionView.encounterIndex + 1} of{' '}
+          {MVP_ENCOUNTERS.length}
+        </strong>
         <Resource label="HP" value={hud.hitPoints} maximum={100} />
         <Resource
           label={hud.overheated ? 'OVERHEAT' : 'HEAT'}
@@ -132,12 +194,12 @@ export function GameApp() {
       <section className="weapon-panel" aria-label="武器状態">
         <WeaponStatus
           keyLabel="SPACE"
-          name="機関砲 12–38m"
+          name={`${sessionView.primaryWeaponName} MAIN`}
           cooldown={hud.primaryCooldown}
         />
         <WeaponStatus
           keyLabel="E / SHIFT"
-          name="レールガン 30–72m"
+          name={`${sessionView.secondaryWeaponName} SUB`}
           cooldown={hud.secondaryCooldown}
         />
         <WeaponStatus
@@ -155,26 +217,82 @@ export function GameApp() {
       <p className="controls">
         A / D または ← / → 移動・Space 主武器・E / Shift 副武器・Q 緊急後退
       </p>
-      {hud.status !== 'active' && (
+      {sessionView.phase === 'reward' && (
+        <RewardPanel
+          choices={sessionView.rewardChoices}
+          moduleNames={sessionView.moduleNames}
+          onChoose={chooseReward}
+        />
+      )}
+      {(sessionView.phase === 'victory' || sessionView.phase === 'defeat') && (
         <section className="result-panel" role="dialog" aria-modal="true">
-          <strong>{hud.status === 'victory' ? 'VICTORY!' : 'DEFEAT'}</strong>
+          <strong>
+            {sessionView.phase === 'victory' ? 'RUN COMPLETE!' : 'DEFEAT'}
+          </strong>
           <span>
-            {hud.status === 'victory'
-              ? '前線を守り切りました。'
+            {sessionView.phase === 'victory'
+              ? 'カワイイ・フォートレスを撃破しました。'
               : '車両または前線が崩壊しました。'}
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              setFeedback('戦闘開始。敵との距離を調整してください。');
-              setRunVersion((value) => value + 1);
-            }}
-          >
-            もう一度テスト
+          <button type="button" onClick={restart}>
+            新しいラン
           </button>
         </section>
       )}
     </main>
+  );
+}
+
+function RewardPanel({
+  choices,
+  moduleNames,
+  onChoose,
+}: {
+  choices: RewardChoice[];
+  moduleNames: string[];
+  onChoose: (rewardId: string, weaponSlot?: WeaponSlot) => void;
+}) {
+  return (
+    <section className="reward-panel" role="dialog" aria-modal="true">
+      <header>
+        <strong>戦闘報酬：1つ選択</strong>
+        <span>
+          Module {moduleNames.length}/4
+          {moduleNames.length >= 4 ? '（次の取得で最古を交換）' : ''}
+        </span>
+      </header>
+      <div className="reward-grid">
+        {choices.map((choice) => (
+          <article className="reward-card" key={choice.id}>
+            <span className="reward-type">
+              {choice.type === 'weapon' ? 'WEAPON' : 'MODULE'}
+            </span>
+            <strong>{choice.displayName}</strong>
+            <p>{choice.description}</p>
+            {choice.type === 'weapon' ? (
+              <div className="reward-actions">
+                <button
+                  type="button"
+                  onClick={() => onChoose(choice.id, 'primary')}
+                >
+                  主武器へ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChoose(choice.id, 'secondary')}
+                >
+                  副武器へ
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => onChoose(choice.id)}>
+                Module取得
+              </button>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

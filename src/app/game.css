@@ -39,6 +39,7 @@ input {
 .debug-panel,
 .controls,
 .combat-feedback,
+.reward-panel,
 .result-panel {
   position: absolute;
   border: 2px solid rgb(37 41 56 / 70%);
@@ -161,6 +162,66 @@ input {
   text-align: center;
 }
 
+.reward-panel {
+  top: 50%;
+  left: 50%;
+  width: min(900px, calc(100% - 32px));
+  padding: 20px;
+  transform: translate(-50%, -50%);
+}
+
+.reward-panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.reward-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.reward-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 210px;
+  border: 2px solid rgb(37 41 56 / 45%);
+  border-radius: 12px;
+  background: #fffaf0;
+  padding: 14px;
+}
+
+.reward-card p {
+  flex: 1;
+  margin: 0;
+}
+
+.reward-type {
+  color: #b34f6a;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.reward-card button {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  background: #4d8f89;
+  color: white;
+  padding: 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.reward-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .result-panel strong {
   color: #e45c78;
   font-size: 38px;
@@ -200,5 +261,14 @@ input {
 
   .weapon-panel {
     display: none;
+  }
+
+  .reward-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reward-panel {
+    max-height: calc(100% - 32px);
+    overflow: auto;
   }
 }
