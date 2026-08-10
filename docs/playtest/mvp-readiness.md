@@ -10,10 +10,11 @@
 - 3つの固定Seedで、実Simulationを10戦目のVictoryまで連続実行
 - 各RunでRewardを9回選択し、次戦闘のBuildへ反映
 - 同じSeedの戦績、報酬、最終Buildが再実行時に一致
-- 勝利までのSimulation戦闘時間は79.917〜80.000秒
+- 勝利までのSimulation戦闘時間は79.917〜79.983秒
 - 代表戦略は距離を維持し、RailgunとMachine CannonをResourceに応じて切り替える
-- Main／Sub使用率は約52／48%、累積前進距離は494.603〜497.765
+- Main／Sub使用率は約52／48%、累積前進距離は495.027〜498.127
 - 敵弾は各Run 2発発射、2発命中、回避0としてEventから計測
+- 敵の進入終端2 world unitsを固有速度へ滑らかに補間しても、時間・最低HP・敵弾数を維持
 - Canvas 2Dを利用できない場合は、白画面ではなく再読み込み可能なError UIを表示
 - Desktop、Tablet、Mobile Landscapeの操作領域とReward遷移をE2Eで確認
 
