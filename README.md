@@ -17,11 +17,11 @@ MVPの合格条件は、[要件書](docs/要件書.md)にある次の体験で�
 ## 技術構成
 
 - Vite / TypeScript / React
-- Three.js（表示専用）
+- Canvas 2D（表示専用）
 - Pure TypeScript Simulation（ゲームルール）
 - Vitest
 
-依存方向は `React UI → Session → Simulation` とし、Three.jsはSimulationの結果だけを描画します。Three.jsのオブジェクトやReactの状態からゲームルールを直接変更しません。
+依存方向は `React UI → Session → Simulation` とし、Canvas 2DはSimulationの結果だけを描画します。描画オブジェクトやReactの状態からゲームルールを直接変更しません。
 
 ## セットアップ
 
@@ -51,6 +51,8 @@ npm run check
 - [グラフィック指示書](docs/グラフィック指示書.md)：生成アセット制作工程の正本
 - [MVP判断記録](docs/adr/0001-mvp-scope.md)：実装開始時の仮決定と保留事項
 - [戦闘ロードアウト判断記録](docs/adr/0002-combat-loadout.md)：装備枠、共有リソース、特殊能力の確定事項
+- [2D Presentation判断記録](docs/adr/0003-2d-layered-presentation.md)：2Dレイヤー描画への方針変更
+- [2D素材設計書](docs/2D素材設計書.md)：Sprite分割、Anchor、透明素材、保管方法
 - [MVP実装計画書](docs/実装計画書.md)：実装フェーズ、要件トレーサビリティ、完了条件
 - [フェーズ2プレイテスト](docs/playtest/phase2.md)：距離、前線、武器、リソースの確認手順
 - [G0開始前チェックポイント](docs/playtest/g0-readiness.md)：実アセット生成前の承認事項
