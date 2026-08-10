@@ -7,7 +7,7 @@ import {
 } from '../simulation/createSimulation';
 import { stepSimulation } from '../simulation/stepSimulation';
 import { IDLE_COMMAND, SIMULATION_STEP_SECONDS } from '../simulation/types';
-import { createEnemy } from './createEnemy';
+import { createEnemy, createEnteringEnemy } from './createEnemy';
 import { stepEnemyBehaviors } from './enemyBehavior';
 import { completeWaveIfCleared } from '../wave/waveSystem';
 
@@ -36,6 +36,37 @@ describe('enemy definitions and behaviors', () => {
     expect(
       result.enemies.find((enemy) => enemy.id === 'basic-1')!.position,
     ).toBe(68.5);
+  });
+
+  it('eases an entering enemy into its native movement speed', () => {
+    const farEnemy = createEnteringEnemy('basic', 'basic-far', 68);
+    farEnemy.position = 80;
+    farEnemy.previousPosition = 80;
+    const farStep = stepEnemyBehaviors([farEnemy], 10, 2.5, 1, 100, 0.1)
+      .enemies[0]!;
+
+    const brakingEnemy = createEnteringEnemy('basic', 'basic-braking', 68);
+    brakingEnemy.position = 69;
+    brakingEnemy.previousPosition = 69;
+    const brakingStep = stepEnemyBehaviors([brakingEnemy], 10, 2.5, 1, 100, 0.1)
+      .enemies[0]!;
+
+    const arrivalEnemy = createEnteringEnemy('basic', 'basic-arrival', 68);
+    arrivalEnemy.position = 68.1;
+    arrivalEnemy.previousPosition = 68.1;
+    const arrivalStep = stepEnemyBehaviors(
+      [arrivalEnemy],
+      10,
+      2.5,
+      1,
+      100,
+      0.01,
+    ).enemies[0]!;
+
+    expect((80 - farStep.position) / 0.1).toBeCloseTo(8);
+    expect((69 - brakingStep.position) / 0.1).toBeCloseTo(4.75);
+    expect((68.1 - arrivalStep.position) / 0.01).toBeCloseTo(1.547, 2);
+    expect(arrivalStep.entryDestinationPosition).toBe(68);
   });
 
   it('lets artillery stop and fire from range', () => {

@@ -6,6 +6,24 @@ import type {
 } from '../simulation/types';
 
 const ENEMY_ENTRY_SPEED = 8;
+const ENEMY_ENTRY_BRAKE_DISTANCE = 2;
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function smoothstep(value: number): number {
+  const progress = clamp(value, 0, 1);
+  return progress * progress * (3 - 2 * progress);
+}
+
+function getEntrySpeed(enemy: EnemyState, entryTarget: number): number {
+  const remainingDistance = enemy.position - entryTarget;
+  const cruiseWeight = smoothstep(
+    remainingDistance / ENEMY_ENTRY_BRAKE_DISTANCE,
+  );
+  return enemy.speed + (ENEMY_ENTRY_SPEED - enemy.speed) * cruiseWeight;
+}
 
 export interface EnemyBehaviorResult {
   enemies: EnemyState[];
@@ -55,9 +73,10 @@ export function stepEnemyBehaviors(
         enemy.entryDestinationPosition,
         isRanged ? attackPosition : minimumPosition,
       );
+      const entrySpeed = getEntrySpeed(enemy, entryTarget);
       nextPosition = Math.max(
         entryTarget,
-        enemy.position - ENEMY_ENTRY_SPEED * deltaSeconds,
+        enemy.position - entrySpeed * deltaSeconds,
       );
       nextEnemies.push({
         ...enemy,
