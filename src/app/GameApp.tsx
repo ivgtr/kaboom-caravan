@@ -9,7 +9,9 @@ import {
   type ReactNode,
 } from 'react';
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
+import { MODULE_SLOT_COUNT } from '../game/build/build';
 import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
+import type { ModuleId } from '../game/data/ids';
 import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
 import { MODULE_DEFINITIONS } from '../game/data/moduleDefinitions';
 import type { RewardChoice } from '../game/reward/rewardSystem';
@@ -50,7 +52,7 @@ interface SessionView {
   rewardChoices: RewardChoice[];
   primaryWeaponId: keyof typeof WEAPON_DEFINITIONS;
   secondaryWeaponId: keyof typeof WEAPON_DEFINITIONS;
-  moduleNames: string[];
+  moduleIds: ModuleId[];
 }
 
 function toHudSnapshot(state: SimulationState): HudSnapshot {
@@ -81,9 +83,7 @@ function toSessionView(session: GameSessionState): SessionView {
     rewardChoices: session.rewardChoices,
     primaryWeaponId: build.primaryWeaponId,
     secondaryWeaponId: build.secondaryWeaponId,
-    moduleNames: build.moduleIds.map(
-      (id) => MODULE_DEFINITIONS[id].displayName,
-    ),
+    moduleIds: [...build.moduleIds],
   };
 }
 
@@ -307,7 +307,7 @@ export function GameApp() {
       {sessionView.phase === 'reward' && !showClear && (
         <RewardPanel
           choices={sessionView.rewardChoices}
-          moduleNames={sessionView.moduleNames}
+          moduleIds={sessionView.moduleIds}
           onChoose={chooseReward}
         />
       )}
@@ -369,11 +369,11 @@ function Meter({ value, max }: { value: number; max: number }) {
 
 function RewardPanel({
   choices,
-  moduleNames,
+  moduleIds,
   onChoose,
 }: {
   choices: RewardChoice[];
-  moduleNames: string[];
+  moduleIds: ModuleId[];
   onChoose: (rewardId: string, weaponSlot?: WeaponSlot) => void;
 }) {
   const [pendingWeapon, setPendingWeapon] = useState<
@@ -386,6 +386,11 @@ function RewardPanel({
     primary: null,
     secondary: null,
   });
+  const replacedModuleId =
+    moduleIds.length >= MODULE_SLOT_COUNT ? moduleIds[0] : undefined;
+  const replacedModuleName = replacedModuleId
+    ? MODULE_DEFINITIONS[replacedModuleId].displayName
+    : undefined;
 
   const beginEquip = useCallback(
     (choice: RewardChoice) => {
@@ -504,7 +509,9 @@ function RewardPanel({
             A D / ← → + SPACE / 1・2・3
           </small>
         </div>
-        <b>MODULE {moduleNames.length}/4</b>
+        <b>
+          MODULE {moduleIds.length}/{MODULE_SLOT_COUNT}
+        </b>
       </header>
       <div className="reward-grid">
         {choices.map((choice, index) => (
@@ -529,7 +536,7 @@ function RewardPanel({
             <button
               className="reward-card-select"
               type="button"
-              aria-label={`${choice.displayName}を選択`}
+              aria-label={`${choice.displayName}を選択${choice.type === 'module' && replacedModuleName ? `、${replacedModuleName}と交換` : ''}`}
               aria-current={selectedIndex === index ? 'true' : undefined}
               ref={(element) => {
                 cardButtonRefs.current[index] = element;
@@ -540,8 +547,16 @@ function RewardPanel({
               }}
               onFocus={() => setSelectedIndex(index)}
             >
-              <span className="reward-card-action">
-                <small>SELECT</small>
+              <span
+                className={`reward-card-action${choice.type === 'module' && replacedModuleName ? ' has-swap' : ''}`}
+              >
+                {choice.type === 'module' && replacedModuleName ? (
+                  <small className="reward-module-swap">
+                    ↻ {replacedModuleName}と交換
+                  </small>
+                ) : (
+                  <small>SELECT</small>
+                )}
                 選択する
               </span>
             </button>

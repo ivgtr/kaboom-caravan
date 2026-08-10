@@ -65,6 +65,28 @@ describe('game session', () => {
     expect(next.combat.player.hitPoints).toBe(87);
   });
 
+  it('replaces the oldest module when all four slots are occupied', () => {
+    const session = createGameSession(42);
+    session.run.build.moduleIds = [
+      'cooling-fan',
+      'generator',
+      'ammo-box',
+      'armor',
+    ];
+    const reward = completeCurrentCombat(session);
+    const moduleReward = reward.rewardChoices.find(
+      (choice) => choice.type === 'module',
+    )!;
+    const next = selectReward(reward, moduleReward.id);
+
+    expect(next.run.build.moduleIds).toEqual([
+      'generator',
+      'ammo-box',
+      'armor',
+      moduleReward.type === 'module' ? moduleReward.moduleId : '',
+    ]);
+  });
+
   it('lets a weapon reward replace the selected weapon slot', () => {
     const reward = completeCurrentCombat(createGameSession(7));
     const weaponReward = reward.rewardChoices.find(

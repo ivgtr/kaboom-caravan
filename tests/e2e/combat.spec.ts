@@ -112,6 +112,72 @@ test('renders an acquired module on the physical caravan mounts', async ({
 });
 
 for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 844, height: 390 },
+]) {
+  test(`previews the oldest module replacement at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.keyboard.down('e');
+
+    const rewards = page
+      .getByRole('dialog')
+      .filter({ hasText: 'SALVAGE TIME!' });
+    let oldestModuleName = '';
+    for (let equipped = 0; equipped < 4; equipped += 1) {
+      await expect(rewards).toBeVisible({ timeout: 45_000 });
+      await expect(rewards).toContainText(`MODULE ${equipped}/4`);
+      const moduleCard = rewards.locator('.reward-module').first();
+      await expect(moduleCard.locator('.reward-module-swap')).toHaveCount(0);
+      if (equipped === 0) {
+        oldestModuleName =
+          (await moduleCard.locator('h2').textContent())?.trim() ?? '';
+      }
+      await moduleCard.getByRole('button', { name: /を選択/ }).click();
+      await expect(rewards).toHaveCount(0);
+    }
+
+    await expect(rewards).toBeVisible({ timeout: 45_000 });
+    await page.keyboard.up('e');
+    await expect(rewards).toContainText('MODULE 4/4');
+    const moduleCards = rewards.locator('.reward-module');
+    const moduleCardCount = await moduleCards.count();
+    expect(moduleCardCount).toBeGreaterThan(0);
+    for (let index = 0; index < moduleCardCount; index += 1) {
+      const moduleCard = moduleCards.nth(index);
+      const swap = moduleCard.locator('.reward-module-swap');
+      await expect(swap).toContainText(`${oldestModuleName}と交換`);
+      await expect(
+        moduleCard.getByRole('button', {
+          name: new RegExp(`${oldestModuleName}と交換`),
+        }),
+      ).toBeVisible();
+      const cardBox = await moduleCard.boundingBox();
+      const descriptionBox = await moduleCard.locator('p').boundingBox();
+      const swapBox = await swap.boundingBox();
+      const actionBox = await moduleCard
+        .locator('.reward-card-action')
+        .boundingBox();
+      expect(cardBox).not.toBeNull();
+      await expectContained(swap, cardBox!);
+      expect(overlap(descriptionBox!, actionBox!)).toBe(false);
+      expect(swapBox!.y).toBeGreaterThanOrEqual(actionBox!.y);
+      expect(swapBox!.y + swapBox!.height).toBeLessThanOrEqual(
+        actionBox!.y + actionBox!.height,
+      );
+    }
+    if (process.env.CAPTURE_UI_REVIEW) {
+      await page.screenshot({
+        path: `artifacts/ui/review/reward_module_swap_${viewport.width}x${viewport.height}.png`,
+      });
+    }
+  });
+}
+
+for (const viewport of [
   { width: 1184, height: 689 },
   { width: 844, height: 390 },
 ]) {

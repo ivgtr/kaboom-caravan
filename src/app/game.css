@@ -655,6 +655,19 @@ button {
   font-size: 0.58em;
   letter-spacing: 0.13em;
 }
+.reward-card-action.has-swap {
+  display: grid;
+  gap: 1px;
+  line-height: 1;
+}
+.reward-card-action .reward-module-swap {
+  overflow: hidden;
+  width: 100%;
+  color: #ff9d92;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .reward-card:hover .reward-card-action,
 .reward-card:focus-within .reward-card-action {
   color: #70e5d0;
