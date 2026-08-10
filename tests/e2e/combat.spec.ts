@@ -38,3 +38,73 @@ test('hides diagnostic UI from the product view', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.debug-panel')).toHaveCount(0);
 });
+
+for (const viewport of [
+  { width: 1920, height: 1080 },
+  { width: 1024, height: 768 },
+  { width: 932, height: 430 },
+  { width: 844, height: 390 },
+]) {
+  test(`keeps thumb controls separated at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+
+    const controls = {
+      forward: page.getByRole('button', { name: '前進' }),
+      backward: page.getByRole('button', { name: '後退' }),
+      main: page.getByRole('button', { name: '主武器' }),
+      sub: page.getByRole('button', { name: '副武器' }),
+      escape: page.getByRole('button', { name: '緊急離脱' }),
+    };
+    await expect(controls.main).toBeVisible();
+
+    const boxes = Object.fromEntries(
+      await Promise.all(
+        Object.entries(controls).map(async ([name, locator]) => [
+          name,
+          await locator.boundingBox(),
+        ]),
+      ),
+    );
+    for (const [name, box] of Object.entries(boxes)) {
+      expect(box, `${name} has a layout box`).not.toBeNull();
+      expect(
+        box!.x,
+        `${name} stays inside the left edge`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        box!.y,
+        `${name} stays inside the top edge`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        box!.x + box!.width,
+        `${name} stays inside the right edge`,
+      ).toBeLessThanOrEqual(viewport.width);
+      expect(
+        box!.y + box!.height,
+        `${name} stays inside the bottom edge`,
+      ).toBeLessThanOrEqual(viewport.height);
+    }
+
+    expect(overlap(boxes.forward!, boxes.backward!)).toBe(false);
+    expect(overlap(boxes.main!, boxes.sub!)).toBe(false);
+    expect(overlap(boxes.main!, boxes.escape!)).toBe(false);
+    expect(overlap(boxes.sub!, boxes.escape!)).toBe(false);
+    expect(boxes.main!.width).toBeGreaterThan(boxes.sub!.width);
+    expect(boxes.sub!.width).toBeGreaterThan(boxes.escape!.width);
+  });
+}
+
+function overlap(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number },
+): boolean {
+  return !(
+    left.x + left.width <= right.x ||
+    right.x + right.width <= left.x ||
+    left.y + left.height <= right.y ||
+    right.y + right.height <= left.y
+  );
+}
