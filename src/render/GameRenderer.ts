@@ -270,8 +270,8 @@ export class GameRenderer {
       state.build.moduleIds,
       state.player.weaponHeat.primary.overheated,
       state.player.weaponHeat.secondary.overheated,
-      state.player.dashRemainingSeconds > 0,
-      state.player.dashDirection,
+      state.player.boosting,
+      Math.sign(state.player.velocity) as -1 | 0 | 1,
     );
 
     for (const enemy of state.enemies) {
@@ -440,8 +440,8 @@ export class GameRenderer {
     moduleIds: ModuleId[],
     primaryOverheated: boolean,
     secondaryOverheated: boolean,
-    isDashing: boolean,
-    dashDirection: -1 | 0 | 1,
+    isBoosting: boolean,
+    boostDirection: -1 | 0 | 1,
   ): void {
     const context = this.context;
     const player = this.assets.get(PLAYER_CHASSIS_ART.source);
@@ -451,13 +451,13 @@ export class GameRenderer {
       const recoil = this.weaponRecoil(primaryWeaponId);
       const hitOffset = this.hitOffset(this.playerMotion, -1);
       const isHitFlashing = this.playerMotion.hitAgeSeconds < 0.12;
-      if (isDashing && dashDirection !== 0 && !this.reducedMotion) {
-        this.drawBoostStreaks(x, groundY, width, dashDirection);
+      if (isBoosting && boostDirection !== 0 && !this.reducedMotion) {
+        this.drawBoostStreaks(x, groundY, width, boostDirection);
       }
       context.save();
       context.translate(x + hitOffset, groundY);
-      if (isDashing && dashDirection !== 0 && !this.reducedMotion) {
-        context.rotate(-dashDirection * 0.035);
+      if (isBoosting && boostDirection !== 0 && !this.reducedMotion) {
+        context.rotate(-boostDirection * 0.025);
       }
       if (isHitFlashing) {
         context.filter = 'brightness(1.7) saturate(0.65) sepia(0.2)';
@@ -507,9 +507,9 @@ export class GameRenderer {
     }
     context.save();
     context.translate(x, groundY);
-    if (isDashing && dashDirection !== 0 && !this.reducedMotion) {
-      this.drawBoostStreaks(0, 0, 90, dashDirection);
-      context.rotate(-dashDirection * 0.035);
+    if (isBoosting && boostDirection !== 0 && !this.reducedMotion) {
+      this.drawBoostStreaks(0, 0, 90, boostDirection);
+      context.rotate(-boostDirection * 0.025);
     }
 
     if (primaryOverheated && secondaryOverheated) {
@@ -1087,7 +1087,7 @@ export class GameRenderer {
     this.updateExhaustPuffs(
       state.player.position,
       state.player.velocity,
-      state.player.dashRemainingSeconds > 0,
+      state.player.boosting,
       deltaSeconds,
     );
 
@@ -1215,7 +1215,7 @@ export class GameRenderer {
   private updateExhaustPuffs(
     playerPosition: number,
     playerVelocity: number,
-    isDashing: boolean,
+    isBoosting: boolean,
     deltaSeconds: number,
   ): void {
     if (this.reducedMotion) {
@@ -1228,9 +1228,9 @@ export class GameRenderer {
       this.exhaustPuffs.push({
         worldPosition: playerPosition - 3.4,
         ageSeconds: 0,
-        durationSeconds: isDashing ? 0.82 : 0.68,
+        durationSeconds: isBoosting ? 0.82 : 0.68,
       });
-      this.exhaustEmissionSeconds = isDashing
+      this.exhaustEmissionSeconds = isBoosting
         ? 0.045
         : Math.max(0.13, 0.24 - speed * 0.008);
     }

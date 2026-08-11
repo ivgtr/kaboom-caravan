@@ -87,8 +87,8 @@ export class AudioDirector {
         case 'attack-parried':
           this.playParry();
           break;
-        case 'dash-activated':
-          this.playDash();
+        case 'boost-started':
+          this.playBoost();
           break;
         case 'vehicle-hit':
           this.playVehicleHit();
@@ -196,15 +196,15 @@ export class AudioDirector {
     });
   }
 
-  private playDash(): void {
-    this.voice(115, 0.16, {
+  private playBoost(): void {
+    this.voice(115, 0.24, {
       type: 'triangle',
-      endFrequency: 260,
+      endFrequency: 230,
       volume: 0.022,
       attack: 0.018,
       filterFrequency: 1_100,
     });
-    this.voice(220, 0.1, {
+    this.voice(220, 0.16, {
       type: 'sine',
       endFrequency: 360,
       volume: 0.012,

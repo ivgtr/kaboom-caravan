@@ -34,9 +34,7 @@ export function createSimulation(seed = 1): SimulationState {
       secondaryCooldown: 0,
       skillCooldown: 0,
       parryWindowSeconds: 0,
-      dashCooldown: 0,
-      dashRemainingSeconds: 0,
-      dashDirection: 0,
+      boosting: false,
     },
     frontline: {
       position: 25,

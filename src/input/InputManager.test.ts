@@ -70,7 +70,7 @@ describe('InputManager', () => {
     });
   });
 
-  it('uses C and F while emitting Shift dash once per press', () => {
+  it('holds C, F and Shift as continuous combat controls', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ShiftLeft' }));
@@ -78,39 +78,44 @@ describe('InputManager', () => {
     expect(input.readCommand()).toMatchObject({
       fireSecondary: true,
       activateSkill: true,
-      activateDash: true,
+      boost: true,
     });
     expect(input.readCommand()).toMatchObject({
       fireSecondary: true,
       activateSkill: true,
-      activateDash: false,
+      boost: true,
     });
 
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyC' }));
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyF' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ShiftLeft' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyQ' }));
     expect(input.readCommand()).toMatchObject({
       fireSecondary: false,
       activateSkill: false,
-      activateDash: false,
+      boost: false,
     });
   });
 
-  it('holds touch parry while treating touch dash as a one-shot action', () => {
+  it('holds touch parry and boost until their controls are released', () => {
     input.setVirtualControl('parry', true);
-    input.setVirtualControl('dash', true);
+    input.setVirtualControl('boost', true);
 
     expect(input.readCommand()).toMatchObject({
       activateSkill: true,
-      activateDash: true,
+      boost: true,
     });
     expect(input.readCommand()).toMatchObject({
       activateSkill: true,
-      activateDash: false,
+      boost: true,
     });
     input.setVirtualControl('parry', false);
-    expect(input.readCommand().activateSkill).toBe(false);
+    input.setVirtualControl('boost', false);
+    expect(input.readCommand()).toMatchObject({
+      activateSkill: false,
+      boost: false,
+    });
   });
 
   it('maps keyboard bindings to shared menu actions', () => {

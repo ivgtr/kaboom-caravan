@@ -89,8 +89,7 @@ interface HudSnapshot {
   secondaryCooldown: number;
   skillCooldown: number;
   parryWindowSeconds: number;
-  dashCooldown: number;
-  dashRemainingSeconds: number;
+  boosting: boolean;
   primaryOverheated: boolean;
   secondaryOverheated: boolean;
   treasureCollected: number;
@@ -141,8 +140,7 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     secondaryCooldown: state.player.secondaryCooldown,
     skillCooldown: state.player.skillCooldown,
     parryWindowSeconds: state.player.parryWindowSeconds,
-    dashCooldown: state.player.dashCooldown,
-    dashRemainingSeconds: state.player.dashRemainingSeconds,
+    boosting: state.player.boosting,
     primaryOverheated: state.player.weaponHeat.primary.overheated,
     secondaryOverheated: state.player.weaponHeat.secondary.overheated,
     treasureCollected: state.treasureCollected,
@@ -535,13 +533,13 @@ export function GameApp() {
               </ControlButton>
               <ControlButton
                 label="急加速"
-                className={`move dash ${hud.dashRemainingSeconds > 0 ? 'active' : ''}`}
-                {...bindControl('dash')}
+                className={`move boost ${hud.boosting ? 'active' : ''}`}
+                {...bindControl('boost')}
               >
                 <GameIcon name="boost" />
                 <small>急加速</small>
                 <kbd>SHIFT</kbd>
-                <Meter value={hud.dashCooldown} max={2.7} />
+                <Meter value={hud.energy} max={100} />
               </ControlButton>
             </section>
             <section className="weapon-controls" aria-label="武器操作">
@@ -1304,8 +1302,8 @@ function describeCombatEvent(event: CombatEvent): string {
       return '射撃準備完了！';
     case 'skill-activated':
       return '迎撃態勢！';
-    case 'dash-activated':
-      return event.direction > 0 ? '前方へ急加速！' : '後方へ急加速！';
+    case 'boost-started':
+      return event.direction > 0 ? '前方へ加速！' : '後方へ加速！';
     case 'attack-parried':
       return `完全迎撃！ 反撃${event.counterDamage}ダメージ`;
     case 'enemy-attack-windup':

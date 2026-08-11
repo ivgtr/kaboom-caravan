@@ -153,7 +153,7 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   const main = page.getByRole('button', { name: '主武器' });
   const sub = page.getByRole('button', { name: '副武器' });
   const parry = page.getByRole('button', { name: '迎撃パリィ' });
-  const dash = page.getByRole('button', { name: '急加速' });
+  const boost = page.getByRole('button', { name: '急加速' });
 
   await expect(health).toContainText('100');
   const progress = page.getByRole('region', { name: '戦闘進行' });
@@ -165,16 +165,22 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   await expect(main.locator('kbd')).toHaveText('SPACE');
   await expect(sub.locator('kbd')).toHaveText('C');
   await expect(parry.locator('kbd')).toHaveText('F');
-  await expect(dash.locator('kbd')).toHaveText('SHIFT');
+  await expect(boost.locator('kbd')).toHaveText('SHIFT');
   await expect(debug).toContainText('position 10.0');
 
   await page.keyboard.down('d');
   await expect(debug).not.toContainText('position 10.0');
-  await page.keyboard.press('ShiftLeft');
-  await expect(dash.locator('.control-meter')).not.toHaveAttribute(
+  const energyMeterBefore = await boost
+    .locator('.control-meter')
+    .getAttribute('style');
+  await page.keyboard.down('ShiftLeft');
+  await expect(boost).toHaveClass(/active/);
+  await expect(boost.locator('.control-meter')).not.toHaveAttribute(
     'style',
-    '--meter: 0deg;',
+    energyMeterBefore ?? '',
   );
+  await page.keyboard.up('ShiftLeft');
+  await expect(boost).not.toHaveClass(/active/);
   await page.keyboard.up('d');
 
   await page.keyboard.down('Space');
@@ -754,7 +760,7 @@ for (const viewport of [
       main: page.getByRole('button', { name: '主武器' }),
       sub: page.getByRole('button', { name: '副武器' }),
       parry: page.getByRole('button', { name: '迎撃パリィ' }),
-      dash: page.getByRole('button', { name: '急加速' }),
+      boost: page.getByRole('button', { name: '急加速' }),
     };
     await expect(controls.main).toBeVisible();
     if (process.env.CAPTURE_WORLD_REVIEW && viewport.width === 844) {
@@ -792,8 +798,8 @@ for (const viewport of [
     }
 
     expect(overlap(boxes.forward!, boxes.backward!)).toBe(false);
-    expect(overlap(boxes.forward!, boxes.dash!)).toBe(false);
-    expect(overlap(boxes.backward!, boxes.dash!)).toBe(false);
+    expect(overlap(boxes.forward!, boxes.boost!)).toBe(false);
+    expect(overlap(boxes.backward!, boxes.boost!)).toBe(false);
     expect(overlap(boxes.main!, boxes.sub!)).toBe(false);
     expect(overlap(boxes.main!, boxes.parry!)).toBe(false);
     expect(overlap(boxes.sub!, boxes.parry!)).toBe(false);

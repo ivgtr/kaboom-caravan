@@ -71,69 +71,64 @@ describe('stepSimulation', () => {
     );
   });
 
-  it('activates a directional dash once and returns to normal top speed', () => {
+  it('boosts while Shift and a direction are held and drains energy', () => {
     const initial = createSimulation();
-    let state = stepSimulation(
-      initial,
-      { ...IDLE_COMMAND, move: 1, activateDash: true },
-      SIMULATION_STEP_SECONDS,
-    );
-
-    expect(state.events).toContainEqual({
-      type: 'dash-activated',
-      direction: 1,
-    });
-    expect(state.player.dashCooldown).toBe(2.7);
-    expect(state.player.dashRemainingSeconds).toBe(0.22);
-    expect(state.player.velocity).toBeGreaterThan(0.5);
-
-    let maximumVelocity = state.player.velocity;
-    for (let tick = 0; tick < 20; tick += 1) {
+    let state = initial;
+    for (let tick = 0; tick < 60; tick += 1) {
       state = stepSimulation(
         state,
-        { ...IDLE_COMMAND, move: 1 },
+        { ...IDLE_COMMAND, move: 1, boost: true },
         SIMULATION_STEP_SECONDS,
       );
-      maximumVelocity = Math.max(maximumVelocity, state.player.velocity);
+      if (tick === 0) {
+        expect(state.events).toContainEqual({
+          type: 'boost-started',
+          direction: 1,
+        });
+      }
     }
 
-    expect(maximumVelocity).toBeGreaterThan(12);
-    expect(state.player.dashRemainingSeconds).toBe(0);
-    expect(state.player.dashDirection).toBe(0);
-    expect(state.player.velocity).toBe(12);
+    expect(state.player.boosting).toBe(true);
+    expect(state.player.velocity).toBeCloseTo(19.2);
+    expect(state.player.energy).toBeCloseTo(82);
+
+    const released = stepSimulation(
+      state,
+      { ...IDLE_COMMAND, move: 1 },
+      SIMULATION_STEP_SECONDS,
+    );
+    expect(released.player.boosting).toBe(false);
+    expect(released.player.velocity).toBeLessThan(state.player.velocity);
+    expect(released.player.energy).toBeGreaterThan(state.player.energy);
   });
 
-  it('requires a direction and does not reactivate during dash cooldown', () => {
+  it('requires movement and requires releasing Shift to recover from empty energy', () => {
     const initial = createSimulation();
     const stationary = stepSimulation(
       initial,
-      { ...IDLE_COMMAND, activateDash: true },
+      { ...IDLE_COMMAND, boost: true },
       SIMULATION_STEP_SECONDS,
     );
-    expect(stationary.player.dashCooldown).toBe(0);
+    expect(stationary.player.boosting).toBe(false);
     expect(stationary.events).not.toContainEqual(
-      expect.objectContaining({ type: 'dash-activated' }),
+      expect.objectContaining({ type: 'boost-started' }),
     );
 
-    const activated = stepSimulation(
-      stationary,
-      { ...IDLE_COMMAND, move: -1, activateDash: true },
+    initial.player.energy = 0;
+    const exhausted = stepSimulation(
+      initial,
+      { ...IDLE_COMMAND, move: -1, boost: true },
       SIMULATION_STEP_SECONDS,
     );
-    const blocked = stepSimulation(
-      {
-        ...activated,
-        player: { ...activated.player, dashRemainingSeconds: 0 },
-      },
-      { ...IDLE_COMMAND, move: 1, activateDash: true },
-      SIMULATION_STEP_SECONDS,
-    );
+    expect(exhausted.player.boosting).toBe(false);
+    expect(exhausted.player.energy).toBe(0);
 
-    expect(activated.player.dashDirection).toBe(-1);
-    expect(blocked.events).not.toContainEqual(
-      expect.objectContaining({ type: 'dash-activated' }),
+    const recovering = stepSimulation(
+      exhausted,
+      { ...IDLE_COMMAND, move: -1 },
+      SIMULATION_STEP_SECONDS,
     );
-    expect(blocked.player.dashCooldown).toBeGreaterThan(0);
+    expect(recovering.player.energy).toBeGreaterThan(0);
   });
 
   it('produces the same state at 30, 60 and 120 render frames per second', () => {

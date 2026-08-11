@@ -10,7 +10,6 @@ export type MenuAction =
   | 'shortcut-2'
   | 'shortcut-3';
 export type MenuActionListener = (action: MenuAction) => void;
-type CombatAction = 'dash';
 
 const MENU_ACTION_BY_CODE: Readonly<Record<string, MenuAction>> = {
   ArrowLeft: 'previous',
@@ -33,7 +32,6 @@ const REPEATABLE_MENU_ACTIONS = new Set<MenuAction>(['previous', 'next']);
 export class InputManager {
   private readonly pressed = new Set<string>();
   private readonly virtual = new Set<VirtualControl>();
-  private readonly requestedCombatActions = new Set<CombatAction>();
   private readonly menuListeners = new Set<MenuActionListener>();
   private context: InputContext = 'menu';
 
@@ -70,16 +68,9 @@ export class InputManager {
   readonly reset = (): void => {
     this.pressed.clear();
     this.virtual.clear();
-    this.requestedCombatActions.clear();
   };
 
   setVirtualControl(control: VirtualControl, active: boolean): void {
-    if (control === 'dash') {
-      if (active && this.context === 'combat') {
-        this.requestedCombatActions.add(control);
-      }
-      return;
-    }
     if (active && this.context === 'combat') {
       this.virtual.add(control);
     } else {
@@ -114,9 +105,8 @@ export class InputManager {
       firePrimary: this.pressed.has('Space') || this.virtual.has('primary'),
       fireSecondary: this.pressed.has('KeyC') || this.virtual.has('secondary'),
       activateSkill: this.pressed.has('KeyF') || this.virtual.has('parry'),
-      activateDash: this.requestedCombatActions.has('dash'),
+      boost: this.pressed.has('ShiftLeft') || this.virtual.has('boost'),
     };
-    this.requestedCombatActions.clear();
     return command;
   }
 
@@ -126,9 +116,6 @@ export class InputManager {
       return;
     }
     if (event.repeat && !this.pressed.has(event.code)) return;
-    if (!event.repeat && !this.pressed.has(event.code)) {
-      if (event.code === 'ShiftLeft') this.requestedCombatActions.add('dash');
-    }
     if (
       ['ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft'].includes(event.code)
     ) {
@@ -170,7 +157,7 @@ const IDLE_COMMAND: PlayerCommand = {
   firePrimary: false,
   fireSecondary: false,
   activateSkill: false,
-  activateDash: false,
+  boost: false,
 };
 
 function isTextEntry(event: KeyboardEvent): boolean {
@@ -184,4 +171,4 @@ function isTextEntry(event: KeyboardEvent): boolean {
 }
 
 export type VirtualControl =
-  'move-left' | 'move-right' | 'primary' | 'secondary' | 'parry' | 'dash';
+  'move-left' | 'move-right' | 'primary' | 'secondary' | 'parry' | 'boost';

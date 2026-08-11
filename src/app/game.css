@@ -600,24 +600,24 @@ button {
   bottom: 0;
   left: 0;
 }
-.move.dash {
+.move.boost {
   bottom: 94px;
   left: 54px;
   width: 68px;
   height: 68px;
 }
-.move.dash small {
+.move.boost small {
   position: absolute;
   top: 17%;
   font-size: 9px;
   font-weight: 1000;
 }
-.move.dash .game-icon {
+.move.boost .game-icon {
   width: 34%;
   height: 34%;
 }
-.move.dash.active {
-  animation: dash-burst 0.22s ease-out both;
+.move.boost.active {
+  animation: boost-drive 0.48s ease-in-out infinite alternate;
 }
 .weapon {
   position: absolute;
@@ -1236,10 +1236,10 @@ button {
     transform: scale(1.08) rotate(2deg);
   }
 }
-@keyframes dash-burst {
-  32% {
-    filter: drop-shadow(0 0 22px #ffd05a) brightness(1.35);
-    transform: translateY(2px) scale(1.14);
+@keyframes boost-drive {
+  to {
+    filter: drop-shadow(0 0 16px #ffd05a) brightness(1.2);
+    transform: translateY(1px) scale(1.06);
   }
 }
 @keyframes heat-shake {
@@ -1302,7 +1302,7 @@ button {
     width: 72px;
     height: 72px;
   }
-  .move.dash {
+  .move.boost {
     bottom: 76px;
     left: 46px;
     width: 58px;
@@ -1385,7 +1385,7 @@ button {
     width: 66px;
     height: 66px;
   }
-  .move.dash {
+  .move.boost {
     bottom: 66px;
     left: 46px;
     width: 50px;

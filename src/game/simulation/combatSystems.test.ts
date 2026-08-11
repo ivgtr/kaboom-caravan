@@ -149,14 +149,14 @@ describe('weapon resources', () => {
     });
   });
 
-  it('prioritizes parry when dash and parry are requested together', () => {
+  it('prioritizes parry when boost and parry are held together', () => {
     const initial = createSimulation();
     const result = stepSimulation(
       initial,
       {
         ...IDLE_COMMAND,
         move: 1,
-        activateDash: true,
+        boost: true,
         activateSkill: true,
       },
       SIMULATION_STEP_SECONDS,
@@ -167,9 +167,9 @@ describe('weapon resources', () => {
       skillId: 'reactive-parry',
     });
     expect(result.events).not.toContainEqual(
-      expect.objectContaining({ type: 'dash-activated' }),
+      expect.objectContaining({ type: 'boost-started' }),
     );
-    expect(result.player.dashCooldown).toBe(0);
+    expect(result.player.boosting).toBe(false);
   });
 
   it('parries an incoming projectile, vents heat and counters its source', () => {
