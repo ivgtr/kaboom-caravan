@@ -11,6 +11,8 @@
 | `vfx_enemy_boss_burst_pair_v001` | Boss phase 3 projectile / impact   | OpenAI built-in `image_gen` | 1254 family master / 1024 runtime  | v001    | accepted / integrated | `GameRenderer` |
 | `vfx_enemy_death_pair_v001`      | Normal death puff / Boss core stop | OpenAI built-in `image_gen` | 1774×887 master / 1024×512 runtime | v001    | accepted / integrated | `GameRenderer` |
 | `vfx_mine_deployable_v001`       | Grounded armed mine sprite         | OpenAI built-in `image_gen` | 1044×842 master / 512×413 runtime  | v001    | accepted / integrated | `GameRenderer` |
+| `vfx_boost_trail_pair_v001`      | Forward / reverse boost trail      | OpenAI built-in `image_gen` | 1254 master / 1024 runtime         | v001    | accepted / integrated | `GameRenderer` |
+| `vfx_parry_pair_v001`            | Parry ready / perfect success      | OpenAI built-in `image_gen` | 1254 master / 1024 runtime         | v001    | accepted / integrated | `GameRenderer` |
 
 Prompt source:
 [`combat_vfx_prompts_v001.md`](../../artifacts/vfx/prompts/combat_vfx_prompts_v001.md)
@@ -23,6 +25,9 @@ Enemy death prompt source:
 
 Mine prompt source:
 [`mine_deployable_prompt_v001.md`](../../artifacts/vfx/prompts/mine_deployable_prompt_v001.md)
+
+Mobility / parry prompt source:
+[`mobility_parry_vfx_prompts_v001.md`](../../artifacts/vfx/prompts/mobility_parry_vfx_prompts_v001.md)
 
 ## Runtime assignment
 
@@ -38,6 +43,8 @@ Mine prompt source:
 - Normal enemy death: Enemy Death Puff
 - Boss death: Boss Core Collapse followed by the reusable Explosive impact
 - Bomber contact death: reusable Explosive impact
+- Caravan boost: two-frame generated velocity ribbon, mirrored for reverse
+- Parry: mechanical guard pose followed by a dedicated shattered counter pose
 
 Each pair sheet is cropped to a centered square within its left or right half.
 Canvas adds scale, rotation, alpha, glow, shock ring, smoke, debris and ground
@@ -57,3 +64,9 @@ dust. Generated assets do not contain baked translucent glow.
 - Mine armed Desktop: `artifacts/vfx/review/mine_deployable_desktop_v001.png`
 - Mine armed Mobile Landscape: `artifacts/vfx/review/mine_deployable_mobile_v001.png`
 - Mine detonation Desktop: `artifacts/vfx/review/mine_detonation_desktop_v001.png`
+- Boost Desktop: `artifacts/vfx/review/boost_trail_1184x689_v001.png`
+- Boost Mobile Landscape: `artifacts/vfx/review/boost_trail_844x390_v001.png`
+- Parry ready Desktop: `artifacts/vfx/review/parry_ready_1184x689_v001.png`
+- Parry ready Mobile Landscape: `artifacts/vfx/review/parry_ready_844x390_v001.png`
+- Parry success Desktop: `artifacts/vfx/review/parry_success_1184x689_v001.png`
+- Parry success Mobile Landscape: `artifacts/vfx/review/parry_success_844x390_v001.png`
