@@ -245,7 +245,10 @@ export function GameApp() {
         );
         sessionRef.current = session;
         const phaseChanged = session.phase !== lastPhase;
-        if (phaseChanged) audio.setPhase(session.phase);
+        if (phaseChanged) {
+          input.setEnabled(session.phase === 'combat');
+          audio.setPhase(session.phase);
+        }
         if (session.combat.events !== lastHandledEvents) {
           lastHandledEvents = session.combat.events;
           audio.handleEvents(session.combat.events);
@@ -282,6 +285,7 @@ export function GameApp() {
       },
       (alpha) => renderer.render(sessionRef.current.combat, alpha),
     );
+    input.setEnabled(sessionRef.current.phase === 'combat');
     input.connect();
     loop.start();
     return () => {
@@ -312,16 +316,20 @@ export function GameApp() {
     weaponSlot: WeaponSlot = 'secondary',
   ) => {
     audio.playUiConfirm();
+    input.reset();
     const session = selectReward(sessionRef.current, rewardId, weaponSlot);
     sessionRef.current = session;
+    input.setEnabled(session.phase === 'combat');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback(`戦闘${session.run.encounterIndex + 1}を開始`);
   };
   const restart = () => {
     audio.playUiConfirm();
+    input.reset();
     const session = restartGameSession(sessionRef.current);
     sessionRef.current = session;
+    input.setEnabled(false);
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('新しいランを開始');
@@ -335,16 +343,20 @@ export function GameApp() {
   };
   const startRun = (loadoutId: LoadoutId) => {
     audio.playUiConfirm();
+    input.reset();
     const session = startGameSession(sessionRef.current, loadoutId);
     sessionRef.current = session;
+    input.setEnabled(true);
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('キャラバン出撃！');
   };
   const chooseRoute = (routeId: string) => {
     audio.playUiConfirm();
+    input.reset();
     const session = selectRoute(sessionRef.current, routeId);
     sessionRef.current = session;
+    input.setEnabled(true);
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('新しい区画へ進入');
