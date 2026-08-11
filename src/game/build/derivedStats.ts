@@ -8,6 +8,7 @@ import type {
   WeaponStat,
   WeaponStatModifier,
 } from './types';
+import { getWeaponLevel } from './weaponUpgrade';
 
 export interface PlayerDerivedStats {
   moveSpeed: number;
@@ -70,12 +71,19 @@ export function deriveWeaponDefinition(
       definition[stat],
       modifiers.filter((modifier) => modifier.stat === stat),
     );
+  const level = getWeaponLevel(build, definition.id);
+  const levelDamageMultiplier = level === 3 ? 1.38 : level === 2 ? 1.18 : 1;
+  const levelCooldownMultiplier = level === 3 ? 0.84 : level === 2 ? 0.92 : 1;
+  const levelRangeMultiplier = level === 3 ? 1.12 : level === 2 ? 1.05 : 1;
 
   return {
     ...definition,
-    damage: evaluate('damage'),
-    cooldownSeconds: Math.max(0.05, evaluate('cooldownSeconds')),
-    maximumRange: Math.max(1, evaluate('maximumRange')),
+    damage: evaluate('damage') * levelDamageMultiplier,
+    cooldownSeconds: Math.max(
+      0.05,
+      evaluate('cooldownSeconds') * levelCooldownMultiplier,
+    ),
+    maximumRange: Math.max(1, evaluate('maximumRange') * levelRangeMultiplier),
     energyCost: Math.max(0, evaluate('energyCost')),
     heatGenerated: Math.max(0, evaluate('heatGenerated')),
   };

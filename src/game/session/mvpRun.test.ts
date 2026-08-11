@@ -8,6 +8,7 @@ import { MVP_ENCOUNTERS } from '../data/runDefinitions';
 import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
 import {
   createGameSession,
+  selectRoute,
   selectReward,
   stepGameSession,
   type GameSessionState,
@@ -72,92 +73,104 @@ interface ExpectedRunBaseline {
 
 const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
   1: {
-    elapsedTicks: 6232,
-    encounterTicks: [572, 455, 494, 896, 579, 561, 471, 687, 716, 801],
-    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+    elapsedTicks: 6958,
+    encounterTicks: [572, 622, 723, 988, 582, 608, 558, 683, 772, 850],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 115, 125],
     forwardDistances: [
-      70, 67.645, 68.408, 63.48, 70, 66.54, 60.42, 68.263, 62.08, 62.6,
+      70, 70, 61.278, 64.077, 70, 66.135, 61.68, 67.038, 59.44, 62.6,
     ],
-    primaryShots: 155,
-    secondaryShots: 32,
-    enemyProjectiles: [11, 0, 11],
-    attacksParried: 11,
+    primaryShots: 191,
+    secondaryShots: 41,
+    enemyProjectiles: [14, 0, 14],
+    attacksParried: 14,
     rewardIds: [
-      'weapon:railgun',
-      'module:radar',
-      'module:capacitor',
-      'module:armor',
-      'module:cooling-fan',
+      'module:magnetic-armor',
+      'weapon:rocket-launcher',
       'module:heat-recycler',
-      'module:explosive-magazine',
-      'module:generator',
       'module:ammo-box',
+      'module:radar',
+      'module:armor',
+      'module:magnetic-armor',
+      'module:shield-generator',
+      'module:capacitor',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
-      secondaryWeaponId: 'railgun',
-      moduleIds: [
-        'heat-recycler',
-        'explosive-magazine',
-        'generator',
-        'ammo-box',
-      ],
+      secondaryWeaponId: 'rocket-launcher',
+      weaponLevels: {
+        'machine-cannon': 1,
+        'scatter-cannon': 1,
+        'rocket-launcher': 1,
+      },
+      moduleIds: ['armor', 'magnetic-armor', 'shield-generator', 'capacitor'],
     },
   },
   42: {
-    elapsedTicks: 6809,
-    encounterTicks: [572, 455, 486, 896, 579, 589, 479, 748, 1204, 801],
+    elapsedTicks: 7011,
+    encounterTicks: [572, 622, 1490, 526, 604, 521, 458, 685, 732, 801],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
-      70, 67.645, 68.408, 63.48, 70, 66.54, 61.2, 68.263, 64.338, 62.6,
+      70, 70, 78.408, 66.2, 69.153, 68.08, 64.343, 69.203, 67.4, 62.6,
     ],
-    primaryShots: 168,
-    secondaryShots: 30,
-    enemyProjectiles: [11, 0, 11],
-    attacksParried: 11,
+    primaryShots: 188,
+    secondaryShots: 29,
+    enemyProjectiles: [7, 0, 7],
+    attacksParried: 7,
     rewardIds: [
-      'weapon:railgun',
-      'module:capacitor',
-      'module:radar',
-      'module:generator',
-      'module:heat-recycler',
+      'module:explosive-magazine',
       'module:magnetic-armor',
-      'module:armor',
-      'module:capacitor',
+      'weapon:rocket-launcher',
+      'weapon:railgun',
+      'module:heat-recycler',
+      'module:cooling-fan',
+      'module:ammo-box',
+      'module:radar',
       'module:generator',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'railgun',
-      moduleIds: ['magnetic-armor', 'armor', 'capacitor', 'generator'],
+      weaponLevels: {
+        'machine-cannon': 1,
+        'scatter-cannon': 1,
+        'rocket-launcher': 1,
+        railgun: 2,
+      },
+      moduleIds: ['cooling-fan', 'ammo-box', 'radar', 'generator'],
     },
   },
   2026: {
-    elapsedTicks: 7315,
-    encounterTicks: [572, 622, 723, 988, 582, 600, 471, 748, 1204, 805],
-    endingHitPoints: [100, 100, 100, 115, 125, 125, 125, 125, 100, 95],
+    elapsedTicks: 6015,
+    encounterTicks: [572, 622, 477, 473, 604, 521, 458, 798, 681, 809],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
-      70, 70, 61.278, 64.077, 70, 66.135, 60.42, 68.263, 64.338, 62.6,
+      70, 70, 69.235, 68.4, 69.153, 68.08, 64.343, 69.203, 67.2, 62.6,
     ],
-    primaryShots: 193,
-    secondaryShots: 34,
-    enemyProjectiles: [12, 1, 11],
-    attacksParried: 11,
+    primaryShots: 135,
+    secondaryShots: 33,
+    enemyProjectiles: [7, 0, 7],
+    attacksParried: 7,
     rewardIds: [
-      'module:generator',
+      'module:ammo-box',
       'weapon:rocket-launcher',
-      'module:shield-generator',
-      'module:magnetic-armor',
-      'module:heat-recycler',
+      'module:explosive-magazine',
       'weapon:railgun',
-      'module:armor',
-      'module:radar',
       'module:capacitor',
+      'module:heat-recycler',
+      'module:radar',
+      'module:magnetic-armor',
+      'module:armor',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'railgun',
-      moduleIds: ['heat-recycler', 'armor', 'radar', 'capacitor'],
+      weaponLevels: {
+        'machine-cannon': 1,
+        'scatter-cannon': 1,
+        'rocket-launcher': 3,
+        railgun: 2,
+      },
+      moduleIds: ['heat-recycler', 'radar', 'magnetic-armor', 'armor'],
     },
   },
 };
@@ -355,6 +368,14 @@ function simulateMvpRun(seed: number): {
         ...(reward.type === 'weapon' ? { weaponSlot } : {}),
       });
       session = selectReward(session, reward.id, weaponSlot);
+      currentEncounter = createEncounterMetrics(session);
+      continue;
+    }
+    if (session.phase === 'route') {
+      const normalRoute = session.routeChoices.find(
+        ({ type }) => type === 'normal',
+      );
+      session = selectRoute(session, normalRoute!.id);
       currentEncounter = createEncounterMetrics(session);
       continue;
     }

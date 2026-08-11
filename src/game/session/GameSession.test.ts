@@ -3,9 +3,13 @@ import { MVP_ENCOUNTERS } from '../data/runDefinitions';
 import { generateRewardChoices } from '../reward/rewardSystem';
 import { IDLE_COMMAND, SIMULATION_STEP_SECONDS } from '../simulation/types';
 import {
+  createGarageSession,
   createGameSession,
+  rerollRewards,
   restartGameSession,
+  selectRoute,
   selectReward,
+  startGameSession,
   stepGameSession,
 } from './GameSession';
 
@@ -36,6 +40,18 @@ describe('reward generation', () => {
     expect(left.some((choice) => choice.type === 'weapon')).toBe(true);
     expect(left.some((choice) => choice.type === 'module')).toBe(true);
   });
+
+  it('allows an equipped weapon to return as a deterministic upgrade', () => {
+    const session = createGameSession(1);
+    const upgrade = Array.from({ length: 100 }, (_, seed) =>
+      generateRewardChoices(seed, 0, session.run.build, 1.7, 4),
+    )
+      .flat()
+      .find((choice) => choice.type === 'weapon' && choice.isUpgrade);
+
+    expect(upgrade).toBeDefined();
+    expect(upgrade?.type === 'weapon' && upgrade.nextLevel).toBeGreaterThan(1);
+  });
 });
 
 describe('game session', () => {
@@ -48,6 +64,16 @@ describe('game session', () => {
     expect(session.run.elapsedCombatTicks).toBe(0);
     expect(session.run.lastEncounterTicks).toBe(0);
     expect(session.combat.wave?.id).toBe('battle-01-wave');
+  });
+
+  it('starts from the garage with the selected initial loadout', () => {
+    const garage = createGarageSession(9);
+    const started = startGameSession(garage, 'close-range');
+
+    expect(garage.phase).toBe('garage');
+    expect(started.phase).toBe('combat');
+    expect(started.run.build.primaryWeaponId).toBe('scatter-cannon');
+    expect(started.run.build.secondaryWeaponId).toBe('flamethrower');
   });
 
   it('moves from combat to reward and carries the selected module forward', () => {
@@ -103,6 +129,72 @@ describe('game session', () => {
     );
   });
 
+  it('upgrades an equipped weapon without changing its slot', () => {
+    const session = createGameSession(7);
+    session.phase = 'reward';
+    session.rewardChoices = [
+      {
+        id: 'weapon:machine-cannon',
+        type: 'weapon',
+        weaponId: 'machine-cannon',
+        displayName: '機関砲',
+        description: '連射機構を高速化',
+        rarity: 'common',
+        currentLevel: 1,
+        nextLevel: 2,
+        isUpgrade: true,
+      },
+    ];
+    const next = selectReward(session, 'weapon:machine-cannon');
+
+    expect(next.run.build.primaryWeaponId).toBe('machine-cannon');
+    expect(next.run.build.weaponLevels['machine-cannon']).toBe(2);
+  });
+
+  it('offers route decisions and applies salvage benefits', () => {
+    const session = createGameSession(3);
+    session.phase = 'reward';
+    session.run.encounterIndex = 5;
+    session.rewardChoices = [
+      {
+        id: 'module:armor',
+        type: 'module',
+        moduleId: 'armor',
+        displayName: '追加装甲',
+        description: '装甲',
+        rarity: 'common',
+      },
+    ];
+    const routed = selectReward(session, 'module:armor');
+    const salvage = routed.routeChoices.find(({ type }) => type === 'salvage');
+    const selected = salvage ? selectRoute(routed, salvage.id) : routed;
+
+    expect(routed.phase).toBe('route');
+    expect(routed.routeChoices).toHaveLength(2);
+    expect(salvage).toBeDefined();
+    expect(selected.phase).toBe('combat');
+    expect(selected.run.treasureCollected).toBe(2);
+    expect(selected.run.rewardRerolls).toBe(1);
+  });
+
+  it('spends a treasure reroll on a new deterministic reward set', () => {
+    const session = createGameSession(8);
+    session.phase = 'reward';
+    session.run.rewardRerolls = 1;
+    session.rewardChoices = generateRewardChoices(
+      8,
+      0,
+      session.run.build,
+      1,
+      4,
+    );
+    const rerolled = rerollRewards(session);
+
+    expect(rerolled.run.rewardRerolls).toBe(0);
+    expect(rerolled.run.rewardRerollIndex).toBe(1);
+    expect(rerolled.rewardChoices).not.toEqual(session.rewardChoices);
+  });
+
   it('enters defeat, resets run state and advances the seed', () => {
     const session = createGameSession(10);
     session.run.build.moduleIds = ['armor'];
@@ -114,7 +206,7 @@ describe('game session', () => {
     const restarted = restartGameSession(defeated);
 
     expect(defeated.phase).toBe('defeat');
-    expect(restarted.phase).toBe('combat');
+    expect(restarted.phase).toBe('garage');
     expect(restarted.run.seed).toBe(11);
     expect(restarted.run.encounterIndex).toBe(0);
     expect(restarted.run.build.moduleIds).toEqual([]);

@@ -27,6 +27,7 @@ import type {
   SimulationState,
 } from './types';
 import { advanceWave, completeWaveIfCleared } from '../wave/waveSystem';
+import { getWeaponLevel } from '../build/weaponUpgrade';
 
 const PLAYER_MIN_POSITION = 0;
 const PLAYER_MAX_POSITION = 80;
@@ -61,7 +62,15 @@ function createProjectiles(
   definition: WeaponDefinition,
   sequence: number,
 ): ProjectileState[] {
-  const projectileCount = definition.behavior === 'scatter' ? 5 : 1;
+  const weaponLevel = getWeaponLevel(state.build, definition.id);
+  const projectileCount =
+    definition.behavior === 'scatter'
+      ? 4 + weaponLevel
+      : definition.behavior === 'mine' && weaponLevel === 3
+        ? 2
+        : definition.id === 'machine-cannon' && weaponLevel === 3
+          ? 2
+          : 1;
   return Array.from({ length: projectileCount }, (_, index) => ({
     id: `projectile-${sequence + index}`,
     ownerId: state.player.id,
@@ -89,16 +98,16 @@ function createProjectiles(
     behavior: definition.behavior,
     remainingHits:
       definition.behavior === 'flame'
-        ? 8
+        ? 6 + weaponLevel * 2
         : definition.behavior === 'railgun'
-          ? 6
+          ? 4 + weaponLevel * 2
           : 1,
     hitEnemyIds: [],
     explosionRadius:
       definition.behavior === 'rocket'
-        ? 10
+        ? 9 + weaponLevel
         : definition.behavior === 'mine'
-          ? 9
+          ? 8 + weaponLevel
           : 0,
     ageSeconds: 0,
     maximumAgeSeconds:
@@ -108,6 +117,29 @@ function createProjectiles(
           ? 0.65
           : 4,
   }));
+}
+
+const LOOT_DROP_CHANCE: Record<EnemyState['typeId'], number> = {
+  basic: 0.35,
+  rusher: 0.4,
+  heavy: 0.7,
+  artillery: 0.6,
+  bomber: 0.55,
+  'kawaii-fortress': 1,
+};
+
+function deterministicLootRoll(seed: number, enemyId: string): number {
+  let hash = seed ^ 0x811c9dc5;
+  for (const character of enemyId) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
+  }
+  return (hash >>> 0) / 0x1_0000_0000;
+}
+
+function lootValue(enemy: EnemyState): number {
+  if (enemy.typeId === 'kawaii-fortress') return 5;
+  if (enemy.typeId === 'heavy' || enemy.typeId === 'artillery') return 2;
+  return 1;
 }
 
 interface ProjectileResult {
@@ -416,8 +448,36 @@ export function stepSimulation(
   let enemies = state.enemies;
   let projectiles = state.projectiles;
   let enemyProjectiles = state.enemyProjectiles;
+  let loot = state.loot;
+  let treasureCollected = state.treasureCollected;
   let nextEntitySequence = state.nextEntitySequence;
   let wave = state.wave;
+
+  const remainingLoot: typeof loot = [];
+  for (const item of loot) {
+    const distance = playerPosition - item.position;
+    const magnetizedPosition =
+      Math.abs(distance) <= 14
+        ? moveTowards(item.position, playerPosition, 34 * deltaSeconds)
+        : item.position;
+    const movedItem = {
+      ...item,
+      previousPosition: item.position,
+      position: magnetizedPosition,
+      ageSeconds: item.ageSeconds + deltaSeconds,
+    };
+    if (Math.abs(magnetizedPosition - playerPosition) <= 3.2) {
+      treasureCollected += item.value;
+      events.push({
+        type: 'loot-collected',
+        lootId: item.id,
+        value: item.value,
+      });
+    } else {
+      remainingLoot.push(movedItem);
+    }
+  }
+  loot = remainingLoot;
 
   if (
     command.activateSkill &&
@@ -433,7 +493,17 @@ export function stepSimulation(
   if (wave) {
     const waveResult = advanceWave(wave, deltaSeconds, nextEntitySequence);
     wave = waveResult.wave;
-    enemies = [...enemies, ...waveResult.spawnedEnemies];
+    const spawnedEnemies = state.eliteEncounter
+      ? waveResult.spawnedEnemies.map((enemy) => ({
+          ...enemy,
+          elite: true,
+          hitPoints: enemy.hitPoints * 1.45,
+          contactDamage: enemy.contactDamage * 1.2,
+          attackDamage: enemy.attackDamage * 1.2,
+          frontlinePressure: enemy.frontlinePressure * 1.25,
+        }))
+      : waveResult.spawnedEnemies;
+    enemies = [...enemies, ...spawnedEnemies];
     nextEntitySequence = waveResult.nextEntitySequence;
     events.push(...waveResult.events);
   }
@@ -603,6 +673,28 @@ export function stepSimulation(
       enemyId: enemy.id,
       enemyTypeId: enemy.typeId,
     });
+    if (
+      enemy.elite ||
+      deterministicLootRoll(state.seed, enemy.id) <
+        LOOT_DROP_CHANCE[enemy.typeId]
+    ) {
+      const id = `loot-${nextEntitySequence}`;
+      const value = lootValue(enemy);
+      nextEntitySequence += 1;
+      loot.push({
+        id,
+        previousPosition: enemy.position,
+        position: enemy.position,
+        value,
+        ageSeconds: 0,
+      });
+      events.push({
+        type: 'loot-dropped',
+        lootId: id,
+        position: enemy.position,
+        value,
+      });
+    }
   }
   enemies = enemies.filter((enemy) => enemy.hitPoints > 0);
 
@@ -723,6 +815,18 @@ export function stepSimulation(
   }
   if (status !== 'active')
     events.push({ type: 'combat-ended', result: status });
+  if (status === 'victory' && loot.length > 0) {
+    for (const item of loot) {
+      const recoveredValue = Math.max(1, Math.ceil(item.value / 2));
+      treasureCollected += recoveredValue;
+      events.push({
+        type: 'loot-collected',
+        lootId: item.id,
+        value: recoveredValue,
+      });
+    }
+    loot = [];
+  }
 
   return {
     ...state,
@@ -756,6 +860,8 @@ export function stepSimulation(
     enemies,
     projectiles,
     enemyProjectiles,
+    loot,
+    treasureCollected,
     events,
   };
 }

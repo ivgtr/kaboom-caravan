@@ -6,6 +6,7 @@ import type {
   WaveId,
 } from '../data/ids';
 import type { WeaponBehavior } from '../data/weaponDefinitions';
+import type { WeaponLevel } from '../build/weaponUpgrade';
 
 export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
@@ -59,6 +60,7 @@ export interface EnemyState {
   attackCooldownSeconds: number;
   frontlinePressure: number;
   bossPhase?: 1 | 2 | 3;
+  elite?: boolean;
   attackWindupRemaining?: number;
 }
 
@@ -109,7 +111,16 @@ export interface FrontlineState {
 export interface BuildState {
   primaryWeaponId: WeaponId;
   secondaryWeaponId: WeaponId;
+  weaponLevels: Partial<Record<WeaponId, WeaponLevel>>;
   moduleIds: ModuleId[];
+}
+
+export interface LootState {
+  id: EntityId;
+  previousPosition: number;
+  position: number;
+  value: number;
+  ageSeconds: number;
 }
 
 export interface WaveState {
@@ -138,6 +149,13 @@ export type CombatEvent =
       enemyId: EntityId;
       enemyTypeId: EnemyTypeId;
     }
+  | {
+      type: 'loot-dropped';
+      lootId: EntityId;
+      position: number;
+      value: number;
+    }
+  | { type: 'loot-collected'; lootId: EntityId; value: number }
   | { type: 'vehicle-hit'; sourceId: EntityId; damage: number }
   | { type: 'overheated' }
   | { type: 'cooled' }
@@ -186,6 +204,9 @@ export interface SimulationState {
   enemies: EnemyState[];
   projectiles: ProjectileState[];
   enemyProjectiles: EnemyProjectileState[];
+  loot: LootState[];
+  treasureCollected: number;
+  eliteEncounter: boolean;
   events: CombatEvent[];
 }
 

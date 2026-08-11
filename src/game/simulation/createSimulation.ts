@@ -12,6 +12,7 @@ export function createSimulation(seed = 1): SimulationState {
     build: {
       primaryWeaponId: 'machine-cannon',
       secondaryWeaponId: 'scatter-cannon',
+      weaponLevels: { 'machine-cannon': 1, 'scatter-cannon': 1 },
       moduleIds: [],
     },
     player: {
@@ -44,6 +45,9 @@ export function createSimulation(seed = 1): SimulationState {
     ],
     projectiles: [],
     enemyProjectiles: [],
+    loot: [],
+    treasureCollected: 0,
+    eliteEncounter: false,
     events: [],
   };
 }

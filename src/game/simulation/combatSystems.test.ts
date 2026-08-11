@@ -177,6 +177,26 @@ describe('weapon resources', () => {
 });
 
 describe('frontline and combat outcome', () => {
+  it('drops elite treasure and magnetizes it into the caravan', () => {
+    const initial = createSimulation();
+    initial.enemies = [
+      {
+        ...initial.enemies[0]!,
+        id: 'elite-target',
+        elite: true,
+        position: 12,
+        previousPosition: 12,
+        hitPoints: 0,
+      },
+    ];
+
+    const dropped = stepSimulation(initial, IDLE_COMMAND, 0);
+    expect(dropped.events.some(({ type }) => type === 'loot-dropped')).toBe(
+      true,
+    );
+    expect(dropped.treasureCollected).toBeGreaterThan(0);
+  });
+
   it('retreats under enemy pressure and increases rewards when advancing', () => {
     const initial = createSimulation();
     initial.player.position = 50;
