@@ -42,6 +42,7 @@ import {
   type CameraShakeSpec,
 } from './combatFeedback';
 import { runtimeAssetUrl } from '../runtimeAssets';
+import { SUPPLY_ART } from './supplyAssets';
 
 const WORLD_MINIMUM = 0;
 const WORLD_MAXIMUM = 100;
@@ -202,6 +203,7 @@ export class GameRenderer {
       ...Object.values(ENEMY_VFX_ART).map(({ source }) => source),
       ENEMY_DEATH_VFX_ART.source,
       BOSS_PHASE_AURA_ART.source,
+      ...Object.values(SUPPLY_ART),
     ]);
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(canvas);
@@ -1486,11 +1488,43 @@ export class GameRenderer {
 
   private drawSupplyLoot(x: number, kind: LootKind, ageSeconds: number): void {
     const context = this.context;
-    const size = Math.min(34, Math.max(22, this.viewportHeight * 0.042));
-    const bounce = this.reducedMotion ? 0 : Math.sin(ageSeconds * 5.5) * 3;
-    const y = this.groundY - size * 0.55 + bounce;
+    const image = this.assets.get(SUPPLY_ART[kind]);
+    const height =
+      Math.min(64, Math.max(40, this.viewportHeight * 0.075)) *
+      (kind === 'weapon-cache' ? 1.08 : 1);
+    const bounce = this.reducedMotion ? 0 : Math.sin(ageSeconds * 4.2) * 1.5;
+    const bottomY = this.groundY - 5 + bounce;
     const color =
       kind === 'repair' ? '#ff8875' : kind === 'ammo' ? '#ffd05a' : '#62dac5';
+
+    context.save();
+    context.globalAlpha = 0.18;
+    context.fillStyle = '#263249';
+    context.beginPath();
+    context.ellipse(
+      x,
+      this.groundY - 2,
+      height * (kind === 'weapon-cache' ? 0.48 : 0.4),
+      height * 0.095,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+    context.restore();
+
+    if (image) {
+      const width = height * (image.naturalWidth / image.naturalHeight);
+      context.save();
+      context.shadowColor = color;
+      context.shadowBlur = kind === 'weapon-cache' ? 15 : 8;
+      context.drawImage(image, x - width / 2, bottomY - height, width, height);
+      context.restore();
+      return;
+    }
+
+    const size = height * 0.72;
+    const y = bottomY - height * 0.5;
     context.save();
     context.translate(x, y);
     context.shadowColor = color;

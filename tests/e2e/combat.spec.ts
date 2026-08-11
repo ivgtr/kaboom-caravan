@@ -574,6 +574,23 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
   await expect(cache.locator('.reward-card.reward-weapon')).toHaveCount(3);
   await expect(cache.locator('.reward-module')).toHaveCount(0);
   await expect(cache).toContainText('武器 3択');
+  const cardBoxes = await cache.locator('.reward-card').evaluateAll((cards) =>
+    cards.map((card) => {
+      const { left, right, top, bottom, width, height } =
+        card.getBoundingClientRect();
+      return { left, right, top, bottom, width, height };
+    }),
+  );
+  expect(cardBoxes).toHaveLength(3);
+  for (const [index, box] of cardBoxes.entries()) {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(844);
+    expect(box.top).toBeGreaterThanOrEqual(0);
+    expect(box.bottom).toBeLessThanOrEqual(390);
+    expect(box.width / box.height).toBeCloseTo(2 / 3, 2);
+    if (index > 0)
+      expect(box.left).toBeGreaterThan(cardBoxes[index - 1]!.right);
+  }
   if (process.env.CAPTURE_UI_REVIEW) {
     await page.screenshot({
       path: 'artifacts/ui/review/weapon_cache_844x390.png',
@@ -591,7 +608,17 @@ test('renders repair, ammo and weapon-cache supplies as separate drops', async (
   page,
 }) => {
   await page.setViewportSize({ width: 1184, height: 689 });
+  const supplyAssets = Promise.all(
+    [
+      'supply_repair_kit_v001.png',
+      'supply_ammo_crate_v001.png',
+      'supply_weapon_cache_v001.png',
+    ].map((filename) =>
+      page.waitForResponse((response) => response.url().endsWith(filename)),
+    ),
+  );
   await page.goto('/?debug=1&supplyPreview=1');
+  for (const response of await supplyAssets) expect(response.ok()).toBe(true);
 
   await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
   if (process.env.CAPTURE_UI_REVIEW) {
