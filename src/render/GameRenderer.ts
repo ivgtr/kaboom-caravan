@@ -29,8 +29,12 @@ import {
 import { ENEMY_DEATH_VFX_ART, getEnemyDeathVfxSource } from './deathVfxAssets';
 import { ENEMY_VFX_ART, getEnemyVfxSource } from './enemyVfxAssets';
 import {
+  BOOST_TRAIL_ART,
+  getBoostTrailSource,
+  getParryVfxSource,
   getVfxSource,
   MINE_VFX_ART,
+  PARRY_VFX_ART,
   VFX_ART,
   WEAPON_VFX_FAMILY,
   type VfxFamily,
@@ -121,6 +125,7 @@ interface ExhaustPuff {
 
 type DeathVfxPreview =
   'normal' | 'boss' | 'bomber' | 'basic' | 'rusher' | 'heavy';
+type ParryVfxPreview = 'ready' | 'success';
 
 export interface RendererDiagnostics {
   renderDurationsMs: number[];
@@ -185,6 +190,7 @@ export class GameRenderer {
   private readonly bossPreviewPhase = this.readBossPreviewPhase();
   private readonly enemyVfxPreview = this.readEnemyVfxPreview();
   private readonly deathVfxPreview = this.readDeathVfxPreview();
+  private readonly parryVfxPreview = this.readParryVfxPreview();
   private readonly mineVfxPreview = new URLSearchParams(
     window.location.search,
   ).get('mineVfx');
@@ -201,6 +207,8 @@ export class GameRenderer {
       ...Object.values(WEAPON_ART),
       ...Object.values(MODULE_ART),
       ...Object.values(VFX_ART).map(({ source }) => source),
+      BOOST_TRAIL_ART.source,
+      PARRY_VFX_ART.source,
       MINE_VFX_ART.source,
       ...Object.values(ENEMY_VFX_ART).map(({ source }) => source),
       ENEMY_DEATH_VFX_ART.source,
@@ -569,33 +577,39 @@ export class GameRenderer {
     direction: -1 | 1,
   ): void {
     const context = this.context;
-    context.save();
-    context.lineCap = 'round';
-    for (let index = 0; index < 5; index += 1) {
-      const y = groundY - width * (0.18 + index * 0.105);
-      const nearX = x - direction * width * (0.42 + index * 0.025);
-      const farX = x - direction * width * (0.72 + index * 0.08);
-      context.globalAlpha = 0.72 - index * 0.09;
-      context.strokeStyle = index % 2 === 0 ? '#ffd05a' : '#72e6db';
-      context.lineWidth = Math.max(2, width * (0.022 - index * 0.002));
-      context.beginPath();
-      context.moveTo(farX, y);
-      context.lineTo(nearX, y);
-      context.stroke();
-    }
-    context.globalAlpha = 0.34;
-    context.fillStyle = '#f6dfae';
-    context.beginPath();
-    context.ellipse(
-      x - direction * width * 0.38,
-      groundY + 2,
-      width * 0.28,
-      width * 0.055,
-      0,
-      0,
-      Math.PI * 2,
+    const image = this.assets.get(BOOST_TRAIL_ART.source);
+    if (!image) return;
+    const pose =
+      Math.floor(
+        this.playerMotion.phaseClockSeconds / BOOST_TRAIL_ART.frameSeconds,
+      ) %
+        2 ===
+      0
+        ? 'stream'
+        : 'surge';
+    const [sourceX, sourceY, sourceWidth, sourceHeight] = getBoostTrailSource(
+      image.naturalWidth,
+      image.naturalHeight,
+      pose,
     );
-    context.fill();
+    const size = width * BOOST_TRAIL_ART.displayScale;
+    const centerX = x - direction * width * 0.68;
+    const centerY = groundY - width * 0.37;
+    context.save();
+    context.translate(centerX, centerY);
+    context.scale(direction, 1);
+    context.globalAlpha = pose === 'stream' ? 0.8 : 0.9;
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      -size * 0.5,
+      -size * 0.5,
+      size,
+      size,
+    );
     context.restore();
   }
 
@@ -1370,6 +1384,8 @@ export class GameRenderer {
       this.drawParryBackdrop(
         parrySuccess.ageSeconds / parrySuccess.durationSeconds,
       );
+    } else if (this.parryVfxPreview === 'success') {
+      this.drawParryBackdrop(0.2);
     }
     for (const effect of this.effects) {
       const progress = effect.ageSeconds / effect.durationSeconds;
@@ -1462,6 +1478,18 @@ export class GameRenderer {
         this.drawMineDetonationAccent(x, y, progress);
       }
       this.drawVfxParticles(effect, family, x, y, progress);
+    }
+    if (this.parryVfxPreview !== undefined) {
+      const caravanWidth = Math.min(
+        190,
+        Math.max(118, this.viewportHeight * 0.25),
+      );
+      this.drawParryVfx(
+        this.worldToScreen(10),
+        this.groundY - caravanWidth * 0.46,
+        0.2,
+        this.parryVfxPreview === 'success',
+      );
     }
   }
 
@@ -1722,63 +1750,46 @@ export class GameRenderer {
     successful: boolean,
   ): void {
     const context = this.context;
-    const fade = Math.max(0, 1 - progress);
-    const radius = successful
-      ? 42 + Math.sin(progress * Math.PI) * 54 + progress * 38
-      : 36 + Math.sin(progress * Math.PI) * 18;
-    context.save();
-    context.globalAlpha = fade;
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-    context.strokeStyle = successful ? '#f5ffff' : '#69f4ee';
-    context.fillStyle = successful
-      ? 'rgb(105 244 238 / 28%)'
-      : 'rgb(105 221 202 / 16%)';
-    context.lineWidth = Math.max(
-      2,
-      successful ? 9 - progress * 5 : 6 - progress * 3,
+    const image = this.assets.get(PARRY_VFX_ART.source);
+    if (!image) return;
+    const pose = successful ? 'success' : 'ready';
+    const [sourceX, sourceY, sourceWidth, sourceHeight] = getParryVfxSource(
+      image.naturalWidth,
+      image.naturalHeight,
+      pose,
     );
-    context.beginPath();
-    context.arc(x, y, radius, -Math.PI * 0.72, Math.PI * 0.72);
-    context.stroke();
-    context.beginPath();
-    context.arc(x, y, radius * 0.72, 0, Math.PI * 2);
-    context.fill();
-    for (const direction of [-1, 1]) {
-      context.beginPath();
-      context.moveTo(x + direction * radius * 0.58, y - radius * 0.52);
-      context.lineTo(x + direction * radius * 0.92, y);
-      context.lineTo(x + direction * radius * 0.58, y + radius * 0.52);
-      context.stroke();
+    const caravanWidth = Math.min(
+      190,
+      Math.max(118, this.viewportHeight * 0.25),
+    );
+    const easedBurst = Math.sin(Math.min(1, progress) * Math.PI);
+    const baseScale = successful
+      ? PARRY_VFX_ART.successScale
+      : PARRY_VFX_ART.readyScale;
+    const size =
+      caravanWidth *
+      baseScale *
+      (successful ? 0.78 + easedBurst * 0.32 : 0.9 + easedBurst * 0.1);
+    const fade = successful
+      ? Math.min(1, (1 - progress) * 1.65)
+      : Math.min(1, (1 - progress) * 2.3);
+    context.save();
+    context.translate(x, y);
+    if (successful && !this.reducedMotion) {
+      context.rotate(-0.08 + progress * 0.15);
     }
-    const rayCount = this.reducedMotion ? 6 : 12;
-    context.strokeStyle = successful ? '#ffd76a' : '#b9fff8';
-    context.lineWidth = successful ? 5 : 3;
-    for (let index = 0; index < rayCount; index += 1) {
-      const angle =
-        (index / rayCount) * Math.PI * 2 + progress * (successful ? 0.35 : 1.5);
-      const inner = radius * (successful ? 0.92 : 1.05);
-      const outer = radius * (successful ? 1.42 : 1.22);
-      context.beginPath();
-      context.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
-      context.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
-      context.stroke();
-    }
-    if (successful) {
-      context.globalAlpha = Math.min(1, fade * 1.8);
-      context.strokeStyle = '#ffffff';
-      context.lineWidth = 8;
-      context.beginPath();
-      context.moveTo(x - radius * 0.62, y + radius * 0.42);
-      context.lineTo(x + radius * 0.68, y - radius * 0.48);
-      context.stroke();
-      context.strokeStyle = '#69f4ee';
-      context.lineWidth = 3;
-      context.beginPath();
-      context.moveTo(x - radius * 0.72, y + radius * 0.56);
-      context.lineTo(x + radius * 0.78, y - radius * 0.58);
-      context.stroke();
-    }
+    context.globalAlpha = fade;
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      -size * 0.5,
+      -size * 0.5,
+      size,
+      size,
+    );
     context.restore();
   }
 
@@ -2464,6 +2475,11 @@ export class GameRenderer {
       preview === 'heavy'
       ? preview
       : undefined;
+  }
+
+  private readParryVfxPreview(): ParryVfxPreview | undefined {
+    const preview = new URLSearchParams(window.location.search).get('parryVfx');
+    return preview === 'ready' || preview === 'success' ? preview : undefined;
   }
 
   private drawDeathVfxPreview(preview: DeathVfxPreview): void {

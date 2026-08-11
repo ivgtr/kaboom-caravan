@@ -357,6 +357,51 @@ for (const viewport of [
   { width: 1184, height: 689 },
   { width: 844, height: 390 },
 ]) {
+  test(`renders generated boost and parry VFX at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const boostAsset = page.waitForResponse((response) =>
+      response.url().endsWith('/assets/vfx/vfx_boost_trail_pair_v001.png'),
+    );
+    const parryAsset = page.waitForResponse((response) =>
+      response.url().endsWith('/assets/vfx/vfx_parry_pair_v001.png'),
+    );
+    await page.goto('/?quickStart=1');
+    expect((await boostAsset).ok()).toBe(true);
+    expect((await parryAsset).ok()).toBe(true);
+    await page.keyboard.down('d');
+    await page.keyboard.down('ShiftLeft');
+    await expect(page.getByRole('button', { name: '急加速' })).toHaveClass(
+      /active/,
+    );
+    if (process.env.CAPTURE_VFX_REVIEW) {
+      await page.waitForTimeout(160);
+      await page.screenshot({
+        path: `artifacts/vfx/review/boost_trail_${viewport.width}x${viewport.height}_v001.png`,
+      });
+    }
+    await page.keyboard.up('ShiftLeft');
+    await page.keyboard.up('d');
+    for (const pose of ['ready', 'success'] as const) {
+      await page.goto(`/?quickStart=1&parryVfx=${pose}`);
+      await expect(
+        page.getByRole('button', { name: '迎撃パリィ' }),
+      ).toBeVisible();
+      if (process.env.CAPTURE_VFX_REVIEW) {
+        await page.waitForTimeout(100);
+        await page.screenshot({
+          path: `artifacts/vfx/review/parry_${pose}_${viewport.width}x${viewport.height}_v001.png`,
+        });
+      }
+    }
+  });
+}
+
+for (const viewport of [
+  { width: 1184, height: 689 },
+  { width: 844, height: 390 },
+]) {
   test(`renders generated combat VFX at ${viewport.width}x${viewport.height}`, async ({
     page,
   }) => {
