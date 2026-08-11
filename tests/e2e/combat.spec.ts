@@ -205,6 +205,46 @@ test('hides diagnostic UI from the product view', async ({ page }) => {
   await expect(page.locator('.debug-panel')).toHaveCount(0);
 });
 
+for (const viewport of [
+  { width: 1920, height: 1080 },
+  { width: 1440, height: 900 },
+  { width: 1280, height: 720 },
+  { width: 1024, height: 768 },
+  { width: 932, height: 430 },
+  { width: 844, height: 390 },
+]) {
+  test(`keeps the combat stage at 2:1 within ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/?quickStart=1');
+
+    const stage = page.locator('.combat-stage');
+    await expect(stage).toBeVisible();
+    const box = await stage.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width / box!.height).toBeCloseTo(2, 2);
+    expect(box!.width).toBeCloseTo(
+      Math.min(viewport.width, viewport.height * 2),
+      0,
+    );
+    expect(box!.height).toBeCloseTo(
+      Math.min(viewport.height, viewport.width / 2),
+      0,
+    );
+    expect(box!.x).toBeCloseTo((viewport.width - box!.width) / 2, 0);
+    expect(box!.y).toBeCloseTo((viewport.height - box!.height) / 2, 0);
+    if (
+      process.env.CAPTURE_LAYOUT_REVIEW &&
+      [1920, 1024, 844].includes(viewport.width)
+    ) {
+      await page.screenshot({
+        path: `artifacts/ui/review/combat_stage_${viewport.width}x${viewport.height}_v001.png`,
+      });
+    }
+  });
+}
+
 test('keeps rolling with inertia after movement input is released', async ({
   page,
 }) => {

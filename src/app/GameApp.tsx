@@ -461,7 +461,9 @@ export function GameApp() {
       className={`game-shell phase-${renderError ? 'error' : sessionView.phase}`}
       style={UI_ASSET_STYLES}
     >
-      <canvas ref={canvasRef} aria-label="戦闘フィールド" />
+      <div className="combat-stage">
+        <canvas ref={canvasRef} aria-label="戦闘フィールド" />
+      </div>
       {renderError ? (
         <section className="render-error" role="alert">
           <strong>表示エラー</strong>
