@@ -57,6 +57,7 @@ import {
 } from '../game/progression/metaProgression';
 
 const UI_ASSET_STYLES = {
+  '--world-background-image': `url("${runtimeAssetUrl('assets/world/env_background_integrated_2x1_v002.webp')}")`,
   '--hud-ornament-image': `url("${runtimeAssetUrl('assets/ui/ui_hud_ornament_v001.png')}")`,
   '--control-frame-image': `url("${runtimeAssetUrl('assets/ui/ui_control_frame_v001.png')}")`,
   '--battle-clear-frame-image': `url("${runtimeAssetUrl('assets/ui/ui_battle_clear_frame_v001.png')}")`,

@@ -58,9 +58,8 @@ const PERFORMANCE_STRESS_ENEMY_PROJECTILES = 32;
 const PERFORMANCE_STRESS_EFFECTS = 48;
 const WORLD_ART = {
   background: runtimeAssetUrl(
-    'assets/world/env_background_sunny_highway_v001.webp',
+    'assets/world/env_background_integrated_2x1_v002.webp',
   ),
-  road: runtimeAssetUrl('assets/world/env_road_v001.webp'),
 } as const;
 const ENEMY_COLORS: Record<EnemyTypeId, string> = {
   basic: '#72d6a0',
@@ -385,58 +384,13 @@ export class GameRenderer {
         this.viewportHeight,
       );
     } else {
-      const sky = context.createLinearGradient(0, 0, 0, this.groundY);
+      const sky = context.createLinearGradient(0, 0, 0, this.viewportHeight);
       sky.addColorStop(0, '#77c8ef');
-      sky.addColorStop(1, '#e7f5d0');
+      sky.addColorStop(0.66, '#e7f5d0');
+      sky.addColorStop(0.67, '#a8c982');
+      sky.addColorStop(1, '#d8b684');
       context.fillStyle = sky;
-      context.fillRect(0, 0, this.viewportWidth, this.groundY);
-    }
-
-    const road = this.assets.get(WORLD_ART.road);
-    if (road) {
-      const roadHeight = Math.max(150, this.viewportHeight * 0.35);
-      this.drawImageCover(
-        road,
-        0,
-        this.groundY - roadHeight * 0.2,
-        this.viewportWidth,
-        roadHeight,
-      );
-    } else {
-      context.fillStyle = '#91b96e';
-      context.fillRect(
-        0,
-        this.groundY - 12,
-        this.viewportWidth,
-        this.viewportHeight - this.groundY + 12,
-      );
-      context.fillStyle = '#e4bd83';
-      context.fillRect(0, this.groundY - 4, this.viewportWidth, 62);
-    }
-
-    const zones: Array<[minimum: number, maximum: number, color: string]> = [
-      [0, 25, 'rgba(118, 151, 112, 0.16)'],
-      [25, 45, 'rgba(182, 157, 103, 0.15)'],
-      [45, 65, 'rgba(190, 126, 91, 0.15)'],
-      [65, 80, 'rgba(168, 101, 91, 0.14)'],
-    ];
-    for (const [minimum, maximum, color] of zones) {
-      const left = this.worldToScreen(minimum);
-      const right = this.worldToScreen(maximum);
-      const centerX = (left + right) / 2;
-      const radius = Math.max(36, (right - left) * 0.72);
-      context.save();
-      context.translate(centerX, this.groundY + 25);
-      context.scale(1, 0.34);
-      const wash = context.createRadialGradient(0, 0, 0, 0, 0, radius);
-      wash.addColorStop(0, color);
-      wash.addColorStop(0.68, color);
-      wash.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      context.fillStyle = wash;
-      context.beginPath();
-      context.arc(0, 0, radius, 0, Math.PI * 2);
-      context.fill();
-      context.restore();
+      context.fillRect(0, 0, this.viewportWidth, this.viewportHeight);
     }
   }
 

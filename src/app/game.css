@@ -20,20 +20,25 @@ button {
 }
 .game-shell {
   position: relative;
+  isolation: isolate;
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  background: linear-gradient(
-    to bottom,
-    #b9edfa 0%,
-    #d9f5f5 67.5%,
-    #b8ad91 67.5%,
-    #d5c6a6 100%
-  );
+  background: #9bcbd1;
   user-select: none;
+}
+.game-shell::before {
+  position: absolute;
+  z-index: 0;
+  inset: -24px;
+  background: var(--world-background-image) center/cover no-repeat;
+  content: '';
+  filter: blur(18px) brightness(0.72) saturate(0.82);
+  transform: scale(1.04);
 }
 .combat-stage {
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 50%;
   width: min(100vw, 200dvh);
