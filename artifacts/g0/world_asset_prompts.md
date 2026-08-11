@@ -117,3 +117,27 @@ Style/medium: polished 2D raster game background; clean cel shading; subtle cons
 Composition/framing: exact 2:1 landscape, 2048 x 1024 target, fixed side-view gameplay camera, no perspective change, no crop, no letterboxing. Keep important environment content inside the canvas.
 Constraints: Preserve Image 1's world identity and layout. No Japanese architecture, pagodas, shrines, torii, castles, villages, fantasy city, new biome, giant trees, waterfalls, characters, monsters, caravan, HUD, text, letters, numbers, logo, watermark, military grime, grimdark, realistic rust, high-frequency texture, hard black outlines, excessive bloom, or washed-out pastel haze.
 ```
+
+## Integrated 2:1 Background v005
+
+Generated with the built-in image generation tool on 2026-08-11. Image 1 was
+the V004 edit target. Only its lower foreground composition was changed.
+
+```text
+Use case: precise-object-edit
+Asset type: production 2:1 side-view game environment background for Kaboom Caravan
+Input images: Image 1 is the exact edit target. Preserve its established Kaboom Caravan world, architecture, skyline, camera, colors, lighting, clouds, distant ruins, elevated highways, and Kawaii cel-shaded rendering. This is a lower-foreground composition correction only, not a new environment.
+Primary request: Redesign only the lower foreground so gameplay characters and touch controls do not visually pile up on dense background decoration. Keep the road as a coherent part of the same sunny reclaimed highway, but turn the bottom area into a calm visual safe zone.
+Change only the lower approximately 35 percent:
+- Keep the vegetation transition and a restrained line of small coral, cream, and warm-yellow flowers near the far edge of the road, around 67 to 70 percent of image height.
+- From approximately 70 percent to the bottom edge, render a broad warm-beige road surface with larger rounded concrete slabs, fewer seams, sparse soft cracks, and only occasional tiny mint grass between slabs.
+- Remove the continuous dense foreground grass-and-flower border from the bottom edge completely.
+- Remove rocks, tall leaves, flower clusters, dark outlines, and high-frequency detail from the bottom approximately 18 percent.
+- Keep the intended entity contact line around 82 percent of image height quiet and unobstructed.
+- Keep the lower-left and lower-right corners especially calm because translucent movement and weapon controls are overlaid there.
+Visual hierarchy: distant Kawaii ruins establish the world; caravan, monsters, projectiles, and VFX will be the gameplay focus; the road and UI-safe corners must remain subordinate. Kawaii comes from rounded road-slab shapes, warm cream materials, soft cel shading, and restrained mint/coral accents, not from adding more decorative objects.
+Style/medium: preserve Image 1's polished Japanese-game 2D raster style, clean cel shading, rounded chunky shape language, bright hopeful palette, and moderate soft outlines.
+Composition/framing: preserve exact 2:1 canvas, fixed side-view camera, horizon, perspective, and all content above 65 percent. Full bleed with no letterboxing.
+Hard invariants: do not alter the sky, cloud placement, ruin silhouettes, elevated highway layout, distant vegetation, time of day, palette family, or architectural identity. Do not add or remove buildings.
+Constraints: no characters, vehicles, monsters, weapons, projectiles, VFX, UI, markers, flags, text, letters, numbers, logo, watermark, Japanese architecture, fantasy city, new biome, photorealism, grimdark, realistic rust, bottom flower border, dense foreground foliage, tiny repeated paving texture, or decorative clutter in the lower corners.
+```
