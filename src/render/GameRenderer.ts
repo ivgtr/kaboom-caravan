@@ -83,7 +83,8 @@ interface VisualEffect {
     | 'death'
     | 'boss-death'
     | 'bomber-burst'
-    | 'parry';
+    | 'parry-ready'
+    | 'parry-success';
   worldPosition: number;
   ageSeconds: number;
   durationSeconds: number;
@@ -1013,6 +1014,8 @@ export class GameRenderer {
     for (const event of state.events) {
       if (event.type === 'weapon-fired') {
         this.playerMotion.releaseAgeSeconds = 0;
+      } else if (event.type === 'skill-activated') {
+        this.playerMotion.releaseAgeSeconds = 0;
       } else if (event.type === 'projectile-hit') {
         const target = this.enemyMotions.get(event.targetId);
         if (target) {
@@ -1026,6 +1029,8 @@ export class GameRenderer {
           )?.position;
         }
       } else if (event.type === 'attack-parried') {
+        this.playerMotion.releaseAgeSeconds = 0;
+        this.startCameraShake(event.counterDamage * 0.45, state.tick);
         const source = this.enemyMotions.get(event.sourceId);
         if (source) {
           source.hitAgeSeconds = 0;
@@ -1205,12 +1210,19 @@ export class GameRenderer {
             vfxFamily: event.visualId === 'spore' ? 'energy' : 'explosive',
             enemyVisualId: event.visualId,
           });
-        } else if (event.type === 'attack-parried') {
+        } else if (event.type === 'skill-activated') {
           this.emitEffect({
-            kind: 'parry',
+            kind: 'parry-ready',
             worldPosition: state.player.position,
             ageSeconds: 0,
             durationSeconds: 0.42,
+          });
+        } else if (event.type === 'attack-parried') {
+          this.emitEffect({
+            kind: 'parry-success',
+            worldPosition: state.player.position,
+            ageSeconds: 0,
+            durationSeconds: this.reducedMotion ? 0.3 : 0.58,
           });
         } else if (event.type === 'overheated') {
           this.emitEffect({
@@ -1235,11 +1247,19 @@ export class GameRenderer {
 
   private drawEffects(): void {
     const context = this.context;
+    const parrySuccess = this.effects.find(
+      ({ kind }) => kind === 'parry-success',
+    );
+    if (parrySuccess) {
+      this.drawParryBackdrop(
+        parrySuccess.ageSeconds / parrySuccess.durationSeconds,
+      );
+    }
     for (const effect of this.effects) {
       const progress = effect.ageSeconds / effect.durationSeconds;
       const x = this.worldToScreen(effect.worldPosition);
       const y =
-        effect.kind === 'parry'
+        effect.kind === 'parry-ready' || effect.kind === 'parry-success'
           ? this.groundY -
             Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.46
           : effect.kind === 'muzzle'
@@ -1269,8 +1289,8 @@ export class GameRenderer {
         continue;
       }
 
-      if (effect.kind === 'parry') {
-        this.drawParryVfx(x, y, progress);
+      if (effect.kind === 'parry-ready' || effect.kind === 'parry-success') {
+        this.drawParryVfx(x, y, progress, effect.kind === 'parry-success');
         continue;
       }
 
@@ -1377,15 +1397,52 @@ export class GameRenderer {
     context.restore();
   }
 
-  private drawParryVfx(x: number, y: number, progress: number): void {
+  private drawParryBackdrop(progress: number): void {
     const context = this.context;
     const fade = Math.max(0, 1 - progress);
-    const radius = 30 + Math.sin(progress * Math.PI) * 28;
+    context.save();
+    context.fillStyle = `rgb(11 18 38 / ${Math.min(0.68, fade * 0.86)})`;
+    context.fillRect(
+      -64,
+      -64,
+      this.viewportWidth + 128,
+      this.viewportHeight + 128,
+    );
+    if (progress < 0.12) {
+      context.fillStyle = `rgb(225 255 252 / ${(1 - progress / 0.12) * 0.42})`;
+      context.fillRect(
+        -64,
+        -64,
+        this.viewportWidth + 128,
+        this.viewportHeight + 128,
+      );
+    }
+    context.restore();
+  }
+
+  private drawParryVfx(
+    x: number,
+    y: number,
+    progress: number,
+    successful: boolean,
+  ): void {
+    const context = this.context;
+    const fade = Math.max(0, 1 - progress);
+    const radius = successful
+      ? 42 + Math.sin(progress * Math.PI) * 54 + progress * 38
+      : 36 + Math.sin(progress * Math.PI) * 18;
     context.save();
     context.globalAlpha = fade;
-    context.strokeStyle = progress < 0.35 ? '#eaffff' : '#69ddca';
-    context.fillStyle = 'rgb(105 221 202 / 16%)';
-    context.lineWidth = Math.max(2, 6 - progress * 3);
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = successful ? '#f5ffff' : '#69f4ee';
+    context.fillStyle = successful
+      ? 'rgb(105 244 238 / 28%)'
+      : 'rgb(105 221 202 / 16%)';
+    context.lineWidth = Math.max(
+      2,
+      successful ? 9 - progress * 5 : 6 - progress * 3,
+    );
     context.beginPath();
     context.arc(x, y, radius, -Math.PI * 0.72, Math.PI * 0.72);
     context.stroke();
@@ -1397,6 +1454,34 @@ export class GameRenderer {
       context.moveTo(x + direction * radius * 0.58, y - radius * 0.52);
       context.lineTo(x + direction * radius * 0.92, y);
       context.lineTo(x + direction * radius * 0.58, y + radius * 0.52);
+      context.stroke();
+    }
+    const rayCount = this.reducedMotion ? 6 : 12;
+    context.strokeStyle = successful ? '#ffd76a' : '#b9fff8';
+    context.lineWidth = successful ? 5 : 3;
+    for (let index = 0; index < rayCount; index += 1) {
+      const angle =
+        (index / rayCount) * Math.PI * 2 + progress * (successful ? 0.35 : 1.5);
+      const inner = radius * (successful ? 0.92 : 1.05);
+      const outer = radius * (successful ? 1.42 : 1.22);
+      context.beginPath();
+      context.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
+      context.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
+      context.stroke();
+    }
+    if (successful) {
+      context.globalAlpha = Math.min(1, fade * 1.8);
+      context.strokeStyle = '#ffffff';
+      context.lineWidth = 8;
+      context.beginPath();
+      context.moveTo(x - radius * 0.62, y + radius * 0.42);
+      context.lineTo(x + radius * 0.68, y - radius * 0.48);
+      context.stroke();
+      context.strokeStyle = '#69f4ee';
+      context.lineWidth = 3;
+      context.beginPath();
+      context.moveTo(x - radius * 0.72, y + radius * 0.56);
+      context.lineTo(x + radius * 0.78, y - radius * 0.58);
       context.stroke();
     }
     context.restore();

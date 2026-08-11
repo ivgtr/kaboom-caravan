@@ -579,6 +579,8 @@ export function stepSimulation(
       event.type === 'attack-parried',
   );
   if (successfulParries.length > 0) {
+    skillCooldown = 0;
+    parryWindowSeconds = 0;
     energy = Math.min(
       playerStats.maximumEnergy,
       energy + PARRY_ENERGY_RESTORE * successfulParries.length,

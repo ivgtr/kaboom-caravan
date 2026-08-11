@@ -72,16 +72,16 @@ interface ExpectedRunBaseline {
 
 const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
   1: {
-    elapsedTicks: 6373,
-    encounterTicks: [572, 455, 494, 896, 579, 561, 471, 687, 716, 942],
-    endingHitPoints: [100, 100, 100, 100, 95, 100, 100, 100, 100, 65],
+    elapsedTicks: 6232,
+    encounterTicks: [572, 455, 494, 896, 579, 561, 471, 687, 716, 801],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
       70, 67.645, 68.408, 63.48, 70, 66.54, 60.42, 68.263, 62.08, 62.6,
     ],
     primaryShots: 155,
     secondaryShots: 32,
-    enemyProjectiles: [12, 3, 9],
-    attacksParried: 9,
+    enemyProjectiles: [11, 0, 11],
+    attacksParried: 11,
     rewardIds: [
       'weapon:railgun',
       'module:radar',
@@ -105,16 +105,16 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     },
   },
   42: {
-    elapsedTicks: 6950,
-    encounterTicks: [572, 455, 486, 896, 579, 589, 479, 748, 1204, 942],
-    endingHitPoints: [100, 100, 100, 100, 92, 100, 100, 100, 100, 73],
+    elapsedTicks: 6809,
+    encounterTicks: [572, 455, 486, 896, 579, 589, 479, 748, 1204, 801],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
       70, 67.645, 68.408, 63.48, 70, 66.54, 61.2, 68.263, 64.338, 62.6,
     ],
     primaryShots: 168,
     secondaryShots: 30,
-    enemyProjectiles: [12, 3, 9],
-    attacksParried: 9,
+    enemyProjectiles: [11, 0, 11],
+    attacksParried: 11,
     rewardIds: [
       'weapon:railgun',
       'module:capacitor',
@@ -133,16 +133,16 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     },
   },
   2026: {
-    elapsedTicks: 7459,
-    encounterTicks: [572, 622, 723, 988, 582, 600, 471, 748, 1204, 949],
-    endingHitPoints: [100, 100, 100, 115, 109, 124, 125, 125, 100, 73],
+    elapsedTicks: 7315,
+    encounterTicks: [572, 622, 723, 988, 582, 600, 471, 748, 1204, 805],
+    endingHitPoints: [100, 100, 100, 115, 125, 125, 125, 125, 100, 95],
     forwardDistances: [
       70, 70, 61.278, 64.077, 70, 66.135, 60.42, 68.263, 64.338, 62.6,
     ],
-    primaryShots: 197,
+    primaryShots: 193,
     secondaryShots: 34,
-    enemyProjectiles: [13, 4, 9],
-    attacksParried: 9,
+    enemyProjectiles: [12, 1, 11],
+    attacksParried: 11,
     rewardIds: [
       'module:generator',
       'weapon:rocket-launcher',

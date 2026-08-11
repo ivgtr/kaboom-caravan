@@ -130,6 +130,8 @@ describe('weapon resources', () => {
     expect(result.player.hitPoints).toBe(100);
     expect(result.player.energy).toBe(81);
     expect(result.player.heat).toBeCloseTo(48.8);
+    expect(result.player.skillCooldown).toBe(0);
+    expect(result.player.parryWindowSeconds).toBe(0);
     expect(result.enemyProjectiles).toHaveLength(0);
     expect(result.enemies.find(({ id }) => id === 'enemy-1')?.hitPoints).toBe(
       12,
@@ -159,6 +161,8 @@ describe('weapon resources', () => {
 
     expect(result.player.hitPoints).toBe(100);
     expect(result.player.position).toBe(10);
+    expect(result.player.skillCooldown).toBe(0);
+    expect(result.player.parryWindowSeconds).toBe(0);
     expect(result.enemies[0]?.hitPoints).toBe(12);
     expect(result.events.some(({ type }) => type === 'vehicle-hit')).toBe(
       false,
