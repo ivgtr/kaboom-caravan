@@ -999,13 +999,17 @@ function RewardPanel({
             className={`reward-card reward-${choice.type} rarity-${choice.rarity}${choice.type === 'weapon' && choice.isUpgrade ? ' reward-upgrade' : ''}${selectedIndex === index ? ' selected' : ''}`}
             key={choice.id}
           >
-            <span className="reward-type">
-              <GameIcon name={choice.type === 'weapon' ? 'weapon' : 'module'} />
-              {REWARD_TYPE_LABELS[choice.type]}
-            </span>
-            <span className="reward-rarity">
-              {REWARD_RARITY_LABELS[choice.rarity]}
-            </span>
+            <div className="reward-meta">
+              <span className="reward-type">
+                <GameIcon
+                  name={choice.type === 'weapon' ? 'weapon' : 'module'}
+                />
+                {REWARD_TYPE_LABELS[choice.type]}
+              </span>
+              <span className="reward-rarity">
+                {REWARD_RARITY_LABELS[choice.rarity]}
+              </span>
+            </div>
             <kbd className="reward-shortcut">{index + 1}</kbd>
             <div className="equipment-visual">
               <EquipmentGlyph
@@ -1036,6 +1040,7 @@ function RewardPanel({
                 beginEquip(choice);
               }}
               onFocus={() => setSelectedIndex(index)}
+              onPointerEnter={() => setSelectedIndex(index)}
             >
               <span
                 className={`reward-card-action${choice.type === 'module' && replacedModuleName ? ' has-swap' : ''}`}
@@ -1065,38 +1070,40 @@ function RewardPanel({
           <div className="slot-picker-copy">
             <span>装着先を選択</span>
             <strong>{pendingWeapon.displayName}</strong>
-            <p>どちらの操作ボタンへ装着しますか？</p>
-            <small>
-              現在：主 {WEAPON_DEFINITIONS[primaryWeaponId].displayName} / 副{' '}
-              {WEAPON_DEFINITIONS[secondaryWeaponId].displayName}
-            </small>
+            <p>置き換える武器スロットを選ぼう</p>
           </div>
           <div className="slot-picker-actions">
             <button
               className={selectedSlot === 'primary' ? 'selected' : undefined}
               type="button"
+              aria-label={`主武器 主 1、現在${WEAPON_DEFINITIONS[primaryWeaponId].displayName}`}
               ref={(element) => {
                 slotButtonRefs.current.primary = element;
               }}
               onFocus={() => setSelectedSlot('primary')}
               onClick={() => onChoose(pendingWeapon.id, 'primary')}
             >
-              <small>主武器</small>
-              <span>主</span>
+              <span className="slot-role">主武器</span>
               <kbd>1</kbd>
+              <strong>{WEAPON_DEFINITIONS[primaryWeaponId].displayName}</strong>
+              <small>この枠へ装着</small>
             </button>
             <button
               className={selectedSlot === 'secondary' ? 'selected' : undefined}
               type="button"
+              aria-label={`副武器 副 2、現在${WEAPON_DEFINITIONS[secondaryWeaponId].displayName}`}
               ref={(element) => {
                 slotButtonRefs.current.secondary = element;
               }}
               onFocus={() => setSelectedSlot('secondary')}
               onClick={() => onChoose(pendingWeapon.id, 'secondary')}
             >
-              <small>副武器</small>
-              <span>副</span>
+              <span className="slot-role">副武器</span>
               <kbd>2</kbd>
+              <strong>
+                {WEAPON_DEFINITIONS[secondaryWeaponId].displayName}
+              </strong>
+              <small>この枠へ装着</small>
             </button>
           </div>
           <button

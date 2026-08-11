@@ -480,9 +480,10 @@ for (const viewport of [
         regionIndex < regions.length - 1;
         regionIndex += 1
       ) {
-        expect(overlap(regions[regionIndex]!, regions[regionIndex + 1]!)).toBe(
-          false,
-        );
+        expect(
+          overlap(regions[regionIndex]!, regions[regionIndex + 1]!),
+          `card ${index + 1} regions ${regionIndex + 1} and ${regionIndex + 2} overlap`,
+        ).toBe(false);
       }
     }
     const weaponCard = cards
@@ -574,8 +575,37 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
   await expect(cache.locator('.reward-card.reward-weapon')).toHaveCount(3);
   await expect(cache.locator('.reward-module')).toHaveCount(0);
   await expect(cache).toContainText('武器 3択');
-  const cardBoxes = await cache.locator('.reward-card').evaluateAll((cards) =>
-    cards.map((card) => {
+  const cards = cache.locator('.reward-card');
+  await waitForAnimations(cards.last());
+  await cache.locator('.reward-grid').evaluate((grid) => {
+    grid.dataset.animationStarts = '0';
+    for (const card of grid.querySelectorAll('.reward-card')) {
+      card.addEventListener('animationstart', () => {
+        grid.dataset.animationStarts = String(
+          Number(grid.dataset.animationStarts ?? 0) + 1,
+        );
+      });
+    }
+  });
+
+  await cards.nth(1).hover();
+  await expect(cards.nth(1)).toHaveClass(/selected/);
+  await expect(cache.locator('.reward-card.selected')).toHaveCount(1);
+  expect(
+    await cards
+      .nth(0)
+      .evaluate((card) => new DOMMatrix(getComputedStyle(card).transform).m42),
+  ).toBe(0);
+  await page.keyboard.press('d');
+  await expect(cards.nth(2)).toHaveClass(/selected/);
+  await expect(cache.locator('.reward-card.selected')).toHaveCount(1);
+  await expect(cache.locator('.reward-grid')).toHaveAttribute(
+    'data-animation-starts',
+    '0',
+  );
+
+  const cardBoxes = await cards.evaluateAll((cardElements) =>
+    cardElements.map((card) => {
       const { left, right, top, bottom, width, height } =
         card.getBoundingClientRect();
       return { left, right, top, bottom, width, height };
@@ -590,15 +620,29 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
     expect(box.width / box.height).toBeCloseTo(2 / 3, 2);
     if (index > 0)
       expect(box.left).toBeGreaterThan(cardBoxes[index - 1]!.right);
+    const shortcutBox = await cards.nth(index).locator('kbd').boundingBox();
+    expect(shortcutBox).not.toBeNull();
+    expect(shortcutBox!.y + shortcutBox!.height / 2).toBeGreaterThanOrEqual(
+      box.bottom,
+    );
   }
   if (process.env.CAPTURE_UI_REVIEW) {
     await page.screenshot({
       path: 'artifacts/ui/review/weapon_cache_844x390.png',
     });
   }
-  await cache.locator('.reward-card.reward-weapon').first().click();
+  await cards.first().click();
   const slotPicker = cache.getByLabel('武器の装着先を選択');
   await expect(slotPicker).toBeVisible();
+  await expect(slotPicker.locator('.slot-picker-actions strong')).toHaveCount(
+    2,
+  );
+  if (process.env.CAPTURE_UI_REVIEW) {
+    await waitForAnimations(slotPicker);
+    await page.screenshot({
+      path: 'artifacts/ui/review/weapon_slot_844x390.png',
+    });
+  }
   await slotPicker.getByRole('button', { name: /副武器 副/ }).click();
   await expect(cache).toHaveCount(0);
   await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
