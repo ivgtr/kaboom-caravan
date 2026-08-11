@@ -58,7 +58,7 @@ const PERFORMANCE_STRESS_ENEMY_PROJECTILES = 32;
 const PERFORMANCE_STRESS_EFFECTS = 48;
 const WORLD_ART = {
   background: runtimeAssetUrl(
-    'assets/world/env_background_integrated_2x1_v002.webp',
+    'assets/world/env_background_integrated_2x1_v003.webp',
   ),
 } as const;
 const ENEMY_COLORS: Record<EnemyTypeId, string> = {
@@ -2693,7 +2693,7 @@ export class GameRenderer {
   }
 
   private get groundY(): number {
-    return this.viewportHeight * 0.68;
+    return this.viewportHeight * 0.73;
   }
 
   private readonly resize = (): void => {
