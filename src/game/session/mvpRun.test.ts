@@ -74,26 +74,26 @@ interface ExpectedRunBaseline {
 
 const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
   1: {
-    elapsedTicks: 8797,
-    encounterTicks: [572, 622, 765, 2335, 610, 588, 471, 797, 1252, 785],
-    endingHitPoints: [100, 100, 100, 100, 100, 100, 115, 125, 125, 125],
+    elapsedTicks: 10139,
+    encounterTicks: [509, 519, 536, 558, 656, 537, 1287, 2217, 2470, 850],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
-      70, 70, 61.278, 70.088, 70, 68.378, 60.42, 68.263, 64.338, 62.6,
+      70, 70, 62.323, 65.08, 70, 68.942, 70, 76.4, 70.012, 62.6,
     ],
-    primaryShots: 217,
-    secondaryShots: 33,
-    enemyProjectiles: [12, 0, 12],
-    attacksParried: 17,
+    primaryShots: 255,
+    secondaryShots: 119,
+    enemyProjectiles: [20, 0, 20],
+    attacksParried: 30,
     rewardIds: [
       'module:magnetic-armor',
       'weapon:rocket-launcher',
-      'weapon:scatter-cannon',
-      'module:armor',
-      'module:heat-recycler',
-      'module:shield-generator',
       'module:capacitor',
+      'module:armor',
+      'module:radar',
+      'module:ammo-box',
+      'module:heat-recycler',
       'module:generator',
-      'module:magnetic-armor',
+      'weapon:rocket-launcher',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
@@ -101,28 +101,23 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
       weaponLevels: {
         'machine-cannon': 1,
         'scatter-cannon': 1,
-        'rocket-launcher': 2,
+        'rocket-launcher': 1,
         flamethrower: 1,
-        railgun: 1,
+        railgun: 3,
       },
-      moduleIds: [
-        'shield-generator',
-        'capacitor',
-        'generator',
-        'magnetic-armor',
-      ],
+      moduleIds: ['radar', 'ammo-box', 'heat-recycler', 'generator'],
     },
   },
   42: {
-    elapsedTicks: 6584,
-    encounterTicks: [572, 631, 1490, 526, 618, 521, 458, 540, 569, 659],
-    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+    elapsedTicks: 5858,
+    encounterTicks: [509, 519, 663, 506, 491, 553, 490, 559, 625, 943],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 125, 125, 125],
     forwardDistances: [
-      70, 70, 78.408, 66.2, 69.153, 68.08, 64.343, 69.8, 64.498, 62.6,
+      70, 70, 70, 66.2, 69.193, 66.54, 61.75, 69.6, 62.812, 62.6,
     ],
-    primaryShots: 164,
-    secondaryShots: 35,
-    enemyProjectiles: [10, 0, 10],
+    primaryShots: 163,
+    secondaryShots: 41,
+    enemyProjectiles: [11, 1, 10],
     attacksParried: 10,
     rewardIds: [
       'module:explosive-magazine',
@@ -131,44 +126,9 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
       'module:generator',
       'module:heat-recycler',
       'module:cooling-fan',
-      'weapon:rocket-launcher',
-      'module:radar',
-      'module:armor',
-    ],
-    finalBuild: {
-      primaryWeaponId: 'machine-cannon',
-      secondaryWeaponId: 'rocket-launcher',
-      weaponLevels: {
-        'machine-cannon': 1,
-        'scatter-cannon': 1,
-        'rocket-launcher': 3,
-        railgun: 2,
-        flamethrower: 1,
-      },
-      moduleIds: ['heat-recycler', 'cooling-fan', 'radar', 'armor'],
-    },
-  },
-  2026: {
-    elapsedTicks: 6578,
-    encounterTicks: [572, 639, 495, 495, 491, 581, 471, 748, 1277, 809],
-    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
-    forwardDistances: [
-      70, 70, 70, 66.2, 69.193, 66.54, 60.42, 68.263, 64.338, 62.6,
-    ],
-    primaryShots: 160,
-    secondaryShots: 32,
-    enemyProjectiles: [9, 0, 9],
-    attacksParried: 9,
-    rewardIds: [
-      'module:ammo-box',
-      'weapon:rocket-launcher',
-      'module:explosive-magazine',
-      'weapon:railgun',
+      'module:shield-generator',
       'module:capacitor',
-      'module:heat-recycler',
-      'module:radar',
-      'module:magnetic-armor',
-      'weapon:railgun',
+      'module:ammo-box',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
@@ -176,11 +136,50 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
       weaponLevels: {
         'machine-cannon': 1,
         'scatter-cannon': 1,
-        'rocket-launcher': 3,
+        'rocket-launcher': 2,
         railgun: 2,
-        flamethrower: 2,
       },
-      moduleIds: ['capacitor', 'heat-recycler', 'radar', 'magnetic-armor'],
+      moduleIds: ['cooling-fan', 'shield-generator', 'capacitor', 'ammo-box'],
+    },
+  },
+  2026: {
+    elapsedTicks: 5445,
+    encounterTicks: [509, 519, 495, 506, 491, 553, 671, 541, 576, 584],
+    endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+    forwardDistances: [
+      70, 70, 70, 66.2, 69.193, 66.54, 70.375, 69.825, 69.655, 62.6,
+    ],
+    primaryShots: 137,
+    secondaryShots: 44,
+    enemyProjectiles: [10, 0, 10],
+    attacksParried: 10,
+    rewardIds: [
+      'module:ammo-box',
+      'weapon:rocket-launcher',
+      'module:explosive-magazine',
+      'weapon:railgun',
+      'module:capacitor',
+      'module:heat-recycler',
+      'weapon:rocket-launcher',
+      'module:magnetic-armor',
+      'weapon:rocket-launcher',
+    ],
+    finalBuild: {
+      primaryWeaponId: 'machine-cannon',
+      secondaryWeaponId: 'rocket-launcher',
+      weaponLevels: {
+        'machine-cannon': 1,
+        'scatter-cannon': 2,
+        'rocket-launcher': 3,
+        railgun: 1,
+        flamethrower: 1,
+      },
+      moduleIds: [
+        'explosive-magazine',
+        'capacitor',
+        'heat-recycler',
+        'magnetic-armor',
+      ],
     },
   },
 };
@@ -232,12 +231,13 @@ function combatCommand(session: GameSessionState): PlayerCommand {
     10,
     Math.min(primary.optimalRangeMaximum, secondary.optimalRangeMaximum) - 2,
   );
-  const canFire = (weapon: typeof primary) =>
+  const canFire = (weapon: typeof primary, slot: 'primary' | 'secondary') =>
     hasTarget &&
     distance <= weapon.maximumRange &&
     session.combat.player.ammo >= weapon.ammoCost &&
     session.combat.player.energy >= weapon.energyCost &&
-    session.combat.player.heat + weapon.heatGenerated < 100;
+    !session.combat.player.weaponHeat[slot].overheated &&
+    session.combat.player.weaponHeat[slot].heat + weapon.heatGenerated < 100;
   return {
     move:
       parryThreat || contactThreat
@@ -249,8 +249,8 @@ function combatCommand(session: GameSessionState): PlayerCommand {
             : distance < targetDistance - 5
               ? -1
               : 0,
-    firePrimary: canFire(primary),
-    fireSecondary: canFire(secondary),
+    firePrimary: canFire(primary, 'primary'),
+    fireSecondary: canFire(secondary, 'secondary'),
     activateSkill:
       (parryThreat || contactThreat) && session.combat.player.energy >= 20,
   };

@@ -76,8 +76,8 @@ describe('trigger queue', () => {
           effects: [{ type: 'addResource', resource: 'energy', amount: 25 }],
         },
       ],
-      { ammo: 0, energy: 90, heat: 100, hitPoints: 100 },
-      { ammo: 30, energy: 100, heat: 100, hitPoints: 100 },
+      { ammo: 0, energy: 90, hitPoints: 100 },
+      { ammo: 30, energy: 100, hitPoints: 100 },
     );
 
     expect(result.resources.energy).toBe(100);
@@ -94,8 +94,8 @@ describe('trigger queue', () => {
           effects: [{ type: 'emitTrigger', trigger: 'onFire' }],
         },
       ],
-      { ammo: 0, energy: 0, heat: 0, hitPoints: 1 },
-      { ammo: 1, energy: 1, heat: 100, hitPoints: 1 },
+      { ammo: 0, energy: 0, hitPoints: 1 },
+      { ammo: 1, energy: 1, hitPoints: 1 },
       3,
     );
 
@@ -106,7 +106,7 @@ describe('trigger queue', () => {
   it('integrates overheat and damage triggers into combat', () => {
     const overheatState = createSimulation();
     overheatState.build.moduleIds = ['heat-recycler'];
-    overheatState.player.heat = 99;
+    overheatState.player.weaponHeat.primary.heat = 99;
     overheatState.player.energy = 50;
     const overheated = stepSimulation(
       overheatState,
@@ -135,8 +135,30 @@ describe('trigger queue', () => {
       if (damaged.events.some(({ type }) => type === 'vehicle-hit')) break;
     }
 
-    expect(overheated.player.overheated).toBe(true);
+    expect(overheated.player.weaponHeat.primary.overheated).toBe(true);
+    expect(overheated.player.weaponHeat.secondary.overheated).toBe(false);
     expect(overheated.player.energy).toBeCloseTo(73.17, 1);
     expect(damaged.player.ammo).toBe(11);
+  });
+
+  it('recycles energy once when both weapons enter overheat together', () => {
+    const state = createSimulation();
+    state.build.moduleIds = ['heat-recycler'];
+    state.player.energy = 50;
+    state.player.weaponHeat.primary.heat = 99;
+    state.player.weaponHeat.secondary.heat = 99;
+
+    const result = stepSimulation(
+      state,
+      { ...IDLE_COMMAND, firePrimary: true, fireSecondary: true },
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(result.player.weaponHeat.primary.overheated).toBe(true);
+    expect(result.player.weaponHeat.secondary.overheated).toBe(true);
+    expect(
+      result.events.filter(({ type }) => type === 'overheated'),
+    ).toHaveLength(2);
+    expect(result.player.energy).toBeCloseTo(69.17, 1);
   });
 });

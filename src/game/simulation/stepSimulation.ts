@@ -26,6 +26,9 @@ import type {
   PlayerCommand,
   ProjectileState,
   SimulationState,
+  WeaponHeatState,
+  WeaponHeatStates,
+  WeaponSlot,
 } from './types';
 import { advanceWave, completeWaveIfCleared } from '../wave/waveSystem';
 import { getWeaponLevel } from '../build/weaponUpgrade';
@@ -375,11 +378,12 @@ function tryFireWeapon(
   ammo: number,
   energy: number,
   heat: number,
+  overheated: boolean,
   sequence: number,
 ): FireResult {
   const canFire =
     cooldown === 0 &&
-    !state.player.overheated &&
+    !overheated &&
     ammo >= definition.ammoCost &&
     energy >= definition.energyCost;
 
@@ -397,6 +401,56 @@ function tryFireWeapon(
     heat: Math.min(OVERHEAT_THRESHOLD, heat + definition.heatGenerated),
     cooldown: definition.cooldownSeconds,
   };
+}
+
+function coolWeaponHeat(
+  weaponHeat: WeaponHeatStates,
+  coolingPerSecond: number,
+  deltaSeconds: number,
+): WeaponHeatStates {
+  const hotSlots = (['primary', 'secondary'] as const).filter(
+    (slot) => weaponHeat[slot].heat > 0,
+  );
+  if (hotSlots.length === 0) return weaponHeat;
+
+  const coolingPerSlot = (coolingPerSecond * deltaSeconds) / hotSlots.length;
+  return {
+    primary: {
+      ...weaponHeat.primary,
+      heat: Math.max(0, weaponHeat.primary.heat - coolingPerSlot),
+    },
+    secondary: {
+      ...weaponHeat.secondary,
+      heat: Math.max(0, weaponHeat.secondary.heat - coolingPerSlot),
+    },
+  };
+}
+
+function recoverWeapon(
+  slot: WeaponSlot,
+  heatState: WeaponHeatState,
+  weaponId: WeaponDefinition['id'],
+  events: CombatEvent[],
+): WeaponHeatState {
+  if (!heatState.overheated || heatState.heat > OVERHEAT_RECOVERY_THRESHOLD) {
+    return heatState;
+  }
+  events.push({ type: 'cooled', slot, weaponId });
+  return { ...heatState, overheated: false };
+}
+
+function applyShotHeat(
+  slot: WeaponSlot,
+  heatState: WeaponHeatState,
+  heat: number,
+  weaponId: WeaponDefinition['id'],
+  events: CombatEvent[],
+): WeaponHeatState {
+  if (heatState.overheated || heat < OVERHEAT_THRESHOLD) {
+    return { ...heatState, heat };
+  }
+  events.push({ type: 'overheated', slot, weaponId });
+  return { heat, overheated: true };
 }
 
 export function stepSimulation(
@@ -467,11 +521,14 @@ export function stepSimulation(
     playerStats.maximumEnergy,
     state.player.energy + playerStats.energyPerSecond * deltaSeconds,
   );
-  let heat = Math.max(
-    0,
-    state.player.heat - playerStats.coolingPerSecond * deltaSeconds,
+  const wasAnyWeaponOverheated =
+    state.player.weaponHeat.primary.overheated ||
+    state.player.weaponHeat.secondary.overheated;
+  let weaponHeat = coolWeaponHeat(
+    state.player.weaponHeat,
+    playerStats.coolingPerSecond,
+    deltaSeconds,
   );
-  let overheated = state.player.overheated;
   let enemies = state.enemies;
   let projectiles = state.projectiles;
   let enemyProjectiles = state.enemyProjectiles;
@@ -608,30 +665,54 @@ export function stepSimulation(
     });
   }
 
-  if (overheated && heat <= OVERHEAT_RECOVERY_THRESHOLD) {
-    overheated = false;
-    events.push({ type: 'cooled' });
-  }
+  weaponHeat = {
+    primary: recoverWeapon(
+      'primary',
+      weaponHeat.primary,
+      primaryDefinition.id,
+      events,
+    ),
+    secondary: recoverWeapon(
+      'secondary',
+      weaponHeat.secondary,
+      secondaryDefinition.id,
+      events,
+    ),
+  };
 
-  const fire = (definition: WeaponDefinition, cooldown: number): FireResult =>
+  const fire = (
+    definition: WeaponDefinition,
+    cooldown: number,
+    heatState: WeaponHeatState,
+  ): FireResult =>
     tryFireWeapon(
       {
         ...state,
-        player: { ...state.player, position: playerPosition, overheated },
+        player: { ...state.player, position: playerPosition },
       },
       definition,
       cooldown,
       ammo,
       energy,
-      heat,
+      heatState.heat,
+      heatState.overheated,
       nextEntitySequence,
     );
 
   if (command.firePrimary) {
-    const result = fire(primaryDefinition, primaryCooldown);
+    const result = fire(primaryDefinition, primaryCooldown, weaponHeat.primary);
     ammo = result.ammo;
     energy = result.energy;
-    heat = result.heat;
+    weaponHeat = {
+      ...weaponHeat,
+      primary: applyShotHeat(
+        'primary',
+        weaponHeat.primary,
+        result.heat,
+        primaryDefinition.id,
+        events,
+      ),
+    };
     primaryCooldown = result.cooldown;
     if (result.projectiles.length > 0) {
       const firedProjectile = result.projectiles[0]!;
@@ -646,10 +727,23 @@ export function stepSimulation(
   }
 
   if (command.fireSecondary) {
-    const result = fire(secondaryDefinition, secondaryCooldown);
+    const result = fire(
+      secondaryDefinition,
+      secondaryCooldown,
+      weaponHeat.secondary,
+    );
     ammo = result.ammo;
     energy = result.energy;
-    heat = result.heat;
+    weaponHeat = {
+      ...weaponHeat,
+      secondary: applyShotHeat(
+        'secondary',
+        weaponHeat.secondary,
+        result.heat,
+        secondaryDefinition.id,
+        events,
+      ),
+    };
     secondaryCooldown = result.cooldown;
     if (result.projectiles.length > 0) {
       const firedProjectile = result.projectiles[0]!;
@@ -661,11 +755,6 @@ export function stepSimulation(
         weaponId: firedProjectile.weaponId,
       });
     }
-  }
-
-  if (!overheated && heat >= OVERHEAT_THRESHOLD) {
-    overheated = true;
-    events.push({ type: 'overheated' });
   }
 
   const projectileResult = moveProjectiles(projectiles, enemies, deltaSeconds);
@@ -697,7 +786,27 @@ export function stepSimulation(
       playerStats.maximumEnergy,
       energy + PARRY_ENERGY_RESTORE * successfulParries.length,
     );
-    heat = Math.max(0, heat - PARRY_HEAT_VENT * successfulParries.length);
+    const ventAmount = PARRY_HEAT_VENT * successfulParries.length;
+    weaponHeat = {
+      primary: recoverWeapon(
+        'primary',
+        {
+          ...weaponHeat.primary,
+          heat: Math.max(0, weaponHeat.primary.heat - ventAmount),
+        },
+        primaryDefinition.id,
+        events,
+      ),
+      secondary: recoverWeapon(
+        'secondary',
+        {
+          ...weaponHeat.secondary,
+          heat: Math.max(0, weaponHeat.secondary.heat - ventAmount),
+        },
+        secondaryDefinition.id,
+        events,
+      ),
+    };
     const counteredSources = new Set(
       successfulParries.map(({ sourceId }) => sourceId),
     );
@@ -795,9 +904,6 @@ export function stepSimulation(
       case 'vehicle-hit':
         triggerSignals.push({ type: 'onDamage' });
         break;
-      case 'overheated':
-        triggerSignals.push({ type: 'onOverheat' });
-        break;
       case 'wave-started':
         triggerSignals.push({ type: 'onWaveStart' });
         break;
@@ -814,20 +920,24 @@ export function stepSimulation(
   if (state.player.energy > 0 && energy === 0) {
     triggerSignals.push({ type: 'onEnergyEmpty' });
   }
+  if (
+    !wasAnyWeaponOverheated &&
+    events.some(({ type }) => type === 'overheated')
+  ) {
+    triggerSignals.push({ type: 'onOverheat' });
+  }
   const triggerResult = runBuildTriggers(
     state.build,
     triggerSignals,
-    { ammo, energy, heat, hitPoints: playerHitPoints },
+    { ammo, energy, hitPoints: playerHitPoints },
     {
       ammo: playerStats.maximumAmmo,
       energy: playerStats.maximumEnergy,
-      heat: OVERHEAT_THRESHOLD,
       hitPoints: playerStats.maximumHitPoints,
     },
   );
   ammo = triggerResult.resources.ammo;
   energy = triggerResult.resources.energy;
-  heat = triggerResult.resources.heat;
   playerHitPoints = triggerResult.resources.hitPoints;
 
   const pressure = enemies
@@ -873,12 +983,11 @@ export function stepSimulation(
       armor: playerStats.armor,
       ammo,
       energy,
-      heat,
+      weaponHeat,
       primaryCooldown,
       secondaryCooldown,
       skillCooldown,
       parryWindowSeconds,
-      overheated,
     },
     frontline: {
       position: frontlinePosition,

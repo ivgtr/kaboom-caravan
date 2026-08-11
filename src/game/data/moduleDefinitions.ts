@@ -102,7 +102,8 @@ export const MODULE_DEFINITIONS: Readonly<Record<ModuleId, ModuleDefinition>> =
     'heat-recycler': {
       id: 'heat-recycler',
       displayName: '廃熱回収炉',
-      description: 'Overheat発生時に電力を25回復する。',
+      description:
+        '武器がオーバーヒート状態へ入った時、電力を25回復する。両武器が冷えるまで再発動しない。',
       assetId: 'mod_heat_recycler',
       modifiers: [],
       triggers: [

@@ -14,6 +14,7 @@ import type {
   BuildState,
   PlayerCommand,
   SimulationState,
+  WeaponSlot,
 } from '../simulation/types';
 import {
   isWeaponEquipped,
@@ -38,7 +39,7 @@ export type SessionPhase =
   | 'route'
   | 'victory'
   | 'defeat';
-export type WeaponSlot = 'primary' | 'secondary';
+export type { WeaponSlot } from '../simulation/types';
 
 export interface RunState {
   seed: number;

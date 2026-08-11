@@ -8,6 +8,7 @@ import type {
   EnemyState,
   LootKind,
   SimulationState,
+  WeaponSlot,
 } from '../game/simulation/types';
 import { MODULE_ART, WEAPON_ART } from '../app/equipmentAssets';
 import {
@@ -97,6 +98,7 @@ interface VisualEffect {
   enemyVisualId?: EnemyProjectileVisualId;
   enemyTypeId?: EnemyTypeId;
   lootKind?: LootKind;
+  weaponSlot?: WeaponSlot;
 }
 
 interface CharacterMotionRuntime {
@@ -266,7 +268,8 @@ export class GameRenderer {
       state.build.primaryWeaponId,
       state.build.secondaryWeaponId,
       state.build.moduleIds,
-      state.player.overheated,
+      state.player.weaponHeat.primary.overheated,
+      state.player.weaponHeat.secondary.overheated,
     );
 
     for (const enemy of state.enemies) {
@@ -433,7 +436,8 @@ export class GameRenderer {
     primaryWeaponId: WeaponId,
     secondaryWeaponId: WeaponId,
     moduleIds: ModuleId[],
-    overheated: boolean,
+    primaryOverheated: boolean,
+    secondaryOverheated: boolean,
   ): void {
     const context = this.context;
     const player = this.assets.get(PLAYER_CHASSIS_ART.source);
@@ -448,7 +452,7 @@ export class GameRenderer {
       if (isHitFlashing) {
         context.filter = 'brightness(1.7) saturate(0.65) sepia(0.2)';
       }
-      if (overheated) {
+      if (primaryOverheated && secondaryOverheated) {
         context.shadowColor = '#ff5d5d';
         context.shadowBlur = 18;
         context.globalAlpha = 0.92;
@@ -467,6 +471,7 @@ export class GameRenderer {
         -width * 0.67,
         width * 0.54,
         -4,
+        primaryOverheated,
       );
       this.drawEquipmentSprite(
         WEAPON_ART[secondaryWeaponId],
@@ -474,6 +479,7 @@ export class GameRenderer {
         -width * 0.62,
         width * 0.29,
         2,
+        secondaryOverheated,
       );
       for (let index = 0; index < moduleIds.length; index += 1) {
         const mount = PLAYER_CHASSIS_ART.moduleMounts[index];
@@ -492,7 +498,7 @@ export class GameRenderer {
     context.save();
     context.translate(x, groundY);
 
-    if (overheated) {
+    if (primaryOverheated && secondaryOverheated) {
       context.shadowColor = '#ff5d5d';
       context.shadowBlur = 18;
     }
@@ -1284,6 +1290,7 @@ export class GameRenderer {
             worldPosition: state.player.position,
             ageSeconds: 0,
             durationSeconds: 1.2,
+            weaponSlot: event.slot,
           });
         }
       }
@@ -1316,18 +1323,22 @@ export class GameRenderer {
         effect.kind === 'parry-ready' || effect.kind === 'parry-success'
           ? this.groundY -
             Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.46
-          : effect.kind === 'muzzle'
+          : effect.kind === 'smoke'
             ? this.groundY -
-              Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
-            : effect.kind === 'supply-drop'
+              Math.min(190, Math.max(118, this.viewportHeight * 0.25)) *
+                (effect.weaponSlot === 'secondary' ? 0.56 : 0.72)
+            : effect.kind === 'muzzle'
               ? this.groundY -
-                Math.min(32, Math.max(18, this.viewportHeight * 0.025))
-              : effect.kind === 'explosion' &&
-                  effect.weaponId === 'mine-launcher'
+                Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
+              : effect.kind === 'supply-drop'
                 ? this.groundY -
-                  Math.min(38, Math.max(24, this.viewportHeight * 0.045))
-                : this.groundY -
-                  Math.min(80, Math.max(44, this.viewportHeight * 0.09));
+                  Math.min(32, Math.max(18, this.viewportHeight * 0.025))
+                : effect.kind === 'explosion' &&
+                    effect.weaponId === 'mine-launcher'
+                  ? this.groundY -
+                    Math.min(38, Math.max(24, this.viewportHeight * 0.045))
+                  : this.groundY -
+                    Math.min(80, Math.max(44, this.viewportHeight * 0.09));
       if (effect.kind === 'loot') {
         this.drawLootCollectedVfx(x, y, progress, effect.lootKind);
         continue;
@@ -2424,6 +2435,7 @@ export class GameRenderer {
     centerY: number,
     size: number,
     rotationDegrees: number,
+    overheated = false,
   ): void {
     const image = this.assets.get(source);
     if (!image) return;
@@ -2431,6 +2443,11 @@ export class GameRenderer {
     context.save();
     context.translate(centerX, centerY);
     context.rotate((rotationDegrees * Math.PI) / 180);
+    if (overheated) {
+      context.filter = 'saturate(1.18) brightness(1.08) sepia(0.16)';
+      context.shadowColor = '#ff5d5d';
+      context.shadowBlur = Math.max(7, size * 0.08);
+    }
     context.drawImage(image, -size / 2, -size / 2, size, size);
     context.restore();
   }

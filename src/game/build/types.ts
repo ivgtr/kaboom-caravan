@@ -46,7 +46,7 @@ export interface TriggerSignal {
   weaponTags?: readonly WeaponTag[];
 }
 
-export type TriggerResource = 'ammo' | 'energy' | 'heat' | 'hitPoints';
+export type TriggerResource = 'ammo' | 'energy' | 'hitPoints';
 
 export type TriggerEffect =
   | {

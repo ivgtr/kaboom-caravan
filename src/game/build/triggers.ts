@@ -5,14 +5,12 @@ import type { BuildTrigger, TriggerEffect, TriggerSignal } from './types';
 export interface TriggerResources {
   ammo: number;
   energy: number;
-  heat: number;
   hitPoints: number;
 }
 
 export interface TriggerResourceMaximums {
   ammo: number;
   energy: number;
-  heat: number;
   hitPoints: number;
 }
 

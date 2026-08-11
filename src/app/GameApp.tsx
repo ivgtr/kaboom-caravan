@@ -75,7 +75,8 @@ interface HudSnapshot {
   position: number;
   hitPoints: number;
   maxHitPoints: number;
-  heat: number;
+  primaryHeat: number;
+  secondaryHeat: number;
   energy: number;
   ammo: number;
   enemies: number;
@@ -84,7 +85,8 @@ interface HudSnapshot {
   secondaryCooldown: number;
   skillCooldown: number;
   parryWindowSeconds: number;
-  overheated: boolean;
+  primaryOverheated: boolean;
+  secondaryOverheated: boolean;
   treasureCollected: number;
 }
 
@@ -123,7 +125,8 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     position: state.player.position,
     hitPoints: state.player.hitPoints,
     maxHitPoints: state.player.maxHitPoints,
-    heat: state.player.heat,
+    primaryHeat: state.player.weaponHeat.primary.heat,
+    secondaryHeat: state.player.weaponHeat.secondary.heat,
     energy: state.player.energy,
     ammo: state.player.ammo,
     enemies: state.enemies.length,
@@ -132,7 +135,8 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     secondaryCooldown: state.player.secondaryCooldown,
     skillCooldown: state.player.skillCooldown,
     parryWindowSeconds: state.player.parryWindowSeconds,
-    overheated: state.player.overheated,
+    primaryOverheated: state.player.weaponHeat.primary.overheated,
+    secondaryOverheated: state.player.weaponHeat.secondary.overheated,
     treasureCollected: state.treasureCollected,
   };
 }
@@ -514,25 +518,29 @@ export function GameApp() {
             <section className="weapon-controls" aria-label="武器操作">
               <ControlButton
                 label="副武器"
-                className="weapon sub"
+                className={`weapon sub ${hud.secondaryOverheated ? 'overheat' : hud.secondaryCooldown <= 0 ? 'ready' : ''}`}
                 {...bindControl('secondary')}
               >
                 <EquipmentGlyph id={sessionView.secondaryWeaponId} />
-                <small>副</small>
+                <small>{hud.secondaryOverheated ? '過熱中' : '副'}</small>
                 <b className="weapon-level">
                   LV.
                   {sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
                 </b>
                 <kbd>E</kbd>
                 <Meter value={hud.secondaryCooldown} max={2.5} />
+                <HeatMeter
+                  value={hud.secondaryHeat}
+                  overheated={hud.secondaryOverheated}
+                />
               </ControlButton>
               <ControlButton
                 label="主武器"
-                className={`weapon main ${hud.overheated ? 'overheat' : hud.primaryCooldown <= 0 ? 'ready' : ''}`}
+                className={`weapon main ${hud.primaryOverheated ? 'overheat' : hud.primaryCooldown <= 0 ? 'ready' : ''}`}
                 {...bindControl('primary')}
               >
                 <EquipmentGlyph id={sessionView.primaryWeaponId} />
-                <small>{hud.overheated ? '過熱中' : '主'}</small>
+                <small>{hud.primaryOverheated ? '過熱中' : '主'}</small>
                 <b className="weapon-level">
                   LV.
                   {sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
@@ -542,9 +550,10 @@ export function GameApp() {
                   <GameIcon name="ammo" />
                   {hud.ammo}
                 </span>
-                <Meter
-                  value={hud.overheated ? hud.heat : hud.primaryCooldown}
-                  max={hud.overheated ? 100 : 2.5}
+                <Meter value={hud.primaryCooldown} max={2.5} />
+                <HeatMeter
+                  value={hud.primaryHeat}
+                  overheated={hud.primaryOverheated}
                 />
               </ControlButton>
               <ControlButton
@@ -571,8 +580,8 @@ export function GameApp() {
       )}
       {debug && (
         <aside className="debug-panel">
-          tick {hud.tick} / position {hud.position.toFixed(1)} / heat{' '}
-          {hud.heat.toFixed(0)}
+          tick {hud.tick} / position {hud.position.toFixed(1)} / heat 主{' '}
+          {hud.primaryHeat.toFixed(0)} / 副 {hud.secondaryHeat.toFixed(0)}
         </aside>
       )}
       <button
@@ -807,6 +816,23 @@ function Meter({ value, max }: { value: number; max: number }) {
     <span
       className="control-meter"
       style={{ '--meter': `${amount * 360}deg` } as CSSProperties}
+    />
+  );
+}
+
+function HeatMeter({
+  value,
+  overheated,
+}: {
+  value: number;
+  overheated: boolean;
+}) {
+  const amount = Math.max(0, Math.min(1, value / 100));
+  return (
+    <span
+      className={`heat-meter ${overheated ? 'locked' : amount >= 0.75 ? 'warning' : ''}`}
+      style={{ '--heat-meter': `${amount * 360}deg` } as CSSProperties}
+      aria-hidden="true"
     />
   );
 }

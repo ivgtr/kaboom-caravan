@@ -56,37 +56,80 @@ describe('weapon resources', () => {
     expect(secondary.player.secondaryCooldown).toBe(0.9);
   });
 
-  it('locks weapons on overheat until heat falls to the recovery threshold', () => {
+  it('locks only the overheated weapon until its heat reaches recovery threshold', () => {
     const initial = createSimulation();
-    initial.player.heat = 99;
+    initial.player.weaponHeat.primary.heat = 99;
     const overheated = stepSimulation(
       initial,
       { ...IDLE_COMMAND, firePrimary: true },
       SIMULATION_STEP_SECONDS,
     );
-    const blocked = stepSimulation(
+    const primaryBlocked = stepSimulation(
       { ...overheated, player: { ...overheated.player, primaryCooldown: 0 } },
       { ...IDLE_COMMAND, firePrimary: true },
       SIMULATION_STEP_SECONDS,
     );
+    const secondaryAvailable = stepSimulation(
+      primaryBlocked,
+      { ...IDLE_COMMAND, fireSecondary: true },
+      SIMULATION_STEP_SECONDS,
+    );
     const cooled = stepSimulation(
-      { ...blocked, player: { ...blocked.player, heat: 60.1 } },
+      {
+        ...secondaryAvailable,
+        player: {
+          ...secondaryAvailable.player,
+          weaponHeat: {
+            ...secondaryAvailable.player.weaponHeat,
+            primary: {
+              ...secondaryAvailable.player.weaponHeat.primary,
+              heat: 60.1,
+            },
+          },
+        },
+      },
       IDLE_COMMAND,
       SIMULATION_STEP_SECONDS,
     );
 
-    expect(overheated.player.overheated).toBe(true);
-    expect(overheated.events).toContainEqual({ type: 'overheated' });
-    expect(blocked.player.ammo).toBe(overheated.player.ammo);
-    expect(cooled.player.overheated).toBe(false);
-    expect(cooled.events).toContainEqual({ type: 'cooled' });
+    expect(overheated.player.weaponHeat.primary.overheated).toBe(true);
+    expect(overheated.events).toContainEqual({
+      type: 'overheated',
+      slot: 'primary',
+      weaponId: 'machine-cannon',
+    });
+    expect(primaryBlocked.player.ammo).toBe(overheated.player.ammo);
+    expect(secondaryAvailable.player.ammo).toBeLessThan(
+      primaryBlocked.player.ammo,
+    );
+    expect(cooled.player.weaponHeat.primary.overheated).toBe(false);
+    expect(cooled.events).toContainEqual({
+      type: 'cooled',
+      slot: 'primary',
+      weaponId: 'machine-cannon',
+    });
+  });
+
+  it('shares the cooling budget between weapons that both contain heat', () => {
+    const oneHotWeapon = createSimulation();
+    oneHotWeapon.player.weaponHeat.primary.heat = 50;
+    const oneResult = stepSimulation(oneHotWeapon, IDLE_COMMAND, 1);
+
+    const twoHotWeapons = createSimulation();
+    twoHotWeapons.player.weaponHeat.primary.heat = 50;
+    twoHotWeapons.player.weaponHeat.secondary.heat = 50;
+    const twoResult = stepSimulation(twoHotWeapons, IDLE_COMMAND, 1);
+
+    expect(oneResult.player.weaponHeat.primary.heat).toBe(38);
+    expect(twoResult.player.weaponHeat.primary.heat).toBe(44);
+    expect(twoResult.player.weaponHeat.secondary.heat).toBe(44);
   });
 
   it('opens a parry window without duplicating normal backward movement', () => {
     const initial = createSimulation();
     initial.player.position = 40;
     initial.player.previousPosition = 40;
-    initial.player.heat = 80;
+    initial.player.weaponHeat.primary.heat = 80;
 
     const result = stepSimulation(
       initial,
@@ -95,7 +138,8 @@ describe('weapon resources', () => {
     );
 
     expect(result.player.position).toBe(40);
-    expect(result.player.heat).toBeCloseTo(79.8);
+    expect(result.player.weaponHeat.primary.heat).toBeCloseTo(79.8);
+    expect(result.player.weaponHeat.secondary.heat).toBe(0);
     expect(result.player.energy).toBe(80);
     expect(result.player.skillCooldown).toBe(4);
     expect(result.player.parryWindowSeconds).toBe(0.42);
@@ -108,7 +152,8 @@ describe('weapon resources', () => {
   it('parries an incoming projectile, vents heat and counters its source', () => {
     const initial = createSimulation();
     initial.player.energy = 50;
-    initial.player.heat = 80;
+    initial.player.weaponHeat.primary = { heat: 80, overheated: true };
+    initial.player.weaponHeat.secondary = { heat: 70, overheated: true };
     initial.player.parryWindowSeconds = 0.3;
     initial.enemyProjectiles = [
       {
@@ -129,7 +174,24 @@ describe('weapon resources', () => {
 
     expect(result.player.hitPoints).toBe(100);
     expect(result.player.energy).toBe(81);
-    expect(result.player.heat).toBeCloseTo(48.8);
+    expect(result.player.weaponHeat.primary.heat).toBeCloseTo(49.4);
+    expect(result.player.weaponHeat.primary.overheated).toBe(false);
+    expect(result.player.weaponHeat.secondary.heat).toBeCloseTo(39.4);
+    expect(result.player.weaponHeat.secondary.overheated).toBe(false);
+    expect(result.events).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'cooled',
+          slot: 'primary',
+          weaponId: 'machine-cannon',
+        },
+        {
+          type: 'cooled',
+          slot: 'secondary',
+          weaponId: 'scatter-cannon',
+        },
+      ]),
+    );
     expect(result.player.skillCooldown).toBe(0);
     expect(result.player.parryWindowSeconds).toBe(0);
     expect(result.enemyProjectiles).toHaveLength(0);

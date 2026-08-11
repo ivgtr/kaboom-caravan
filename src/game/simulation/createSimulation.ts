@@ -24,14 +24,16 @@ export function createSimulation(seed = 1): SimulationState {
       hitPoints: 100,
       maxHitPoints: 100,
       armor: 1,
-      heat: 0,
+      weaponHeat: {
+        primary: { heat: 0, overheated: false },
+        secondary: { heat: 0, overheated: false },
+      },
       energy: 100,
       ammo: 50,
       primaryCooldown: 0,
       secondaryCooldown: 0,
       skillCooldown: 0,
       parryWindowSeconds: 0,
-      overheated: false,
     },
     frontline: {
       position: 25,

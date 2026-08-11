@@ -15,6 +15,17 @@ export type EntityId = string;
 export type Movement = -1 | 0 | 1;
 export type CombatStatus = 'active' | 'victory' | 'defeat';
 export type RiskTier = 'safe' | 'frontline' | 'danger' | 'enemy-territory';
+export type WeaponSlot = 'primary' | 'secondary';
+
+export interface WeaponHeatState {
+  heat: number;
+  overheated: boolean;
+}
+
+export interface WeaponHeatStates {
+  primary: WeaponHeatState;
+  secondary: WeaponHeatState;
+}
 
 export interface PlayerCommand {
   move: Movement;
@@ -32,14 +43,13 @@ export interface PlayerState {
   hitPoints: number;
   maxHitPoints: number;
   armor: number;
-  heat: number;
+  weaponHeat: WeaponHeatStates;
   energy: number;
   ammo: number;
   primaryCooldown: number;
   secondaryCooldown: number;
   skillCooldown: number;
   parryWindowSeconds: number;
-  overheated: boolean;
 }
 
 export interface EnemyState {
@@ -166,8 +176,8 @@ export type CombatEvent =
       value: number;
     }
   | { type: 'vehicle-hit'; sourceId: EntityId; damage: number }
-  | { type: 'overheated' }
-  | { type: 'cooled' }
+  | { type: 'overheated'; slot: WeaponSlot; weaponId: WeaponId }
+  | { type: 'cooled'; slot: WeaponSlot; weaponId: WeaponId }
   | { type: 'skill-activated'; skillId: 'reactive-parry' }
   | {
       type: 'attack-parried';
