@@ -80,6 +80,46 @@ test('uses the same navigation controls for routes and the result screen', async
   ).toBeVisible();
 });
 
+for (const viewport of [
+  { width: 932, height: 430 },
+  { width: 844, height: 390 },
+  { width: 390, height: 844 },
+]) {
+  test(`keeps the result screen usable at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/?debug=1&resultPreview=defeat');
+
+    const result = page
+      .getByRole('dialog')
+      .filter({ hasText: 'キャラバン大破' });
+    await expect(result).toBeVisible();
+    for (const region of [
+      result.locator('.result-summary'),
+      result.locator('.run-record-grid'),
+      result.locator('.result-build'),
+      result.getByRole('button', { name: '整備庫へ戻る' }),
+    ]) {
+      await expectContained(region, {
+        x: 0,
+        y: 0,
+        width: viewport.width,
+        height: viewport.height,
+      });
+    }
+    await expect(
+      result.getByRole('button', { name: '整備庫へ戻る' }),
+    ).toBeFocused();
+
+    if (process.env.CAPTURE_UI_REVIEW) {
+      await page.screenshot({
+        path: `artifacts/ui/review/result_${viewport.width}x${viewport.height}.png`,
+      });
+    }
+  });
+}
+
 async function enableReactiveParry(page: import('@playwright/test').Page) {
   await page.locator('.combat-feedback').waitFor({ state: 'attached' });
   await page.evaluate(() => {
@@ -590,6 +630,7 @@ test('shows a recoverable message when Canvas 2D is unavailable', async ({
 
 for (const viewport of [
   { width: 844, height: 390 },
+  { width: 390, height: 844 },
   { width: 1184, height: 689 },
   { width: 1440, height: 900 },
 ]) {
@@ -664,12 +705,27 @@ for (const viewport of [
 
     const slotPicker = rewards.getByLabel('武器の装着先を選択');
     await expect(slotPicker).toBeVisible();
+    await expectContained(slotPicker, {
+      x: 0,
+      y: 0,
+      width: viewport.width,
+      height: viewport.height,
+    });
     await expect(
       slotPicker.getByRole('button', { name: /主武器 主/ }),
     ).toBeVisible();
     await expect(
       slotPicker.getByRole('button', { name: /副武器 副/ }),
     ).toBeVisible();
+    if (viewport.width === 390) {
+      for (const slotButton of await slotPicker
+        .locator('.slot-picker-actions button')
+        .all()) {
+        const slotBox = await slotButton.boundingBox();
+        expect(slotBox).not.toBeNull();
+        expect(slotBox!.width).toBeGreaterThan(120);
+      }
+    }
     if (process.env.CAPTURE_UI_REVIEW) {
       await waitForAnimations(slotPicker);
       await page.screenshot({
@@ -772,8 +828,6 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
   );
   expect(cardBoxes).toHaveLength(3);
   for (const [index, box] of cardBoxes.entries()) {
-    expect(box.left).toBeGreaterThanOrEqual(0);
-    expect(box.right).toBeLessThanOrEqual(844);
     expect(box.top).toBeGreaterThanOrEqual(0);
     expect(box.bottom).toBeLessThanOrEqual(390);
     expect(box.width / box.height).toBeCloseTo(2 / 3, 2);
@@ -785,6 +839,11 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
       box.bottom,
     );
   }
+  const selectedBox = await cards.nth(2).boundingBox();
+  expect(selectedBox).not.toBeNull();
+  expect(selectedBox!.x).toBeGreaterThanOrEqual(0);
+  expect(selectedBox!.x + selectedBox!.width).toBeLessThanOrEqual(844);
+  expect(selectedBox!.x + selectedBox!.width / 2).toBeCloseTo(844 / 2, 0);
   if (process.env.CAPTURE_UI_REVIEW) {
     await page.screenshot({
       path: 'artifacts/ui/review/weapon_cache_844x390.png',

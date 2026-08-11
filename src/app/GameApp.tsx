@@ -850,57 +850,67 @@ function ResultPanel({
 
   return (
     <section className="result-panel" role="dialog" aria-modal="true">
-      <strong>
-        {view.phase === 'victory' ? '遠征完遂！' : 'キャラバン大破'}
-      </strong>
-      <span>
-        {view.phase === 'victory'
-          ? 'カワイイ・フォートレスを撃破した！'
-          : 'ここで遠征は終了だ……'}
-      </span>
-      <b className="run-time-score">
-        {view.phase === 'victory' ? '遠征時間' : '生存時間'}{' '}
-        {formatTimeScore(view.elapsedCombatTicks)}
-      </b>
-      <div className="run-record-grid">
-        <span>
-          討伐数 <b>{view.enemiesDefeated}</b>
-        </span>
-        <span>
-          迎撃数 <b>{view.parries}</b>
-        </span>
-        <span>
-          総ダメージ <b>{Math.round(view.damageDealt)}</b>
-        </span>
-        <span>
-          お宝 <b>{view.treasureCollected}</b>
-        </span>
+      <div className="result-card">
+        <header className="result-summary">
+          <strong>
+            {view.phase === 'victory' ? '遠征完遂！' : 'キャラバン大破'}
+          </strong>
+          <span>
+            {view.phase === 'victory'
+              ? 'カワイイ・フォートレスを撃破した！'
+              : 'ここで遠征は終了だ……'}
+          </span>
+          <b className="run-time-score">
+            {view.phase === 'victory' ? '遠征時間' : '生存時間'}{' '}
+            {formatTimeScore(view.elapsedCombatTicks)}
+          </b>
+        </header>
+        <div className="result-details">
+          <div className="run-record-grid">
+            <span>
+              討伐数 <b>{view.enemiesDefeated}</b>
+            </span>
+            <span>
+              迎撃数 <b>{view.parries}</b>
+            </span>
+            <span>
+              総ダメージ <b>{Math.round(view.damageDealt)}</b>
+            </span>
+            <span>
+              お宝 <b>{view.treasureCollected}</b>
+            </span>
+          </div>
+          <div className="result-build" aria-label="最終ビルド">
+            <span>最終装備</span>
+            <b>
+              主武器 {WEAPON_DEFINITIONS[view.primaryWeaponId].displayName} LV.
+              {view.weaponLevels[view.primaryWeaponId] ?? 1}
+            </b>
+            <b>
+              副武器 {WEAPON_DEFINITIONS[view.secondaryWeaponId].displayName}{' '}
+              LV.{view.weaponLevels[view.secondaryWeaponId] ?? 1}
+            </b>
+            <small>
+              {view.moduleIds.length > 0
+                ? view.moduleIds
+                    .map((id) => MODULE_DEFINITIONS[id].displayName)
+                    .join(' / ')
+                : 'モジュールなし'}
+            </small>
+          </div>
+          {meta.bestVictoryTicks !== undefined && (
+            <small className="result-best-time">
+              最速記録 {formatTimeScore(meta.bestVictoryTicks)}
+            </small>
+          )}
+        </div>
+        <footer className="result-actions">
+          <MenuControlHint singleAction />
+          <button type="button" {...navigation.bindItem(0)} onClick={onRestart}>
+            整備庫へ戻る
+          </button>
+        </footer>
       </div>
-      <div className="result-build" aria-label="最終ビルド">
-        <span>最終装備</span>
-        <b>
-          主武器 {WEAPON_DEFINITIONS[view.primaryWeaponId].displayName} LV.
-          {view.weaponLevels[view.primaryWeaponId] ?? 1}
-        </b>
-        <b>
-          副武器 {WEAPON_DEFINITIONS[view.secondaryWeaponId].displayName} LV.
-          {view.weaponLevels[view.secondaryWeaponId] ?? 1}
-        </b>
-        <small>
-          {view.moduleIds.length > 0
-            ? view.moduleIds
-                .map((id) => MODULE_DEFINITIONS[id].displayName)
-                .join(' / ')
-            : 'モジュールなし'}
-        </small>
-      </div>
-      {meta.bestVictoryTicks !== undefined && (
-        <small>最速記録 {formatTimeScore(meta.bestVictoryTicks)}</small>
-      )}
-      <MenuControlHint singleAction />
-      <button type="button" {...navigation.bindItem(0)} onClick={onRestart}>
-        整備庫へ戻る
-      </button>
     </section>
   );
 }
@@ -1029,6 +1039,21 @@ function RewardPanel({
     shortcuts: true,
     onConfirm: confirmCard,
   });
+  const rewardGridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const grid = rewardGridRef.current;
+    const selectedCard = grid?.children.item(
+      navigation.selectedIndex,
+    ) as HTMLElement | null;
+    if (!grid || !selectedCard || grid.scrollWidth <= grid.clientWidth) return;
+    grid.scrollTo({
+      left:
+        selectedCard.offsetLeft -
+        (grid.clientWidth - selectedCard.offsetWidth) / 2,
+      behavior: 'auto',
+    });
+  }, [navigation.selectedIndex]);
 
   return (
     <section
@@ -1064,7 +1089,7 @@ function RewardPanel({
           </button>
         )}
       </header>
-      <div className="reward-grid">
+      <div className="reward-grid" ref={rewardGridRef}>
         {choices.map((choice, index) => (
           <article
             className={`reward-card reward-${choice.type} rarity-${choice.rarity}${choice.type === 'weapon' && choice.isUpgrade ? ' reward-upgrade' : ''}${navigation.selectedIndex === index ? ' selected' : ''}`}
