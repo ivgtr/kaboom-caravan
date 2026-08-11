@@ -249,6 +249,7 @@ for (const viewport of [
   { width: 1920, height: 1080 },
   { width: 1440, height: 900 },
   { width: 1280, height: 720 },
+  { width: 1108, height: 586 },
   { width: 1024, height: 768 },
   { width: 932, height: 430 },
   { width: 844, height: 390 },
@@ -276,7 +277,7 @@ for (const viewport of [
     expect(box!.y).toBeCloseTo((viewport.height - box!.height) / 2, 0);
     if (
       process.env.CAPTURE_LAYOUT_REVIEW &&
-      [1920, 1024, 844].includes(viewport.width)
+      [1920, 1108, 1024, 844].includes(viewport.width)
     ) {
       await page.screenshot({
         path: `artifacts/ui/review/combat_stage_${viewport.width}x${viewport.height}_v001.png`,

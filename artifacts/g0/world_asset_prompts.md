@@ -98,3 +98,22 @@ Hard prohibitions: no Japanese temple, pagoda, castle roof, shrine, torii, or cu
 Avoid: changing the world setting, changing the time of day, adding decorative spectacle, strong shadows, excessive flowers, photorealism, 3D rendering, grimdark elements, seams, bands, separate floating road layer, or mismatched perspective.
 Output intent: one cohesive production background whose world is immediately recognizable as Image 1, with only the necessary road integration from Image 2.
 ```
+
+## Integrated 2:1 Background v004
+
+Generated with the built-in image generation tool on 2026-08-11. Image 1 was
+the V003 edit target and world/composition anchor. Image 2 was the accepted
+G0 Style Reference and was used only as the visual-language lock.
+
+```text
+Use case: stylized-concept
+Asset type: revised 2:1 in-game environment background for Kaboom Caravan
+Input images: Image 1 is the exact edit target and world/composition anchor. Image 2 is the accepted STYLE LOCK reference only. Preserve Image 1's exact 2:1 side-view composition, camera, skyline, abandoned elevated highway ruins, road geometry, horizon, cloud placement, vegetation bands, and empty battlefield. Do not redesign the location. Apply only the visual-language correction described below, using Image 2 as the rendering and palette standard.
+Primary request: Restore the established Kawaii × Armored Warfare world language that became too pale and generic in Image 1. Keep the same sunny reclaimed-highway world, but make the background clearly belong to the same game as Image 2 through rounded chunky shapes, polished Japanese-game 2D cel shading, clean controlled outlines, soft but readable color separation, and cheerful post-apocalyptic environmental storytelling.
+Kawaii correction: Kawaii must come from proportion and shape language, not added mascots or decorative clutter. Slightly round the silhouettes and corners of the concrete ruins and road slabs; make clouds clean, plump and softly segmented; give foliage simplified rounded leaf masses; restore small coral, warm-yellow and cream flowers along the lane edges; use friendly chunky cracks and gentle wear rather than realistic erosion. Preserve the ruins as old elevated highway infrastructure, never temples, castles, fantasy towers, or a new civilization.
+Color palette: soft sky cyan and blue; warm ivory sunlight; fresh mint and yellow-green vegetation; restrained coral and warm-yellow flower accents; muted blue-gray concrete with subtle deep-navy definition. Increase saturation and local contrast moderately compared with Image 1, especially in foreground vegetation and road edges, but keep the background visibly softer and lower contrast than player, monsters, projectiles, and HUD.
+Gameplay lane: preserve a broad quiet horizontal road band across the lower portion. The intended entity contact line is approximately 78 percent of image height, so the road must continue naturally around and below that line. Keep the central combat lane free of props, flags, markers, text, characters, enemies, vehicles, projectiles, VFX, shadows, UI, or focal landmarks.
+Style/medium: polished 2D raster game background; clean cel shading; subtle consistent outlines; rounded readable masses; moderate low-frequency detail; no painterly wash and no photorealism.
+Composition/framing: exact 2:1 landscape, 2048 x 1024 target, fixed side-view gameplay camera, no perspective change, no crop, no letterboxing. Keep important environment content inside the canvas.
+Constraints: Preserve Image 1's world identity and layout. No Japanese architecture, pagodas, shrines, torii, castles, villages, fantasy city, new biome, giant trees, waterfalls, characters, monsters, caravan, HUD, text, letters, numbers, logo, watermark, military grime, grimdark, realistic rust, high-frequency texture, hard black outlines, excessive bloom, or washed-out pastel haze.
+```
