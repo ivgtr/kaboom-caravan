@@ -84,7 +84,8 @@ interface VisualEffect {
     | 'boss-death'
     | 'bomber-burst'
     | 'parry-ready'
-    | 'parry-success';
+    | 'parry-success'
+    | 'loot';
   worldPosition: number;
   ageSeconds: number;
   durationSeconds: number;
@@ -239,6 +240,17 @@ export class GameRenderer {
     context.translate(cameraOffset.x, cameraOffset.y);
     this.drawEnvironment();
     this.drawExhaustPuffs();
+
+    for (const item of state.loot) {
+      this.drawTreasureLoot(
+        this.worldToScreen(
+          item.previousPosition +
+            (item.position - item.previousPosition) * alpha,
+        ),
+        item.value,
+        item.ageSeconds,
+      );
+    }
 
     const playerX = this.worldToScreen(
       interpolatePosition(snapshot.player, alpha),
@@ -582,6 +594,27 @@ export class GameRenderer {
       const runtime = this.enemyMotions.get(enemy.id);
       const pose = this.selectEnemyPose(enemy, runtime);
       const hitOffset = runtime ? this.hitOffset(runtime, 1) : 0;
+      if (enemy.elite) {
+        context.save();
+        context.globalAlpha =
+          0.38 + Math.sin(runtime?.phaseClockSeconds ?? 0) * 0.08;
+        context.strokeStyle = '#ffd05a';
+        context.fillStyle = 'rgb(255 113 110 / 12%)';
+        context.lineWidth = 5;
+        context.beginPath();
+        context.ellipse(
+          x + hitOffset,
+          groundY - size * 0.43,
+          size * 0.48,
+          size * 0.42,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+        context.stroke();
+        context.restore();
+      }
       context.save();
       if (runtime && runtime.hitAgeSeconds < 0.1) {
         context.filter = 'brightness(1.75) saturate(0.55)';
@@ -1224,6 +1257,13 @@ export class GameRenderer {
             ageSeconds: 0,
             durationSeconds: this.reducedMotion ? 0.3 : 0.58,
           });
+        } else if (event.type === 'loot-collected') {
+          this.emitEffect({
+            kind: 'loot',
+            worldPosition: state.player.position,
+            ageSeconds: 0,
+            durationSeconds: 0.46,
+          });
         } else if (event.type === 'overheated') {
           this.emitEffect({
             kind: 'smoke',
@@ -1270,6 +1310,10 @@ export class GameRenderer {
                 Math.min(38, Math.max(24, this.viewportHeight * 0.045))
               : this.groundY -
                 Math.min(80, Math.max(44, this.viewportHeight * 0.09));
+      if (effect.kind === 'loot') {
+        this.drawLootCollectedVfx(x, y, progress);
+        continue;
+      }
       if (effect.kind === 'smoke') {
         context.save();
         context.globalAlpha = 1 - progress;
@@ -1416,6 +1460,74 @@ export class GameRenderer {
         this.viewportWidth + 128,
         this.viewportHeight + 128,
       );
+    }
+    context.restore();
+  }
+
+  private drawTreasureLoot(x: number, value: number, ageSeconds: number): void {
+    const context = this.context;
+    const size = Math.min(34, Math.max(22, this.viewportHeight * 0.042));
+    const bounce = this.reducedMotion ? 0 : Math.sin(ageSeconds * 5.5) * 3;
+    const y = this.groundY - size * 0.55 + bounce;
+    context.save();
+    context.translate(x, y);
+    context.shadowColor = '#ffe06f';
+    context.shadowBlur = 10;
+    context.fillStyle = value >= 3 ? '#ffd05a' : '#ff8875';
+    context.strokeStyle = '#263249';
+    context.lineWidth = Math.max(2, size * 0.09);
+    context.beginPath();
+    context.roundRect(
+      -size * 0.5,
+      -size * 0.36,
+      size,
+      size * 0.72,
+      size * 0.22,
+    );
+    context.fill();
+    context.stroke();
+    context.shadowBlur = 0;
+    context.fillStyle = '#fff4db';
+    context.beginPath();
+    context.roundRect(
+      -size * 0.34,
+      -size * 0.19,
+      size * 0.68,
+      size * 0.38,
+      size * 0.12,
+    );
+    context.fill();
+    context.stroke();
+    context.fillStyle = '#62dac5';
+    context.beginPath();
+    context.arc(0, 0, size * 0.1, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+
+  private drawLootCollectedVfx(x: number, y: number, progress: number): void {
+    const context = this.context;
+    const fade = Math.max(0, 1 - progress);
+    const radius = 14 + progress * 42;
+    context.save();
+    context.globalAlpha = fade;
+    context.strokeStyle = '#ffe06f';
+    context.fillStyle = '#62dac5';
+    context.lineWidth = 4;
+    context.beginPath();
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.stroke();
+    for (let index = 0; index < 6; index += 1) {
+      const angle = (index / 6) * Math.PI * 2;
+      context.beginPath();
+      context.arc(
+        x + Math.cos(angle) * radius,
+        y + Math.sin(angle) * radius,
+        3 + (1 - progress) * 3,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
     }
     context.restore();
   }

@@ -11,7 +11,7 @@ import {
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 import { MODULE_SLOT_COUNT } from '../game/build/build';
 import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
-import type { ModuleId } from '../game/data/ids';
+import type { ModuleId, WeaponId } from '../game/data/ids';
 import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
 import { MODULE_DEFINITIONS } from '../game/data/moduleDefinitions';
 import {
@@ -20,18 +20,35 @@ import {
 } from '../game/reward/rewardSystem';
 import {
   createGameSession,
+  createGarageSession,
+  rerollRewards,
   restartGameSession,
+  selectRoute,
   selectReward,
+  startGameSession,
   stepGameSession,
   type GameSessionState,
   type SessionPhase,
   type WeaponSlot,
 } from '../game/session/GameSession';
+import {
+  LOADOUT_DEFINITIONS,
+  LOADOUT_IDS,
+  type LoadoutId,
+} from '../game/data/loadoutDefinitions';
+import type { RouteChoice } from '../game/data/routeDefinitions';
+import type { WeaponLevel } from '../game/build/weaponUpgrade';
 import type { CombatEvent, SimulationState } from '../game/simulation/types';
 import { InputManager, type VirtualControl } from '../input/InputManager';
 import { GameRenderer } from '../render/GameRenderer';
 import { runtimeAssetUrl } from '../runtimeAssets';
 import { getEquipmentArt } from './equipmentAssets';
+import { AudioDirector } from '../audio/AudioDirector';
+import {
+  loadMetaProgression,
+  recordCompletedRun,
+  type MetaProgression,
+} from '../game/progression/metaProgression';
 
 const UI_ASSET_STYLES = {
   '--hud-ornament-image': `url("${runtimeAssetUrl('assets/ui/ui_hud_ornament_v001.png')}")`,
@@ -55,6 +72,7 @@ interface HudSnapshot {
   skillCooldown: number;
   parryWindowSeconds: number;
   overheated: boolean;
+  treasureCollected: number;
 }
 
 interface SessionView {
@@ -65,6 +83,15 @@ interface SessionView {
   primaryWeaponId: keyof typeof WEAPON_DEFINITIONS;
   secondaryWeaponId: keyof typeof WEAPON_DEFINITIONS;
   moduleIds: ModuleId[];
+  weaponLevels: Partial<Record<WeaponId, WeaponLevel>>;
+  treasureCollected: number;
+  lastEncounterTreasure: number;
+  rewardRerolls: number;
+  routeChoices: RouteChoice[];
+  loadoutId: LoadoutId;
+  enemiesDefeated: number;
+  parries: number;
+  damageDealt: number;
   elapsedCombatTicks: number;
   lastEncounterTicks: number;
 }
@@ -93,6 +120,7 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     skillCooldown: state.player.skillCooldown,
     parryWindowSeconds: state.player.parryWindowSeconds,
     overheated: state.player.overheated,
+    treasureCollected: state.treasureCollected,
   };
 }
 
@@ -107,41 +135,71 @@ function toSessionView(session: GameSessionState): SessionView {
     primaryWeaponId: build.primaryWeaponId,
     secondaryWeaponId: build.secondaryWeaponId,
     moduleIds: [...build.moduleIds],
+    weaponLevels: { ...build.weaponLevels },
+    treasureCollected: session.run.treasureCollected,
+    lastEncounterTreasure: session.run.lastEncounterTreasure,
+    rewardRerolls: session.run.rewardRerolls,
+    routeChoices: session.routeChoices,
+    loadoutId: session.run.loadoutId,
+    enemiesDefeated: session.run.enemiesDefeated,
+    parries: session.run.parries,
+    damageDealt: session.run.damageDealt,
     elapsedCombatTicks: session.run.elapsedCombatTicks,
     lastEncounterTicks: session.run.lastEncounterTicks,
   };
 }
 
 function createInitialGameSession(): GameSessionState {
-  const session = createGameSession(1);
   const parameters = new URLSearchParams(window.location.search);
+  const session =
+    parameters.has('quickStart') || parameters.has('debug')
+      ? createGameSession(1)
+      : createGarageSession(1);
+  const rewardPreview = parameters.get('rewardPreview');
   if (
     !parameters.has('debug') ||
-    parameters.get('rewardPreview') !== 'full-modules'
+    (rewardPreview !== 'full-modules' && rewardPreview !== 'weapon-slot')
   ) {
     return session;
   }
 
-  session.run.build.moduleIds = [
-    'cooling-fan',
-    'generator',
-    'ammo-box',
-    'armor',
-  ];
+  if (rewardPreview === 'full-modules') {
+    session.run.build.moduleIds = [
+      'cooling-fan',
+      'generator',
+      'ammo-box',
+      'armor',
+    ];
+  }
   session.combat.build = structuredClone(session.run.build);
   session.phase = 'reward';
-  session.rewardChoices = generateRewardChoices(
-    session.run.seed,
-    session.run.encounterIndex,
-    session.run.build,
-    1,
-  );
+  for (let rerollIndex = 0; rerollIndex < 20; rerollIndex += 1) {
+    const choices = generateRewardChoices(
+      session.run.seed,
+      session.run.encounterIndex,
+      session.run.build,
+      1,
+      0,
+      rerollIndex,
+    );
+    session.rewardChoices = choices;
+    if (
+      rewardPreview !== 'weapon-slot' ||
+      choices.some((choice) => choice.type === 'weapon' && !choice.isUpgrade)
+    ) {
+      break;
+    }
+  }
   return session;
 }
 
 export function GameApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [input] = useState(() => new InputManager());
+  const [audio] = useState(() => new AudioDirector());
+  const [muted, setMuted] = useState(false);
+  const [meta, setMeta] = useState(loadMetaProgression);
+  const recordedRunRef = useRef<string | undefined>(undefined);
   const [initialSession] = useState(createInitialGameSession);
   const sessionRef = useRef(initialSession);
   const [hud, setHud] = useState(() => toHudSnapshot(initialSession.combat));
@@ -172,6 +230,11 @@ export function GameApp() {
       );
       return () => window.clearTimeout(errorTimer);
     }
+    const unlockAudio = () => {
+      void audio.unlock().then(() => audio.setPhase(sessionRef.current.phase));
+    };
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
     const loop = new FixedStepLoop(
       (deltaSeconds) => {
         const session = stepGameSession(
@@ -180,6 +243,7 @@ export function GameApp() {
           deltaSeconds,
         );
         sessionRef.current = session;
+        audio.handleEvents(session.combat.events);
         const feedbackEvent =
           session.combat.events.find(({ type }) => type === 'attack-parried') ??
           session.combat.events.find(
@@ -191,6 +255,17 @@ export function GameApp() {
         if (phaseChanged && session.phase === 'reward') {
           setShowClear(true);
           clearTimer = window.setTimeout(() => setShowClear(false), 1200);
+        }
+        if (phaseChanged) audio.setPhase(session.phase);
+        if (
+          phaseChanged &&
+          (session.phase === 'victory' || session.phase === 'defeat')
+        ) {
+          const recordKey = `${session.run.seed}:${session.phase}`;
+          if (recordedRunRef.current !== recordKey) {
+            recordedRunRef.current = recordKey;
+            setMeta((current) => recordCompletedRun(current, session));
+          }
         }
         if (phaseChanged || session.combat.tick - lastSnapshotTick >= 6) {
           lastSnapshotTick = session.combat.tick;
@@ -208,8 +283,11 @@ export function GameApp() {
       loop.stop();
       input.disconnect();
       renderer.dispose();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      audio.dispose();
     };
-  }, [input]);
+  }, [audio, input]);
 
   const setControl = (control: VirtualControl, active: boolean) =>
     input.setVirtualControl(control, active);
@@ -227,6 +305,7 @@ export function GameApp() {
     rewardId: string,
     weaponSlot: WeaponSlot = 'secondary',
   ) => {
+    audio.playUiConfirm();
     const session = selectReward(sessionRef.current, rewardId, weaponSlot);
     sessionRef.current = session;
     setHud(toHudSnapshot(session.combat));
@@ -234,11 +313,35 @@ export function GameApp() {
     setFeedback(`戦闘${session.run.encounterIndex + 1}を開始`);
   };
   const restart = () => {
+    audio.playUiConfirm();
     const session = restartGameSession(sessionRef.current);
     sessionRef.current = session;
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('新しいランを開始');
+  };
+  const reroll = () => {
+    audio.playUiConfirm();
+    const session = rerollRewards(sessionRef.current);
+    sessionRef.current = session;
+    setSessionView(toSessionView(session));
+    setFeedback('SALVAGE REROLL!');
+  };
+  const startRun = (loadoutId: LoadoutId) => {
+    audio.playUiConfirm();
+    const session = startGameSession(sessionRef.current, loadoutId);
+    sessionRef.current = session;
+    setHud(toHudSnapshot(session.combat));
+    setSessionView(toSessionView(session));
+    setFeedback('キャラバン出撃！');
+  };
+  const chooseRoute = (routeId: string) => {
+    audio.playUiConfirm();
+    const session = selectRoute(sessionRef.current, routeId);
+    sessionRef.current = session;
+    setHud(toHudSnapshot(session.combat));
+    setSessionView(toSessionView(session));
+    setFeedback('新しい区画へ進入');
   };
 
   const combatVisible = sessionView.phase === 'combat';
@@ -292,6 +395,11 @@ export function GameApp() {
               <span>MONSTER</span>
               <strong>{hud.enemies}</strong>
             </section>
+            <section className="treasure-chip" aria-label="回収したお宝">
+              <span>✦</span>
+              <b>TREASURE</b>
+              <strong>{hud.treasureCollected}</strong>
+            </section>
             <p className="combat-feedback" aria-live="polite">
               {feedback}
             </p>
@@ -321,6 +429,10 @@ export function GameApp() {
               >
                 <EquipmentGlyph id={sessionView.secondaryWeaponId} />
                 <small>SUB</small>
+                <b className="weapon-level">
+                  LV.
+                  {sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
+                </b>
                 <kbd>E</kbd>
                 <Meter value={hud.secondaryCooldown} max={2.5} />
               </ControlButton>
@@ -331,6 +443,10 @@ export function GameApp() {
               >
                 <EquipmentGlyph id={sessionView.primaryWeaponId} />
                 <small>{hud.overheated ? 'OVERHEAT' : 'MAIN'}</small>
+                <b className="weapon-level">
+                  LV.
+                  {sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
+                </b>
                 <kbd>SPACE</kbd>
                 <span className="ammo">
                   <GameIcon name="ammo" />
@@ -369,19 +485,42 @@ export function GameApp() {
           {hud.heat.toFixed(0)}
         </aside>
       )}
+      <button
+        type="button"
+        className="audio-toggle"
+        aria-label={muted ? '音をオン' : '音をオフ'}
+        onClick={() => {
+          const next = !muted;
+          setMuted(next);
+          audio.setMuted(next);
+        }}
+      >
+        {muted ? 'SOUND OFF' : 'SOUND ON'}
+      </button>
+      {sessionView.phase === 'garage' && (
+        <GaragePanel meta={meta} onStart={startRun} />
+      )}
       {sessionView.phase === 'reward' && !showClear && (
         <RewardPanel
           choices={sessionView.rewardChoices}
           moduleIds={sessionView.moduleIds}
+          primaryWeaponId={sessionView.primaryWeaponId}
+          secondaryWeaponId={sessionView.secondaryWeaponId}
+          rerolls={sessionView.rewardRerolls}
           onChoose={chooseReward}
+          onReroll={reroll}
         />
       )}
       {showClear && (
         <section className="battle-clear" role="status">
           <strong>BATTLE CLEAR!</strong>
           <span>{sessionView.encounterName} 制圧完了</span>
+          <em>TREASURE +{sessionView.lastEncounterTreasure}</em>
           <b>TIME {formatTimeScore(sessionView.lastEncounterTicks)}</b>
         </section>
+      )}
+      {sessionView.phase === 'route' && (
+        <RoutePanel choices={sessionView.routeChoices} onChoose={chooseRoute} />
       )}
       {(sessionView.phase === 'victory' || sessionView.phase === 'defeat') && (
         <section className="result-panel" role="dialog" aria-modal="true">
@@ -397,12 +536,144 @@ export function GameApp() {
             {sessionView.phase === 'victory' ? 'RUN TIME' : 'SURVIVAL TIME'}{' '}
             {formatTimeScore(sessionView.elapsedCombatTicks)}
           </b>
+          <div className="run-record-grid">
+            <span>
+              MONSTERS <b>{sessionView.enemiesDefeated}</b>
+            </span>
+            <span>
+              PARRIES <b>{sessionView.parries}</b>
+            </span>
+            <span>
+              DAMAGE <b>{Math.round(sessionView.damageDealt)}</b>
+            </span>
+            <span>
+              TREASURE <b>{sessionView.treasureCollected}</b>
+            </span>
+          </div>
+          <div className="result-build" aria-label="最終ビルド">
+            <span>FINAL BUILD</span>
+            <b>
+              MAIN {WEAPON_DEFINITIONS[sessionView.primaryWeaponId].displayName}{' '}
+              LV.{sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
+            </b>
+            <b>
+              SUB{' '}
+              {WEAPON_DEFINITIONS[sessionView.secondaryWeaponId].displayName}{' '}
+              LV.{sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
+            </b>
+            <small>
+              {sessionView.moduleIds.length > 0
+                ? sessionView.moduleIds
+                    .map((id) => MODULE_DEFINITIONS[id].displayName)
+                    .join(' / ')
+                : 'MODULEなし'}
+            </small>
+          </div>
+          {meta.bestVictoryTicks !== undefined && (
+            <small>BEST RUN {formatTimeScore(meta.bestVictoryTicks)}</small>
+          )}
           <button type="button" onClick={restart}>
             新しいラン
           </button>
         </section>
       )}
     </main>
+  );
+}
+
+function GaragePanel({
+  meta,
+  onStart,
+}: {
+  meta: MetaProgression;
+  onStart: (id: LoadoutId) => void;
+}) {
+  return (
+    <section className="garage-panel" role="dialog" aria-modal="true">
+      <header>
+        <span>KAWAII GARAGE</span>
+        <strong>出撃するキャラバンを選ぼう</strong>
+      </header>
+      <div className="garage-loadouts">
+        {LOADOUT_IDS.map((id) => {
+          const loadout = LOADOUT_DEFINITIONS[id];
+          const unlocked = meta.unlockedLoadouts.includes(id);
+          return (
+            <button
+              type="button"
+              key={id}
+              disabled={!unlocked}
+              onClick={() => onStart(id)}
+            >
+              <div className="garage-weapon-pair">
+                <EquipmentGlyph id={loadout.primaryWeaponId} />
+                <EquipmentGlyph id={loadout.secondaryWeaponId} />
+              </div>
+              <strong>{loadout.displayName}</strong>
+              <span>{loadout.tagline}</span>
+              <small>
+                MAIN {WEAPON_DEFINITIONS[loadout.primaryWeaponId].displayName}
+                {' / '}SUB{' '}
+                {WEAPON_DEFINITIONS[loadout.secondaryWeaponId].displayName}
+              </small>
+              {!unlocked && (
+                <em>LOCKED — Victory またはTreasure累計15で解禁</em>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <footer>
+        <span>
+          RUNS {meta.totalRuns} / TOTAL TREASURE {meta.totalTreasure}
+        </span>
+        {meta.history[0] && (
+          <small>
+            LAST {meta.history[0].result.toUpperCase()} —{' '}
+            {LOADOUT_DEFINITIONS[meta.history[0].loadoutId].displayName} /{' '}
+            {formatTimeScore(meta.history[0].elapsedCombatTicks)} / TREASURE{' '}
+            {meta.history[0].treasureCollected}
+          </small>
+        )}
+      </footer>
+    </section>
+  );
+}
+
+function RoutePanel({
+  choices,
+  onChoose,
+}: {
+  choices: RouteChoice[];
+  onChoose: (id: string) => void;
+}) {
+  return (
+    <section className="route-panel" role="dialog" aria-modal="true">
+      <header>
+        <span>CHOOSE THE ROAD</span>
+        <strong>次の進行先を選ぼう</strong>
+      </header>
+      <div>
+        {choices.map((choice) => (
+          <button
+            type="button"
+            className={`route-${choice.accent}`}
+            key={choice.id}
+            onClick={() => onChoose(choice.id)}
+          >
+            <i>
+              {choice.type === 'elite'
+                ? '⚠'
+                : choice.type === 'repair'
+                  ? '✚'
+                  : '✦'}
+            </i>
+            <strong>{choice.displayName}</strong>
+            <span>{choice.description}</span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -440,11 +711,19 @@ function Meter({ value, max }: { value: number; max: number }) {
 function RewardPanel({
   choices,
   moduleIds,
+  primaryWeaponId,
+  secondaryWeaponId,
+  rerolls,
   onChoose,
+  onReroll,
 }: {
   choices: RewardChoice[];
   moduleIds: ModuleId[];
+  primaryWeaponId: WeaponId;
+  secondaryWeaponId: WeaponId;
+  rerolls: number;
   onChoose: (rewardId: string, weaponSlot?: WeaponSlot) => void;
+  onReroll: () => void;
 }) {
   const [pendingWeapon, setPendingWeapon] = useState<
     Extract<RewardChoice, { type: 'weapon' }> | undefined
@@ -465,6 +744,10 @@ function RewardPanel({
   const beginEquip = useCallback(
     (choice: RewardChoice) => {
       if (choice.type === 'weapon') {
+        if (choice.isUpgrade) {
+          onChoose(choice.id);
+          return;
+        }
         setSelectedSlot('primary');
         setPendingWeapon(choice);
         return;
@@ -582,17 +865,26 @@ function RewardPanel({
         <b>
           MODULE {moduleIds.length}/{MODULE_SLOT_COUNT}
         </b>
+        <button
+          className="reward-reroll"
+          type="button"
+          disabled={rerolls <= 0}
+          onClick={onReroll}
+        >
+          REROLL ×{rerolls}
+        </button>
       </header>
       <div className="reward-grid">
         {choices.map((choice, index) => (
           <article
-            className={`reward-card reward-${choice.type}${selectedIndex === index ? ' selected' : ''}`}
+            className={`reward-card reward-${choice.type} rarity-${choice.rarity}${choice.type === 'weapon' && choice.isUpgrade ? ' reward-upgrade' : ''}${selectedIndex === index ? ' selected' : ''}`}
             key={choice.id}
           >
             <span className="reward-type">
               <GameIcon name={choice.type === 'weapon' ? 'weapon' : 'module'} />
               {choice.type.toUpperCase()}
             </span>
+            <span className="reward-rarity">{choice.rarity.toUpperCase()}</span>
             <kbd className="reward-shortcut">{index + 1}</kbd>
             <div className="equipment-visual">
               <EquipmentGlyph
@@ -602,6 +894,13 @@ function RewardPanel({
               />
             </div>
             <h2>{choice.displayName}</h2>
+            {choice.type === 'weapon' && (
+              <strong className="reward-weapon-level">
+                {choice.isUpgrade
+                  ? `LV.${choice.currentLevel} → LV.${choice.nextLevel}`
+                  : `NEW / LV.${choice.nextLevel}`}
+              </strong>
+            )}
             <p>{choice.description}</p>
             <button
               className="reward-card-select"
@@ -620,14 +919,18 @@ function RewardPanel({
               <span
                 className={`reward-card-action${choice.type === 'module' && replacedModuleName ? ' has-swap' : ''}`}
               >
-                {choice.type === 'module' && replacedModuleName ? (
+                {choice.type === 'weapon' && choice.isUpgrade ? (
+                  <small>POWER UP</small>
+                ) : choice.type === 'module' && replacedModuleName ? (
                   <small className="reward-module-swap">
                     ↻ {replacedModuleName}と交換
                   </small>
                 ) : (
                   <small>SELECT</small>
                 )}
-                選択する
+                {choice.type === 'weapon' && choice.isUpgrade
+                  ? '強化する'
+                  : '選択する'}
               </span>
             </button>
           </article>
@@ -642,6 +945,10 @@ function RewardPanel({
             <span>WEAPON SLOT</span>
             <strong>{pendingWeapon.displayName}</strong>
             <p>どちらの操作ボタンへ装着しますか？</p>
+            <small>
+              CURRENT: MAIN {WEAPON_DEFINITIONS[primaryWeaponId].displayName} /
+              SUB {WEAPON_DEFINITIONS[secondaryWeaponId].displayName}
+            </small>
           </div>
           <div className="slot-picker-actions">
             <button
@@ -750,6 +1057,10 @@ function describeCombatEvent(event: CombatEvent): string {
       return `${event.damage.toFixed(0)} DAMAGE!`;
     case 'enemy-killed':
       return 'MONSTER DOWN!';
+    case 'loot-dropped':
+      return 'TREASURE DROP!';
+    case 'loot-collected':
+      return `SALVAGE +${event.value}`;
     case 'vehicle-hit':
       return `OUCH! -${event.damage.toFixed(0)}`;
     case 'overheated':

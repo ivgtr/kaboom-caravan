@@ -72,6 +72,325 @@ button {
   z-index: 3;
   filter: drop-shadow(0 5px 4px rgb(33 42 59 / 28%));
 }
+.treasure-chip {
+  position: absolute;
+  z-index: 3;
+  top: 76px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 2px solid #263249;
+  border-radius: 99px;
+  background: rgb(255 244 219 / 88%);
+  color: #263249;
+  font-size: 10px;
+  box-shadow: 0 3px 0 #263249;
+}
+.treasure-chip span {
+  color: #ef6267;
+  font-size: 18px;
+}
+.weapon-level {
+  position: absolute;
+  right: 15%;
+  bottom: 13%;
+  border-radius: 99px;
+  background: #ffd05a;
+  padding: 2px 5px;
+  color: #263249;
+  font-size: 9px;
+}
+.reward-rarity {
+  position: absolute;
+  z-index: 2;
+  top: 11%;
+  right: 28%;
+  color: #ef6267;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.1em;
+}
+.rarity-rare {
+  filter: drop-shadow(0 0 9px rgb(93 222 207 / 45%));
+}
+.rarity-epic {
+  filter: drop-shadow(0 0 13px rgb(255 208 90 / 66%));
+}
+.reward-upgrade .equipment-visual {
+  background: radial-gradient(circle, #dffcf5 0, #fff4db 64%);
+}
+.reward-weapon-level {
+  position: absolute;
+  z-index: 2;
+  top: 60.5%;
+  left: 10%;
+  color: #e95162;
+  font-size: clamp(11px, 1.2vw, 16px);
+}
+.reward-reroll {
+  border: 2px solid #263249;
+  border-radius: 99px;
+  background: #ffd05a;
+  padding: 7px 12px;
+  color: #263249;
+  font-weight: 1000;
+  box-shadow: 0 3px 0 #263249;
+}
+.reward-reroll:disabled {
+  opacity: 0.42;
+}
+.battle-clear em {
+  color: #ffd05a;
+  font-style: normal;
+  font-weight: 1000;
+}
+.garage-panel,
+.route-panel {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  gap: 22px;
+  padding: clamp(18px, 4vw, 64px);
+  background:
+    radial-gradient(circle at 50% 38%, rgb(93 222 207 / 18%), transparent 34%),
+    rgb(34 47 70 / 82%);
+  color: #fff4db;
+}
+.garage-panel header,
+.route-panel header {
+  display: grid;
+  justify-content: center;
+  text-align: center;
+}
+.garage-panel header span,
+.route-panel header span {
+  color: #ffd05a;
+  font-size: 12px;
+  font-weight: 1000;
+  letter-spacing: 0.18em;
+}
+.garage-panel header strong,
+.route-panel header strong {
+  font-size: clamp(24px, 4vw, 42px);
+}
+.garage-loadouts,
+.route-panel > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  width: min(1100px, 100%);
+  margin: auto;
+}
+.garage-loadouts > button,
+.route-panel > div > button {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-height: 230px;
+  border: 4px solid #263249;
+  border-radius: 28px;
+  background: #fff4db;
+  padding: 18px;
+  color: #263249;
+  box-shadow: 0 8px 0 #263249;
+  cursor: pointer;
+}
+.garage-loadouts > button:hover,
+.garage-loadouts > button:focus-visible,
+.route-panel > div > button:hover,
+.route-panel > div > button:focus-visible {
+  transform: translateY(-7px);
+  filter: brightness(1.06);
+}
+.garage-loadouts > button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.65) brightness(0.72);
+  opacity: 0.78;
+}
+.garage-loadouts em {
+  color: #e95162;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 1000;
+}
+.garage-panel footer {
+  display: grid;
+  gap: 3px;
+  color: #ffd05a;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+.garage-panel footer small {
+  color: #d8f9ef;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+.audio-toggle {
+  position: absolute;
+  z-index: 12;
+  right: 12px;
+  bottom: 8px;
+  border: 2px solid #263249;
+  border-radius: 99px;
+  background: rgb(255 244 219 / 82%);
+  padding: 4px 8px;
+  color: #263249;
+  font-size: 8px;
+  font-weight: 1000;
+}
+.run-record-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 8px;
+  width: min(560px, calc(100vw - 40px));
+}
+.run-record-grid span {
+  display: grid;
+  border: 2px solid #263249;
+  border-radius: 14px;
+  background: #fff4db;
+  padding: 7px;
+  color: #263249;
+  font-size: 9px;
+}
+.run-record-grid b {
+  color: #e95162;
+  font-size: 18px;
+}
+.result-build {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 3px 18px;
+  width: min(560px, calc(100vw - 40px));
+  border: 2px solid #263249;
+  border-radius: 16px;
+  background: rgb(255 244 219 / 92%);
+  padding: 8px 14px;
+  color: #263249;
+  text-align: left;
+}
+.result-build > span,
+.result-build > small {
+  grid-column: 1 / -1;
+}
+.result-build > span {
+  color: #e95162;
+  font-size: 9px;
+  font-weight: 1000;
+  letter-spacing: 0.12em;
+}
+.result-build > b {
+  font-size: clamp(11px, 1.5vw, 15px);
+}
+.result-build > small {
+  overflow: hidden;
+  color: #536078;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.garage-weapon-pair {
+  display: flex;
+  width: 100%;
+  height: 120px;
+}
+.garage-weapon-pair .equipment-art,
+.garage-weapon-pair .equipment-glyph {
+  width: 58%;
+  height: 100%;
+  object-fit: contain;
+}
+.garage-weapon-pair > :last-child {
+  margin-left: -16%;
+}
+.garage-loadouts strong,
+.route-panel button strong {
+  font-size: clamp(16px, 2vw, 24px);
+}
+.garage-loadouts span,
+.route-panel button span {
+  min-height: 2.8em;
+  font-size: 13px;
+}
+.route-panel > div {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 820px;
+}
+.route-panel > div > button {
+  min-height: 210px;
+}
+.route-panel button i {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border: 4px solid #263249;
+  border-radius: 50%;
+  background: #62dac5;
+  font-size: 38px;
+  font-style: normal;
+}
+.route-panel .route-coral i {
+  background: #ff716e;
+}
+.route-panel .route-yellow i {
+  background: #ffd05a;
+}
+@media (max-width: 900px), (max-height: 520px) {
+  .garage-panel,
+  .route-panel {
+    gap: 10px;
+    padding: 10px 16px;
+  }
+  .garage-panel header strong,
+  .route-panel header strong {
+    font-size: 21px;
+  }
+  .garage-loadouts,
+  .route-panel > div {
+    gap: 10px;
+  }
+  .garage-loadouts > button,
+  .route-panel > div > button {
+    min-height: 0;
+    border-width: 3px;
+    border-radius: 18px;
+    padding: 8px;
+    box-shadow: 0 4px 0 #263249;
+  }
+  .garage-weapon-pair {
+    height: min(22vh, 82px);
+  }
+  .garage-loadouts span,
+  .route-panel button span {
+    min-height: 0;
+    font-size: 10px;
+  }
+  .garage-loadouts small {
+    font-size: 8px;
+  }
+  .garage-panel footer {
+    font-size: 8px;
+  }
+  .run-record-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .route-panel button i {
+    width: 50px;
+    height: 50px;
+    font-size: 25px;
+  }
+  .treasure-chip {
+    top: 54px;
+    right: 8px;
+  }
+}
 .compact-hud {
   top: 12px;
   left: 12px;
