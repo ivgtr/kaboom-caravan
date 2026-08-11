@@ -31,7 +31,6 @@ import { ENEMY_VFX_ART, getEnemyVfxSource } from './enemyVfxAssets';
 import {
   BOOST_TRAIL_ART,
   getBoostTrailSource,
-  getParryVfxSource,
   getVfxSource,
   MINE_VFX_ART,
   PARRY_VFX_ART,
@@ -208,7 +207,8 @@ export class GameRenderer {
       ...Object.values(MODULE_ART),
       ...Object.values(VFX_ART).map(({ source }) => source),
       BOOST_TRAIL_ART.source,
-      PARRY_VFX_ART.source,
+      PARRY_VFX_ART.readySource,
+      PARRY_VFX_ART.successSource,
       MINE_VFX_ART.source,
       ...Object.values(ENEMY_VFX_ART).map(({ source }) => source),
       ENEMY_DEATH_VFX_ART.source,
@@ -1754,14 +1754,10 @@ export class GameRenderer {
     successful: boolean,
   ): void {
     const context = this.context;
-    const image = this.assets.get(PARRY_VFX_ART.source);
-    if (!image) return;
-    const pose = successful ? 'success' : 'ready';
-    const [sourceX, sourceY, sourceWidth, sourceHeight] = getParryVfxSource(
-      image.naturalWidth,
-      image.naturalHeight,
-      pose,
+    const image = this.assets.get(
+      successful ? PARRY_VFX_ART.successSource : PARRY_VFX_ART.readySource,
     );
+    if (!image) return;
     const caravanWidth = Math.min(
       190,
       Math.max(118, this.viewportHeight * 0.25),
@@ -1777,20 +1773,18 @@ export class GameRenderer {
     const fade = successful
       ? Math.min(1, (1 - progress) * 1.65)
       : Math.min(1, (1 - progress) * 2.3);
+    const contactX = x + caravanWidth * 0.42;
+    const contactY = y + caravanWidth * 0.1;
     context.save();
-    context.translate(x, y);
+    context.translate(contactX, contactY);
     if (successful && !this.reducedMotion) {
-      context.rotate(-0.08 + progress * 0.15);
+      context.rotate(-0.04 + progress * 0.08);
     }
     context.globalAlpha = fade;
     context.drawImage(
       image,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
-      -size * 0.5,
-      -size * 0.5,
+      -size * PARRY_VFX_ART.contactX,
+      -size * PARRY_VFX_ART.contactY,
       size,
       size,
     );

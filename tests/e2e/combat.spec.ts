@@ -364,12 +364,16 @@ for (const viewport of [
     const boostAsset = page.waitForResponse((response) =>
       response.url().endsWith('/assets/vfx/vfx_boost_trail_pair_v001.png'),
     );
-    const parryAsset = page.waitForResponse((response) =>
-      response.url().endsWith('/assets/vfx/vfx_parry_pair_v001.png'),
+    const parryReadyAsset = page.waitForResponse((response) =>
+      response.url().endsWith('/assets/vfx/vfx_parry_swipe_ready_v002.png'),
+    );
+    const parrySuccessAsset = page.waitForResponse((response) =>
+      response.url().endsWith('/assets/vfx/vfx_parry_deflect_success_v002.png'),
     );
     await page.goto('/?quickStart=1');
     expect((await boostAsset).ok()).toBe(true);
-    expect((await parryAsset).ok()).toBe(true);
+    expect((await parryReadyAsset).ok()).toBe(true);
+    expect((await parrySuccessAsset).ok()).toBe(true);
     await page.keyboard.down('d');
     await page.keyboard.down('ShiftLeft');
     await expect(page.getByRole('button', { name: '急加速' })).toHaveClass(
@@ -392,7 +396,7 @@ for (const viewport of [
       await page.waitForTimeout(280);
       if (process.env.CAPTURE_VFX_REVIEW) {
         await page.screenshot({
-          path: `artifacts/vfx/review/parry_${pose}_${viewport.width}x${viewport.height}_v001.png`,
+          path: `artifacts/vfx/review/parry_${pose}_${viewport.width}x${viewport.height}_v002.png`,
         });
       }
       await page.keyboard.up('d');

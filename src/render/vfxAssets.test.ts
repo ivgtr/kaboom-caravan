@@ -3,7 +3,6 @@ import type { WeaponId } from '../game/data/ids';
 import {
   BOOST_TRAIL_ART,
   getBoostTrailSource,
-  getParryVfxSource,
   getVfxSource,
   MINE_VFX_ART,
   PARRY_VFX_ART,
@@ -51,11 +50,13 @@ describe('VFX assets', () => {
     ]);
   });
 
-  it('uses separate generated poses for parry timing and success', () => {
-    expect(PARRY_VFX_ART.source).toBe('/assets/vfx/vfx_parry_pair_v001.png');
-    expect(getParryVfxSource(1024, 1024, 'ready')).toEqual([0, 256, 512, 512]);
-    expect(getParryVfxSource(1024, 1024, 'success')).toEqual([
-      512, 256, 512, 512,
-    ]);
+  it('keeps parry poses separate so their artwork cannot overlap', () => {
+    expect(PARRY_VFX_ART.readySource).toBe(
+      '/assets/vfx/vfx_parry_swipe_ready_v002.png',
+    );
+    expect(PARRY_VFX_ART.successSource).toBe(
+      '/assets/vfx/vfx_parry_deflect_success_v002.png',
+    );
+    expect(PARRY_VFX_ART.readySource).not.toBe(PARRY_VFX_ART.successSource);
   });
 });

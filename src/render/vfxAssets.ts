@@ -4,7 +4,6 @@ import { runtimeAssetUrl } from '../runtimeAssets';
 export type VfxFamily = 'ballistic' | 'energy' | 'fire' | 'explosive';
 export type VfxPose = 'muzzle' | 'impact';
 export type BoostTrailPose = 'stream' | 'surge';
-export type ParryVfxPose = 'ready' | 'success';
 
 export interface VfxFamilyAsset {
   source: string;
@@ -30,9 +29,14 @@ export const BOOST_TRAIL_ART = {
 } as const;
 
 export const PARRY_VFX_ART = {
-  source: runtimeAssetUrl('assets/vfx/vfx_parry_pair_v001.png'),
-  readyScale: 1.22,
-  successScale: 1.45,
+  readySource: runtimeAssetUrl('assets/vfx/vfx_parry_swipe_ready_v002.png'),
+  successSource: runtimeAssetUrl(
+    'assets/vfx/vfx_parry_deflect_success_v002.png',
+  ),
+  readyScale: 1.16,
+  successScale: 1.52,
+  contactX: 0.25,
+  contactY: 0.75,
 } as const;
 
 export const VFX_ART: Readonly<Record<VfxFamily, VfxFamilyAsset>> = {
@@ -85,14 +89,6 @@ export function getBoostTrailSource(
   pose: BoostTrailPose,
 ): readonly [x: number, y: number, width: number, height: number] {
   return getPairVfxSource(imageWidth, imageHeight, pose === 'stream' ? 0 : 1);
-}
-
-export function getParryVfxSource(
-  imageWidth: number,
-  imageHeight: number,
-  pose: ParryVfxPose,
-): readonly [x: number, y: number, width: number, height: number] {
-  return getPairVfxSource(imageWidth, imageHeight, pose === 'ready' ? 0 : 1);
 }
 
 function getPairVfxSource(
