@@ -71,6 +71,71 @@ describe('stepSimulation', () => {
     );
   });
 
+  it('activates a directional dash once and returns to normal top speed', () => {
+    const initial = createSimulation();
+    let state = stepSimulation(
+      initial,
+      { ...IDLE_COMMAND, move: 1, activateDash: true },
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(state.events).toContainEqual({
+      type: 'dash-activated',
+      direction: 1,
+    });
+    expect(state.player.dashCooldown).toBe(2.7);
+    expect(state.player.dashRemainingSeconds).toBe(0.22);
+    expect(state.player.velocity).toBeGreaterThan(0.5);
+
+    let maximumVelocity = state.player.velocity;
+    for (let tick = 0; tick < 20; tick += 1) {
+      state = stepSimulation(
+        state,
+        { ...IDLE_COMMAND, move: 1 },
+        SIMULATION_STEP_SECONDS,
+      );
+      maximumVelocity = Math.max(maximumVelocity, state.player.velocity);
+    }
+
+    expect(maximumVelocity).toBeGreaterThan(12);
+    expect(state.player.dashRemainingSeconds).toBe(0);
+    expect(state.player.dashDirection).toBe(0);
+    expect(state.player.velocity).toBe(12);
+  });
+
+  it('requires a direction and does not reactivate during dash cooldown', () => {
+    const initial = createSimulation();
+    const stationary = stepSimulation(
+      initial,
+      { ...IDLE_COMMAND, activateDash: true },
+      SIMULATION_STEP_SECONDS,
+    );
+    expect(stationary.player.dashCooldown).toBe(0);
+    expect(stationary.events).not.toContainEqual(
+      expect.objectContaining({ type: 'dash-activated' }),
+    );
+
+    const activated = stepSimulation(
+      stationary,
+      { ...IDLE_COMMAND, move: -1, activateDash: true },
+      SIMULATION_STEP_SECONDS,
+    );
+    const blocked = stepSimulation(
+      {
+        ...activated,
+        player: { ...activated.player, dashRemainingSeconds: 0 },
+      },
+      { ...IDLE_COMMAND, move: 1, activateDash: true },
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(activated.player.dashDirection).toBe(-1);
+    expect(blocked.events).not.toContainEqual(
+      expect.objectContaining({ type: 'dash-activated' }),
+    );
+    expect(blocked.player.dashCooldown).toBeGreaterThan(0);
+  });
+
   it('produces the same state at 30, 60 and 120 render frames per second', () => {
     const simulate = (framesPerSecond: number) => {
       let state = createSimulation(123);

@@ -87,6 +87,9 @@ export class AudioDirector {
         case 'attack-parried':
           this.playParry();
           break;
+        case 'dash-activated':
+          this.playDash();
+          break;
         case 'vehicle-hit':
           this.playVehicleHit();
           break;
@@ -190,6 +193,24 @@ export class AudioDirector {
       volume: 0.012,
       attack: 0.006,
       filterFrequency: 850,
+    });
+  }
+
+  private playDash(): void {
+    this.voice(115, 0.16, {
+      type: 'triangle',
+      endFrequency: 260,
+      volume: 0.022,
+      attack: 0.018,
+      filterFrequency: 1_100,
+    });
+    this.voice(220, 0.1, {
+      type: 'sine',
+      endFrequency: 360,
+      volume: 0.012,
+      attack: 0.012,
+      delay: 0.045,
+      filterFrequency: 1_800,
     });
   }
 

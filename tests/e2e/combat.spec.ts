@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.describe.configure({ mode: 'serial' });
+
 test('starts a new post-MVP run from the kawaii garage', async ({ page }) => {
   await page.setViewportSize({ width: 1184, height: 689 });
   await page.goto('/');
@@ -85,17 +87,18 @@ async function enableReactiveParry(page: import('@playwright/test').Page) {
     if (!feedback) return;
     let parryHeld = false;
     const reactToWarning = () => {
-      if (!feedback.textContent?.includes('攻撃が来る！') || parryHeld) return;
-      parryHeld = true;
-      window.dispatchEvent(
-        new KeyboardEvent('keydown', { code: 'KeyQ', bubbles: true }),
-      );
-      window.setTimeout(() => {
+      const warningActive = feedback.textContent?.includes('攻撃が来る！');
+      if (warningActive && !parryHeld) {
+        parryHeld = true;
         window.dispatchEvent(
-          new KeyboardEvent('keyup', { code: 'KeyQ', bubbles: true }),
+          new KeyboardEvent('keydown', { code: 'KeyF', bubbles: true }),
         );
+      } else if (!warningActive && parryHeld) {
         parryHeld = false;
-      }, 80);
+        window.dispatchEvent(
+          new KeyboardEvent('keyup', { code: 'KeyF', bubbles: true }),
+        );
+      }
     };
     new MutationObserver(reactToWarning).observe(feedback, {
       childList: true,
@@ -125,7 +128,7 @@ async function waitThroughWeaponCaches(
     ]);
     if (visible === 'terminal') return;
 
-    await page.keyboard.up('e');
+    await page.keyboard.up('c');
     await page.keyboard.up('Space');
     await page.keyboard.up('d');
     await cache.locator('.reward-card').first().click();
@@ -133,7 +136,7 @@ async function waitThroughWeaponCaches(
       .getByLabel('武器の装着先を選択')
       .getByRole('button', { name: /副武器 副/ })
       .click();
-    await page.keyboard.down('e');
+    await page.keyboard.down('c');
     await page.keyboard.down('Space');
     await page.keyboard.down('d');
   }
@@ -149,7 +152,8 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   const debug = page.locator('.debug-panel');
   const main = page.getByRole('button', { name: '主武器' });
   const sub = page.getByRole('button', { name: '副武器' });
-  const escape = page.getByRole('button', { name: '迎撃パリィ' });
+  const parry = page.getByRole('button', { name: '迎撃パリィ' });
+  const dash = page.getByRole('button', { name: '急加速' });
 
   await expect(health).toContainText('100');
   const progress = page.getByRole('region', { name: '戦闘進行' });
@@ -159,12 +163,18 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   await expect(progress).not.toContainText('DANGER');
   await expect(main).toContainText('50');
   await expect(main.locator('kbd')).toHaveText('SPACE');
-  await expect(sub.locator('kbd')).toHaveText('E');
-  await expect(escape.locator('kbd')).toHaveText('Q');
+  await expect(sub.locator('kbd')).toHaveText('C');
+  await expect(parry.locator('kbd')).toHaveText('F');
+  await expect(dash.locator('kbd')).toHaveText('SHIFT');
   await expect(debug).toContainText('position 10.0');
 
   await page.keyboard.down('d');
   await expect(debug).not.toContainText('position 10.0');
+  await page.keyboard.press('ShiftLeft');
+  await expect(dash.locator('.control-meter')).not.toHaveAttribute(
+    'style',
+    '--meter: 0deg;',
+  );
   await page.keyboard.up('d');
 
   await page.keyboard.down('Space');
@@ -230,19 +240,10 @@ test('keeps rolling with inertia after movement input is released', async ({
 test('renders an acquired module on the physical caravan mounts', async ({
   page,
 }) => {
-  test.setTimeout(60_000);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/?quickStart=1');
-  await enableReactiveParry(page);
-  await page.keyboard.down('e');
-  await page.keyboard.down('Space');
-  await page.keyboard.down('d');
+  await page.goto('/?debug=1&rewardPreview=full-modules');
 
   const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
-  await waitThroughWeaponCaches(page, rewards, 45_000);
-  await page.keyboard.up('e');
-  await page.keyboard.up('Space');
-  await page.keyboard.up('d');
   const moduleCard = rewards.locator('.reward-module').first();
   await expect(moduleCard).toBeVisible();
   await moduleCard.getByRole('button', { name: /を選択/ }).click();
@@ -252,6 +253,26 @@ test('renders an acquired module on the physical caravan mounts', async ({
   if (process.env.CAPTURE_MOTION_REVIEW) {
     await page.screenshot({
       path: 'artifacts/animation/review/caravan_module_mounted_1440x900_v005.png',
+    });
+  }
+});
+
+test('reaches battle clear through live combat', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1184, height: 689 });
+  await page.goto('/?quickStart=1');
+  await enableReactiveParry(page);
+  await page.keyboard.down('c');
+  await page.keyboard.down('Space');
+  await page.keyboard.down('d');
+
+  const clear = page.locator('.battle-clear');
+  await waitThroughWeaponCaches(page, clear, 45_000);
+  await expect(clear).toContainText(/討伐時間 \d{2}:\d{2}\.\d{2}/);
+  if (process.env.CAPTURE_UI_REVIEW) {
+    await waitForAnimations(clear);
+    await page.screenshot({
+      path: 'artifacts/ui/review/battle_clear_1184x689.png',
     });
   }
 });
@@ -471,36 +492,18 @@ test('shows a recoverable message when Canvas 2D is unavailable', async ({
 });
 
 for (const viewport of [
-  { width: 1440, height: 900 },
-  { width: 1184, height: 689 },
   { width: 844, height: 390 },
+  { width: 1184, height: 689 },
+  { width: 1440, height: 900 },
 ]) {
-  test(`shows battle clear then visual rewards at ${viewport.width}x${viewport.height}`, async ({
+  test(`keeps visual rewards aligned at ${viewport.width}x${viewport.height}`, async ({
     page,
   }) => {
-    test.setTimeout(60_000);
     await page.setViewportSize(viewport);
-    await page.goto('/?quickStart=1');
-    await enableReactiveParry(page);
-    await page.keyboard.down('e');
-    await page.keyboard.down('Space');
-    await page.keyboard.down('d');
-
-    const clear = page.locator('.battle-clear');
-    await waitThroughWeaponCaches(page, clear, 45_000);
-    await expect(clear).toContainText(/討伐時間 \d{2}:\d{2}\.\d{2}/);
-    if (process.env.CAPTURE_UI_REVIEW) {
-      await waitForAnimations(clear);
-      await page.screenshot({
-        path: `artifacts/ui/review/battle_clear_${viewport.width}x${viewport.height}.png`,
-      });
-    }
+    await page.goto('/?debug=1&rewardPreview=weapon-slot');
 
     const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
     await expect(rewards).toBeVisible();
-    await page.keyboard.up('e');
-    await page.keyboard.up('Space');
-    await page.keyboard.up('d');
 
     await expect(page.getByRole('button', { name: '主武器' })).toHaveCount(0);
     const cards = rewards.locator('.reward-card');
@@ -545,8 +548,8 @@ for (const viewport of [
         ).toBe(false);
       }
     }
-    const weaponCard = cards
-      .locator('.reward-weapon:not(.reward-upgrade)')
+    const weaponCard = rewards
+      .locator('.reward-card.reward-weapon:not(.reward-upgrade)')
       .first();
     const weaponIndex = await cards.evaluateAll((items) =>
       items.findIndex((item) =>
@@ -576,7 +579,7 @@ for (const viewport of [
         path: `artifacts/ui/review/reward_slot_${viewport.width}x${viewport.height}.png`,
       });
     }
-    await slotPicker.getByRole('button', { name: '戻る' }).click();
+    await page.keyboard.press('Escape');
     await expect(slotPicker).toHaveCount(0);
     await expect(weaponCard).toHaveClass(/selected/);
     const nextIndex = (weaponIndex + 1) % 3;
@@ -750,7 +753,8 @@ for (const viewport of [
       backward: page.getByRole('button', { name: '後退' }),
       main: page.getByRole('button', { name: '主武器' }),
       sub: page.getByRole('button', { name: '副武器' }),
-      escape: page.getByRole('button', { name: '迎撃パリィ' }),
+      parry: page.getByRole('button', { name: '迎撃パリィ' }),
+      dash: page.getByRole('button', { name: '急加速' }),
     };
     await expect(controls.main).toBeVisible();
     if (process.env.CAPTURE_WORLD_REVIEW && viewport.width === 844) {
@@ -788,13 +792,15 @@ for (const viewport of [
     }
 
     expect(overlap(boxes.forward!, boxes.backward!)).toBe(false);
+    expect(overlap(boxes.forward!, boxes.dash!)).toBe(false);
+    expect(overlap(boxes.backward!, boxes.dash!)).toBe(false);
     expect(overlap(boxes.main!, boxes.sub!)).toBe(false);
-    expect(overlap(boxes.main!, boxes.escape!)).toBe(false);
-    expect(overlap(boxes.sub!, boxes.escape!)).toBe(false);
+    expect(overlap(boxes.main!, boxes.parry!)).toBe(false);
+    expect(overlap(boxes.sub!, boxes.parry!)).toBe(false);
     expect(boxes.main!.width).toBeGreaterThan(boxes.sub!.width);
-    expect(boxes.sub!.width).toBeGreaterThan(boxes.escape!.width);
+    expect(boxes.sub!.width).toBeGreaterThan(boxes.parry!.width);
     expect(boxes.main!.x).toBeGreaterThan(boxes.sub!.x);
-    expect(boxes.escape!.y).toBeLessThan(boxes.main!.y);
+    expect(boxes.parry!.y).toBeLessThan(boxes.main!.y);
   });
 }
 

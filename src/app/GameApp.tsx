@@ -89,6 +89,8 @@ interface HudSnapshot {
   secondaryCooldown: number;
   skillCooldown: number;
   parryWindowSeconds: number;
+  dashCooldown: number;
+  dashRemainingSeconds: number;
   primaryOverheated: boolean;
   secondaryOverheated: boolean;
   treasureCollected: number;
@@ -139,6 +141,8 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
     secondaryCooldown: state.player.secondaryCooldown,
     skillCooldown: state.player.skillCooldown,
     parryWindowSeconds: state.player.parryWindowSeconds,
+    dashCooldown: state.player.dashCooldown,
+    dashRemainingSeconds: state.player.dashRemainingSeconds,
     primaryOverheated: state.player.weaponHeat.primary.overheated,
     secondaryOverheated: state.player.weaponHeat.secondary.overheated,
     treasureCollected: state.treasureCollected,
@@ -529,6 +533,16 @@ export function GameApp() {
                 <GameIcon name="backward" />
                 <kbd>A</kbd>
               </ControlButton>
+              <ControlButton
+                label="急加速"
+                className={`move dash ${hud.dashRemainingSeconds > 0 ? 'active' : ''}`}
+                {...bindControl('dash')}
+              >
+                <GameIcon name="boost" />
+                <small>急加速</small>
+                <kbd>SHIFT</kbd>
+                <Meter value={hud.dashCooldown} max={2.7} />
+              </ControlButton>
             </section>
             <section className="weapon-controls" aria-label="武器操作">
               <ControlButton
@@ -542,7 +556,7 @@ export function GameApp() {
                   LV.
                   {sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
                 </b>
-                <kbd>E</kbd>
+                <kbd>C</kbd>
                 <Meter value={hud.secondaryCooldown} max={2.5} />
                 <HeatMeter
                   value={hud.secondaryHeat}
@@ -573,12 +587,12 @@ export function GameApp() {
               </ControlButton>
               <ControlButton
                 label="迎撃パリィ"
-                className={`weapon escape parry ${hud.parryWindowSeconds > 0 ? 'active' : ''}`}
-                {...bindControl('escape')}
+                className={`weapon parry ${hud.parryWindowSeconds > 0 ? 'active' : ''}`}
+                {...bindControl('parry')}
               >
-                <GameIcon name="escape" />
+                <GameIcon name="parry" />
                 <small>迎撃</small>
-                <kbd>Q</kbd>
+                <kbd>F</kbd>
                 <span className="energy">{Math.floor(hud.energy)}%</span>
                 <Meter
                   value={
@@ -1243,8 +1257,9 @@ function GameIcon({ name }: { name: string }) {
     hp: 'M12 38 4 29C-8 16 9-4 24 10 39-4 56 16 44 29L24 49Z',
     enemy: 'M7 16 16 7l8 8 8-8 9 9-4 26H11Z',
     ammo: 'M12 4h12l4 9v30H8V13Z',
-    escape:
+    parry:
       'M28 3 49 11v15c0 14-9 23-21 28C16 49 7 40 7 26V11Zm0 9-12 5v9c0 8 4 14 12 18 8-4 12-10 12-18v-9Z',
+    boost: 'M31 3 9 31h15l-3 22 26-33H32Z',
     forward: 'M8 14h22V4l22 22-22 22V38H8Z',
     backward: 'M52 14H30V4L8 26l22 22V38h22Z',
     weapon: 'M5 19h32l12 8-12 8H5Z',
@@ -1289,6 +1304,8 @@ function describeCombatEvent(event: CombatEvent): string {
       return '射撃準備完了！';
     case 'skill-activated':
       return '迎撃態勢！';
+    case 'dash-activated':
+      return event.direction > 0 ? '前方へ急加速！' : '後方へ急加速！';
     case 'attack-parried':
       return `完全迎撃！ 反撃${event.counterDamage}ダメージ`;
     case 'enemy-attack-windup':

@@ -24,6 +24,7 @@ import type {
   EnemyState,
   LootState,
   PlayerCommand,
+  PlayerState,
   ProjectileState,
   SimulationState,
   WeaponHeatState,
@@ -50,6 +51,10 @@ const PARRY_COOLDOWN_SECONDS = 4;
 const PLAYER_ACCELERATION = 30;
 const PLAYER_BRAKE_ACCELERATION = 42;
 const PLAYER_COAST_DECELERATION = 18;
+const DASH_DURATION_SECONDS = 0.22;
+const DASH_COOLDOWN_SECONDS = 2.7;
+const DASH_SPEED_MULTIPLIER = 1.8;
+const DASH_ACCELERATION = 240;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -472,19 +477,51 @@ export function stepSimulation(
     WEAPON_DEFINITIONS[state.build.secondaryWeaponId],
     state.build,
   );
-  const targetVelocity = command.move * playerStats.moveSpeed;
-  const isReversing =
+  let dashCooldown = Math.max(0, state.player.dashCooldown - deltaSeconds);
+  let dashRemainingSeconds = Math.max(
+    0,
+    state.player.dashRemainingSeconds - deltaSeconds,
+  );
+  let dashDirection: PlayerState['dashDirection'] =
+    dashRemainingSeconds > 0 ? state.player.dashDirection : 0;
+  let startingVelocity = state.player.velocity;
+  if (state.player.dashRemainingSeconds > 0 && dashRemainingSeconds === 0) {
+    startingVelocity = clamp(
+      startingVelocity,
+      -playerStats.moveSpeed,
+      playerStats.moveSpeed,
+    );
+  }
+  if (
+    command.activateDash &&
+    !command.activateSkill &&
     command.move !== 0 &&
-    state.player.velocity !== 0 &&
-    Math.sign(targetVelocity) !== Math.sign(state.player.velocity);
-  const velocityChangeRate =
-    command.move === 0
+    dashCooldown === 0 &&
+    dashRemainingSeconds === 0 &&
+    state.player.parryWindowSeconds === 0
+  ) {
+    dashCooldown = DASH_COOLDOWN_SECONDS;
+    dashRemainingSeconds = DASH_DURATION_SECONDS;
+    dashDirection = command.move;
+    events.push({ type: 'dash-activated', direction: command.move });
+  }
+  const isDashing = dashRemainingSeconds > 0 && dashDirection !== 0;
+  const targetVelocity = isDashing
+    ? dashDirection * playerStats.moveSpeed * DASH_SPEED_MULTIPLIER
+    : command.move * playerStats.moveSpeed;
+  const isReversing =
+    targetVelocity !== 0 &&
+    startingVelocity !== 0 &&
+    Math.sign(targetVelocity) !== Math.sign(startingVelocity);
+  const velocityChangeRate = isDashing
+    ? DASH_ACCELERATION
+    : command.move === 0
       ? PLAYER_COAST_DECELERATION
       : isReversing
         ? PLAYER_BRAKE_ACCELERATION
         : PLAYER_ACCELERATION;
   let playerVelocity = moveTowards(
-    state.player.velocity,
+    startingVelocity,
     targetVelocity,
     velocityChangeRate * deltaSeconds,
   );
@@ -580,6 +617,7 @@ export function stepSimulation(
 
   if (
     command.activateSkill &&
+    dashRemainingSeconds === 0 &&
     skillCooldown === 0 &&
     energy >= PARRY_ENERGY_COST
   ) {
@@ -988,6 +1026,9 @@ export function stepSimulation(
       secondaryCooldown,
       skillCooldown,
       parryWindowSeconds,
+      dashCooldown,
+      dashRemainingSeconds,
+      dashDirection,
     },
     frontline: {
       position: frontlinePosition,

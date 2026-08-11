@@ -32,6 +32,7 @@ export interface PlayerCommand {
   firePrimary: boolean;
   fireSecondary: boolean;
   activateSkill: boolean;
+  activateDash: boolean;
 }
 
 export interface PlayerState {
@@ -50,6 +51,9 @@ export interface PlayerState {
   secondaryCooldown: number;
   skillCooldown: number;
   parryWindowSeconds: number;
+  dashCooldown: number;
+  dashRemainingSeconds: number;
+  dashDirection: Movement;
 }
 
 export interface EnemyState {
@@ -179,6 +183,7 @@ export type CombatEvent =
   | { type: 'overheated'; slot: WeaponSlot; weaponId: WeaponId }
   | { type: 'cooled'; slot: WeaponSlot; weaponId: WeaponId }
   | { type: 'skill-activated'; skillId: 'reactive-parry' }
+  | { type: 'dash-activated'; direction: Exclude<Movement, 0> }
   | {
       type: 'attack-parried';
       sourceId: EntityId;
@@ -234,4 +239,5 @@ export const IDLE_COMMAND: PlayerCommand = {
   firePrimary: false,
   fireSecondary: false,
   activateSkill: false,
+  activateDash: false,
 };

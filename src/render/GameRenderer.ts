@@ -270,6 +270,8 @@ export class GameRenderer {
       state.build.moduleIds,
       state.player.weaponHeat.primary.overheated,
       state.player.weaponHeat.secondary.overheated,
+      state.player.dashRemainingSeconds > 0,
+      state.player.dashDirection,
     );
 
     for (const enemy of state.enemies) {
@@ -438,6 +440,8 @@ export class GameRenderer {
     moduleIds: ModuleId[],
     primaryOverheated: boolean,
     secondaryOverheated: boolean,
+    isDashing: boolean,
+    dashDirection: -1 | 0 | 1,
   ): void {
     const context = this.context;
     const player = this.assets.get(PLAYER_CHASSIS_ART.source);
@@ -447,8 +451,14 @@ export class GameRenderer {
       const recoil = this.weaponRecoil(primaryWeaponId);
       const hitOffset = this.hitOffset(this.playerMotion, -1);
       const isHitFlashing = this.playerMotion.hitAgeSeconds < 0.12;
+      if (isDashing && dashDirection !== 0 && !this.reducedMotion) {
+        this.drawBoostStreaks(x, groundY, width, dashDirection);
+      }
       context.save();
       context.translate(x + hitOffset, groundY);
+      if (isDashing && dashDirection !== 0 && !this.reducedMotion) {
+        context.rotate(-dashDirection * 0.035);
+      }
       if (isHitFlashing) {
         context.filter = 'brightness(1.7) saturate(0.65) sepia(0.2)';
       }
@@ -497,6 +507,10 @@ export class GameRenderer {
     }
     context.save();
     context.translate(x, groundY);
+    if (isDashing && dashDirection !== 0 && !this.reducedMotion) {
+      this.drawBoostStreaks(0, 0, 90, dashDirection);
+      context.rotate(-dashDirection * 0.035);
+    }
 
     if (primaryOverheated && secondaryOverheated) {
       context.shadowColor = '#ff5d5d';
@@ -545,6 +559,43 @@ export class GameRenderer {
       context.fill();
       context.stroke();
     }
+    context.restore();
+  }
+
+  private drawBoostStreaks(
+    x: number,
+    groundY: number,
+    width: number,
+    direction: -1 | 1,
+  ): void {
+    const context = this.context;
+    context.save();
+    context.lineCap = 'round';
+    for (let index = 0; index < 5; index += 1) {
+      const y = groundY - width * (0.18 + index * 0.105);
+      const nearX = x - direction * width * (0.42 + index * 0.025);
+      const farX = x - direction * width * (0.72 + index * 0.08);
+      context.globalAlpha = 0.72 - index * 0.09;
+      context.strokeStyle = index % 2 === 0 ? '#ffd05a' : '#72e6db';
+      context.lineWidth = Math.max(2, width * (0.022 - index * 0.002));
+      context.beginPath();
+      context.moveTo(farX, y);
+      context.lineTo(nearX, y);
+      context.stroke();
+    }
+    context.globalAlpha = 0.34;
+    context.fillStyle = '#f6dfae';
+    context.beginPath();
+    context.ellipse(
+      x - direction * width * 0.38,
+      groundY + 2,
+      width * 0.28,
+      width * 0.055,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
     context.restore();
   }
 
@@ -1036,6 +1087,7 @@ export class GameRenderer {
     this.updateExhaustPuffs(
       state.player.position,
       state.player.velocity,
+      state.player.dashRemainingSeconds > 0,
       deltaSeconds,
     );
 
@@ -1163,6 +1215,7 @@ export class GameRenderer {
   private updateExhaustPuffs(
     playerPosition: number,
     playerVelocity: number,
+    isDashing: boolean,
     deltaSeconds: number,
   ): void {
     if (this.reducedMotion) {
@@ -1175,9 +1228,11 @@ export class GameRenderer {
       this.exhaustPuffs.push({
         worldPosition: playerPosition - 3.4,
         ageSeconds: 0,
-        durationSeconds: 0.68,
+        durationSeconds: isDashing ? 0.82 : 0.68,
       });
-      this.exhaustEmissionSeconds = Math.max(0.13, 0.24 - speed * 0.008);
+      this.exhaustEmissionSeconds = isDashing
+        ? 0.045
+        : Math.max(0.13, 0.24 - speed * 0.008);
     }
     for (let index = this.exhaustPuffs.length - 1; index >= 0; index -= 1) {
       const puff = this.exhaustPuffs[index]!;

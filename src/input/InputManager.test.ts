@@ -60,7 +60,7 @@ describe('InputManager', () => {
   });
 
   it('releases held controls when the window loses focus', () => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC' }));
     input.setVirtualControl('move-right', true);
     window.dispatchEvent(new Event('blur'));
 
@@ -68,6 +68,49 @@ describe('InputManager', () => {
       move: 0,
       fireSecondary: false,
     });
+  });
+
+  it('uses C and F while emitting Shift dash once per press', () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ShiftLeft' }));
+
+    expect(input.readCommand()).toMatchObject({
+      fireSecondary: true,
+      activateSkill: true,
+      activateDash: true,
+    });
+    expect(input.readCommand()).toMatchObject({
+      fireSecondary: true,
+      activateSkill: true,
+      activateDash: false,
+    });
+
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyC' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyF' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyQ' }));
+    expect(input.readCommand()).toMatchObject({
+      fireSecondary: false,
+      activateSkill: false,
+      activateDash: false,
+    });
+  });
+
+  it('holds touch parry while treating touch dash as a one-shot action', () => {
+    input.setVirtualControl('parry', true);
+    input.setVirtualControl('dash', true);
+
+    expect(input.readCommand()).toMatchObject({
+      activateSkill: true,
+      activateDash: true,
+    });
+    expect(input.readCommand()).toMatchObject({
+      activateSkill: true,
+      activateDash: false,
+    });
+    input.setVirtualControl('parry', false);
+    expect(input.readCommand().activateSkill).toBe(false);
   });
 
   it('maps keyboard bindings to shared menu actions', () => {

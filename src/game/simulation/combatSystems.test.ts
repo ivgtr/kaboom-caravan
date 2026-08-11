@@ -149,6 +149,29 @@ describe('weapon resources', () => {
     });
   });
 
+  it('prioritizes parry when dash and parry are requested together', () => {
+    const initial = createSimulation();
+    const result = stepSimulation(
+      initial,
+      {
+        ...IDLE_COMMAND,
+        move: 1,
+        activateDash: true,
+        activateSkill: true,
+      },
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(result.events).toContainEqual({
+      type: 'skill-activated',
+      skillId: 'reactive-parry',
+    });
+    expect(result.events).not.toContainEqual(
+      expect.objectContaining({ type: 'dash-activated' }),
+    );
+    expect(result.player.dashCooldown).toBe(0);
+  });
+
   it('parries an incoming projectile, vents heat and counters its source', () => {
     const initial = createSimulation();
     initial.player.energy = 50;

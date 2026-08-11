@@ -253,6 +253,7 @@ function combatCommand(session: GameSessionState): PlayerCommand {
     fireSecondary: canFire(secondary, 'secondary'),
     activateSkill:
       (parryThreat || contactThreat) && session.combat.player.energy >= 20,
+    activateDash: false,
   };
 }
 
