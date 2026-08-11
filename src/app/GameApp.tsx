@@ -216,6 +216,7 @@ export function GameApp() {
     if (!canvas) return;
     let lastSnapshotTick = -1;
     let lastPhase = sessionRef.current.phase;
+    let lastHandledEvents: readonly CombatEvent[] | undefined;
     let clearTimer: number | undefined;
     let renderer: GameRenderer;
     try {
@@ -243,20 +244,25 @@ export function GameApp() {
           deltaSeconds,
         );
         sessionRef.current = session;
-        audio.handleEvents(session.combat.events);
-        const feedbackEvent =
-          session.combat.events.find(({ type }) => type === 'attack-parried') ??
-          session.combat.events.find(
-            ({ type }) => type === 'enemy-attack-windup',
-          ) ??
-          session.combat.events.at(-1);
-        if (feedbackEvent) setFeedback(describeCombatEvent(feedbackEvent));
         const phaseChanged = session.phase !== lastPhase;
+        if (phaseChanged) audio.setPhase(session.phase);
+        if (session.combat.events !== lastHandledEvents) {
+          lastHandledEvents = session.combat.events;
+          audio.handleEvents(session.combat.events);
+          const feedbackEvent =
+            session.combat.events.find(
+              ({ type }) => type === 'attack-parried',
+            ) ??
+            session.combat.events.find(
+              ({ type }) => type === 'enemy-attack-windup',
+            ) ??
+            session.combat.events.at(-1);
+          if (feedbackEvent) setFeedback(describeCombatEvent(feedbackEvent));
+        }
         if (phaseChanged && session.phase === 'reward') {
           setShowClear(true);
           clearTimer = window.setTimeout(() => setShowClear(false), 1200);
         }
-        if (phaseChanged) audio.setPhase(session.phase);
         if (
           phaseChanged &&
           (session.phase === 'victory' || session.phase === 'defeat')
