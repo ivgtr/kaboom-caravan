@@ -344,7 +344,7 @@ export class GameRenderer {
       );
     }
     if (this.performanceStress) this.drawPerformanceStressProjectiles();
-    this.drawEffects();
+    this.drawEffects(playerX);
     context.restore();
 
     this.knownEntityPositions.set(state.player.id, state.player.position);
@@ -1375,7 +1375,7 @@ export class GameRenderer {
     }
   }
 
-  private drawEffects(): void {
+  private drawEffects(playerX: number): void {
     const context = this.context;
     const parrySuccess = this.effects.find(
       ({ kind }) => kind === 'parry-success',
@@ -1389,7 +1389,11 @@ export class GameRenderer {
     }
     for (const effect of this.effects) {
       const progress = effect.ageSeconds / effect.durationSeconds;
-      const x = this.worldToScreen(effect.worldPosition);
+      const followsPlayer =
+        effect.kind === 'parry-ready' || effect.kind === 'parry-success';
+      const x = followsPlayer
+        ? playerX
+        : this.worldToScreen(effect.worldPosition);
       const y =
         effect.kind === 'parry-ready' || effect.kind === 'parry-success'
           ? this.groundY -
@@ -1485,7 +1489,7 @@ export class GameRenderer {
         Math.max(118, this.viewportHeight * 0.25),
       );
       this.drawParryVfx(
-        this.worldToScreen(10),
+        playerX,
         this.groundY - caravanWidth * 0.46,
         0.2,
         this.parryVfxPreview === 'success',

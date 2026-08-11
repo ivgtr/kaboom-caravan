@@ -388,12 +388,14 @@ for (const viewport of [
       await expect(
         page.getByRole('button', { name: '迎撃パリィ' }),
       ).toBeVisible();
+      await page.keyboard.down('d');
+      await page.waitForTimeout(280);
       if (process.env.CAPTURE_VFX_REVIEW) {
-        await page.waitForTimeout(100);
         await page.screenshot({
           path: `artifacts/vfx/review/parry_${pose}_${viewport.width}x${viewport.height}_v001.png`,
         });
       }
+      await page.keyboard.up('d');
     }
   });
 }
