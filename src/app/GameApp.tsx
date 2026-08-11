@@ -57,6 +57,17 @@ const UI_ASSET_STYLES = {
   '--reward-frame-image': `url("${runtimeAssetUrl('assets/ui/ui_reward_frame_v001.png')}")`,
 } as CSSProperties;
 
+const REWARD_TYPE_LABELS = {
+  weapon: '武器',
+  module: 'モジュール',
+} as const;
+
+const REWARD_RARITY_LABELS = {
+  common: '標準',
+  rare: '希少',
+  epic: '特級',
+} as const;
+
 interface HudSnapshot {
   tick: number;
   position: number;
@@ -206,7 +217,7 @@ export function GameApp() {
   const [sessionView, setSessionView] = useState(() =>
     toSessionView(initialSession),
   );
-  const [feedback, setFeedback] = useState('戦闘開始');
+  const [feedback, setFeedback] = useState('敵襲！');
   const [showClear, setShowClear] = useState(false);
   const [renderError, setRenderError] = useState<string>();
   const debug = new URLSearchParams(window.location.search).has('debug');
@@ -225,7 +236,7 @@ export function GameApp() {
       const errorTimer = window.setTimeout(
         () =>
           setRenderError(
-            'このブラウザでは戦闘画面を初期化できませんでした。Canvas 2Dを有効にして再読み込みしてください。',
+            '戦闘画面を表示できませんでした。ブラウザのCanvas 2Dを有効にして、もう一度お試しください。',
           ),
         0,
       );
@@ -322,7 +333,7 @@ export function GameApp() {
     input.setEnabled(session.phase === 'combat');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
-    setFeedback(`戦闘${session.run.encounterIndex + 1}を開始`);
+    setFeedback(`第${session.run.encounterIndex + 1}戦へ出撃！`);
   };
   const restart = () => {
     audio.playUiConfirm();
@@ -332,14 +343,14 @@ export function GameApp() {
     input.setEnabled(false);
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
-    setFeedback('新しいランを開始');
+    setFeedback('整備庫へ帰還');
   };
   const reroll = () => {
     audio.playUiConfirm();
     const session = rerollRewards(sessionRef.current);
     sessionRef.current = session;
     setSessionView(toSessionView(session));
-    setFeedback('SALVAGE REROLL!');
+    setFeedback('戦利品を引き直した！');
   };
   const startRun = (loadoutId: LoadoutId) => {
     audio.playUiConfirm();
@@ -359,7 +370,7 @@ export function GameApp() {
     input.setEnabled(true);
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
-    setFeedback('新しい区画へ進入');
+    setFeedback('次の区画へ進撃！');
   };
 
   const combatVisible = sessionView.phase === 'combat';
@@ -371,7 +382,7 @@ export function GameApp() {
       <canvas ref={canvasRef} aria-label="戦闘フィールド" />
       {renderError ? (
         <section className="render-error" role="alert">
-          <strong>DISPLAY ERROR</strong>
+          <strong>表示エラー</strong>
           <p>{renderError}</p>
           <button type="button" onClick={() => window.location.reload()}>
             再読み込み
@@ -383,7 +394,7 @@ export function GameApp() {
             <section className="compact-hud" aria-label="車両耐久">
               <GameIcon name="hp" />
               <div>
-                <strong>CARAVAN</strong>
+                <strong>キャラバン</strong>
                 <progress value={hud.hitPoints} max={hud.maxHitPoints} />
               </div>
               <b>{Math.ceil(hud.hitPoints)}</b>
@@ -404,18 +415,18 @@ export function GameApp() {
                 ))}
               </div>
               <b>
-                <span>BATTLE {sessionView.encounterIndex + 1}/10</span>
-                <em>SALVAGE ×{hud.rewardMultiplier.toFixed(1)}</em>
+                <span>第{sessionView.encounterIndex + 1}戦 / 全10戦</span>
+                <em>戦利品 ×{hud.rewardMultiplier.toFixed(1)}</em>
               </b>
             </section>
             <section className="enemy-chip">
               <GameIcon name="enemy" />
-              <span>MONSTER</span>
+              <span>敵</span>
               <strong>{hud.enemies}</strong>
             </section>
             <section className="treasure-chip" aria-label="回収したお宝">
               <span>✦</span>
-              <b>TREASURE</b>
+              <b>お宝</b>
               <strong>{hud.treasureCollected}</strong>
             </section>
             <p className="combat-feedback" aria-live="polite">
@@ -446,7 +457,7 @@ export function GameApp() {
                 {...bindControl('secondary')}
               >
                 <EquipmentGlyph id={sessionView.secondaryWeaponId} />
-                <small>SUB</small>
+                <small>副</small>
                 <b className="weapon-level">
                   LV.
                   {sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
@@ -460,7 +471,7 @@ export function GameApp() {
                 {...bindControl('primary')}
               >
                 <EquipmentGlyph id={sessionView.primaryWeaponId} />
-                <small>{hud.overheated ? 'OVERHEAT' : 'MAIN'}</small>
+                <small>{hud.overheated ? '過熱中' : '主'}</small>
                 <b className="weapon-level">
                   LV.
                   {sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
@@ -481,7 +492,7 @@ export function GameApp() {
                 {...bindControl('escape')}
               >
                 <GameIcon name="escape" />
-                <small>PARRY</small>
+                <small>迎撃</small>
                 <kbd>Q</kbd>
                 <span className="energy">{Math.floor(hud.energy)}%</span>
                 <Meter
@@ -513,7 +524,7 @@ export function GameApp() {
           audio.setMuted(next);
         }}
       >
-        {muted ? 'SOUND OFF' : 'SOUND ON'}
+        {muted ? '音声 なし' : '音声 あり'}
       </button>
       {sessionView.phase === 'garage' && (
         <GaragePanel meta={meta} onStart={startRun} />
@@ -531,10 +542,10 @@ export function GameApp() {
       )}
       {showClear && (
         <section className="battle-clear" role="status">
-          <strong>BATTLE CLEAR!</strong>
+          <strong>戦闘勝利！</strong>
           <span>{sessionView.encounterName} 制圧完了</span>
-          <em>TREASURE +{sessionView.lastEncounterTreasure}</em>
-          <b>TIME {formatTimeScore(sessionView.lastEncounterTicks)}</b>
+          <em>お宝 +{sessionView.lastEncounterTreasure}</em>
+          <b>討伐時間 {formatTimeScore(sessionView.lastEncounterTicks)}</b>
         </section>
       )}
       {sessionView.phase === 'route' && (
@@ -543,39 +554,40 @@ export function GameApp() {
       {(sessionView.phase === 'victory' || sessionView.phase === 'defeat') && (
         <section className="result-panel" role="dialog" aria-modal="true">
           <strong>
-            {sessionView.phase === 'victory' ? 'RUN COMPLETE!' : 'DEFEAT'}
+            {sessionView.phase === 'victory' ? '遠征完遂！' : 'キャラバン大破'}
           </strong>
           <span>
             {sessionView.phase === 'victory'
-              ? 'カワイイ・フォートレスを撃破！'
-              : 'キャラバンが停止しました'}
+              ? 'カワイイ・フォートレスを撃破した！'
+              : 'ここで遠征は終了だ……'}
           </span>
           <b className="run-time-score">
-            {sessionView.phase === 'victory' ? 'RUN TIME' : 'SURVIVAL TIME'}{' '}
+            {sessionView.phase === 'victory' ? '遠征時間' : '生存時間'}{' '}
             {formatTimeScore(sessionView.elapsedCombatTicks)}
           </b>
           <div className="run-record-grid">
             <span>
-              MONSTERS <b>{sessionView.enemiesDefeated}</b>
+              討伐数 <b>{sessionView.enemiesDefeated}</b>
             </span>
             <span>
-              PARRIES <b>{sessionView.parries}</b>
+              迎撃数 <b>{sessionView.parries}</b>
             </span>
             <span>
-              DAMAGE <b>{Math.round(sessionView.damageDealt)}</b>
+              総ダメージ <b>{Math.round(sessionView.damageDealt)}</b>
             </span>
             <span>
-              TREASURE <b>{sessionView.treasureCollected}</b>
+              お宝 <b>{sessionView.treasureCollected}</b>
             </span>
           </div>
           <div className="result-build" aria-label="最終ビルド">
-            <span>FINAL BUILD</span>
+            <span>最終装備</span>
             <b>
-              MAIN {WEAPON_DEFINITIONS[sessionView.primaryWeaponId].displayName}{' '}
-              LV.{sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
+              主武器{' '}
+              {WEAPON_DEFINITIONS[sessionView.primaryWeaponId].displayName} LV.
+              {sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
             </b>
             <b>
-              SUB{' '}
+              副武器{' '}
               {WEAPON_DEFINITIONS[sessionView.secondaryWeaponId].displayName}{' '}
               LV.{sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
             </b>
@@ -584,14 +596,14 @@ export function GameApp() {
                 ? sessionView.moduleIds
                     .map((id) => MODULE_DEFINITIONS[id].displayName)
                     .join(' / ')
-                : 'MODULEなし'}
+                : 'モジュールなし'}
             </small>
           </div>
           {meta.bestVictoryTicks !== undefined && (
-            <small>BEST RUN {formatTimeScore(meta.bestVictoryTicks)}</small>
+            <small>最速記録 {formatTimeScore(meta.bestVictoryTicks)}</small>
           )}
           <button type="button" onClick={restart}>
-            新しいラン
+            整備庫へ戻る
           </button>
         </section>
       )}
@@ -609,8 +621,8 @@ function GaragePanel({
   return (
     <section className="garage-panel" role="dialog" aria-modal="true">
       <header>
-        <span>KAWAII GARAGE</span>
-        <strong>出撃するキャラバンを選ぼう</strong>
+        <span>キャラバン整備庫</span>
+        <strong>初期武装を選んで出撃しよう</strong>
       </header>
       <div className="garage-loadouts">
         {LOADOUT_IDS.map((id) => {
@@ -630,26 +642,25 @@ function GaragePanel({
               <strong>{loadout.displayName}</strong>
               <span>{loadout.tagline}</span>
               <small>
-                MAIN {WEAPON_DEFINITIONS[loadout.primaryWeaponId].displayName}
-                {' / '}SUB{' '}
+                主 {WEAPON_DEFINITIONS[loadout.primaryWeaponId].displayName}
+                {' / '}副{' '}
                 {WEAPON_DEFINITIONS[loadout.secondaryWeaponId].displayName}
               </small>
-              {!unlocked && (
-                <em>LOCKED — Victory またはTreasure累計15で解禁</em>
-              )}
+              {!unlocked && <em>未解禁 — 遠征完遂またはお宝累計15で解禁</em>}
             </button>
           );
         })}
       </div>
       <footer>
         <span>
-          RUNS {meta.totalRuns} / TOTAL TREASURE {meta.totalTreasure}
+          挑戦回数 {meta.totalRuns} / お宝累計 {meta.totalTreasure}
         </span>
         {meta.history[0] && (
           <small>
-            LAST {meta.history[0].result.toUpperCase()} —{' '}
+            直近の遠征：
+            {meta.history[0].result === 'victory' ? '完遂' : '大破'} —{' '}
             {LOADOUT_DEFINITIONS[meta.history[0].loadoutId].displayName} /{' '}
-            {formatTimeScore(meta.history[0].elapsedCombatTicks)} / TREASURE{' '}
+            {formatTimeScore(meta.history[0].elapsedCombatTicks)} / お宝{' '}
             {meta.history[0].treasureCollected}
           </small>
         )}
@@ -668,8 +679,8 @@ function RoutePanel({
   return (
     <section className="route-panel" role="dialog" aria-modal="true">
       <header>
-        <span>CHOOSE THE ROAD</span>
-        <strong>次の進行先を選ぼう</strong>
+        <span>進路選択</span>
+        <strong>次に進む区画を選ぼう</strong>
       </header>
       <div>
         {choices.map((choice) => (
@@ -874,14 +885,14 @@ function RewardPanel({
     <section className="reward-panel" role="dialog" aria-modal="true">
       <header>
         <div>
-          <span>SALVAGE TIME!</span>
-          <strong>欲しい装備をひとつ選ぼう</strong>
+          <span>戦利品選択</span>
+          <strong>持ち帰る装備をひとつ選ぼう</strong>
           <small className="reward-keyboard-hint">
-            A D / ← → + SPACE / 1・2・3
+            A・D / ←・→ で移動 / SPACEで決定 / 1〜3で即決
           </small>
         </div>
         <b>
-          MODULE {moduleIds.length}/{MODULE_SLOT_COUNT}
+          モジュール {moduleIds.length}/{MODULE_SLOT_COUNT}
         </b>
         <button
           className="reward-reroll"
@@ -889,7 +900,7 @@ function RewardPanel({
           disabled={rerolls <= 0}
           onClick={onReroll}
         >
-          REROLL ×{rerolls}
+          引き直し ×{rerolls}
         </button>
       </header>
       <div className="reward-grid">
@@ -900,9 +911,11 @@ function RewardPanel({
           >
             <span className="reward-type">
               <GameIcon name={choice.type === 'weapon' ? 'weapon' : 'module'} />
-              {choice.type.toUpperCase()}
+              {REWARD_TYPE_LABELS[choice.type]}
             </span>
-            <span className="reward-rarity">{choice.rarity.toUpperCase()}</span>
+            <span className="reward-rarity">
+              {REWARD_RARITY_LABELS[choice.rarity]}
+            </span>
             <kbd className="reward-shortcut">{index + 1}</kbd>
             <div className="equipment-visual">
               <EquipmentGlyph
@@ -915,8 +928,8 @@ function RewardPanel({
             {choice.type === 'weapon' && (
               <strong className="reward-weapon-level">
                 {choice.isUpgrade
-                  ? `LV.${choice.currentLevel} → LV.${choice.nextLevel}`
-                  : `NEW / LV.${choice.nextLevel}`}
+                  ? `Lv.${choice.currentLevel} → Lv.${choice.nextLevel}`
+                  : `新規 / Lv.${choice.nextLevel}`}
               </strong>
             )}
             <p>{choice.description}</p>
@@ -938,17 +951,17 @@ function RewardPanel({
                 className={`reward-card-action${choice.type === 'module' && replacedModuleName ? ' has-swap' : ''}`}
               >
                 {choice.type === 'weapon' && choice.isUpgrade ? (
-                  <small>POWER UP</small>
+                  <small>武器強化</small>
                 ) : choice.type === 'module' && replacedModuleName ? (
                   <small className="reward-module-swap">
                     ↻ {replacedModuleName}と交換
                   </small>
                 ) : (
-                  <small>SELECT</small>
+                  <small>獲得</small>
                 )}
                 {choice.type === 'weapon' && choice.isUpgrade
                   ? '強化する'
-                  : '選択する'}
+                  : 'これに決める'}
               </span>
             </button>
           </article>
@@ -960,12 +973,12 @@ function RewardPanel({
             <EquipmentGlyph id={pendingWeapon.weaponId} />
           </div>
           <div className="slot-picker-copy">
-            <span>WEAPON SLOT</span>
+            <span>装着先を選択</span>
             <strong>{pendingWeapon.displayName}</strong>
             <p>どちらの操作ボタンへ装着しますか？</p>
             <small>
-              CURRENT: MAIN {WEAPON_DEFINITIONS[primaryWeaponId].displayName} /
-              SUB {WEAPON_DEFINITIONS[secondaryWeaponId].displayName}
+              現在：主 {WEAPON_DEFINITIONS[primaryWeaponId].displayName} / 副{' '}
+              {WEAPON_DEFINITIONS[secondaryWeaponId].displayName}
             </small>
           </div>
           <div className="slot-picker-actions">
@@ -979,7 +992,7 @@ function RewardPanel({
               onClick={() => onChoose(pendingWeapon.id, 'primary')}
             >
               <small>主武器</small>
-              <span>MAIN</span>
+              <span>主</span>
               <kbd>1</kbd>
             </button>
             <button
@@ -992,7 +1005,7 @@ function RewardPanel({
               onClick={() => onChoose(pendingWeapon.id, 'secondary')}
             >
               <small>副武器</small>
-              <span>SUB</span>
+              <span>副</span>
               <kbd>2</kbd>
             </button>
           </div>
@@ -1070,42 +1083,42 @@ function GameIcon({ name }: { name: string }) {
 function describeCombatEvent(event: CombatEvent): string {
   switch (event.type) {
     case 'weapon-fired':
-      return 'KABOOM!';
+      return '発射！';
     case 'projectile-hit':
-      return `${event.damage.toFixed(0)} DAMAGE!`;
+      return `${event.damage.toFixed(0)}ダメージ！`;
     case 'enemy-killed':
-      return 'MONSTER DOWN!';
+      return '撃破！';
     case 'loot-dropped':
-      return 'TREASURE DROP!';
+      return 'お宝発見！';
     case 'loot-collected':
-      return `SALVAGE +${event.value}`;
+      return `お宝 +${event.value}`;
     case 'vehicle-hit':
-      return `OUCH! -${event.damage.toFixed(0)}`;
+      return `被弾！ -${event.damage.toFixed(0)}`;
     case 'overheated':
-      return 'OVERHEAT!';
+      return 'オーバーヒート！';
     case 'cooled':
-      return 'READY!';
+      return '射撃準備完了！';
     case 'skill-activated':
-      return 'PARRY READY!';
+      return '迎撃態勢！';
     case 'attack-parried':
-      return `PERFECT PARRY! ${event.counterDamage} COUNTER`;
+      return `完全迎撃！ 反撃${event.counterDamage}ダメージ`;
     case 'enemy-attack-windup':
-      return 'WATCH OUT!';
+      return '攻撃が来る！';
     case 'enemy-contact-released':
-      return 'IMPACT!';
+      return '激突！';
     case 'enemy-attacked':
-      return 'INCOMING!';
+      return '敵が攻撃！';
     case 'enemy-projectile-fired':
-      return 'INCOMING!';
+      return '敵弾接近！';
     case 'enemy-projectile-hit':
-      return `${event.damage.toFixed(0)} DAMAGE!`;
+      return `${event.damage.toFixed(0)}ダメージ！`;
     case 'wave-started':
-      return 'WAVE START!';
+      return '敵襲！';
     case 'wave-completed':
-      return 'WAVE CLEAR!';
+      return '敵部隊撃破！';
     case 'boss-phase-changed':
-      return `BOSS PHASE ${event.phase}`;
+      return `ボス形態変化・第${event.phase}段階`;
     case 'combat-ended':
-      return event.result === 'victory' ? 'BATTLE CLEAR!' : 'CARAVAN DOWN';
+      return event.result === 'victory' ? '戦闘勝利！' : 'キャラバン大破';
   }
 }

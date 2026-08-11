@@ -13,22 +13,22 @@ export function createRouteChoices(encounterIndex: number): RouteChoice[] {
     {
       id: `route-${encounterIndex}-elite`,
       type: 'elite',
-      displayName: 'ELITE AMBUSH',
-      description: '強化Monster。Treasure Drop確率とReward品質が上昇。',
+      displayName: '強敵の待ち伏せ',
+      description: '手強い敵が出現。お宝の獲得量と戦利品の品質が上がる。',
       accent: 'coral',
     },
     {
       id: `route-${encounterIndex}-repair`,
       type: 'repair',
-      displayName: 'REPAIR GARAGE',
+      displayName: '出張整備所',
       description: '次戦前に耐久を30回復する。',
       accent: 'mint',
     },
     {
       id: `route-${encounterIndex}-salvage`,
       type: 'salvage',
-      displayName: 'SALVAGE CACHE',
-      description: 'Treasure +2とReward Rerollを獲得する。',
+      displayName: '秘密の物資庫',
+      description: 'お宝を2個回収し、戦利品を1回引き直せる。',
       accent: 'yellow',
     },
   ];
@@ -36,7 +36,7 @@ export function createRouteChoices(encounterIndex: number): RouteChoice[] {
     {
       id: `route-${encounterIndex}-normal`,
       type: 'normal',
-      displayName: 'HIGHWAY',
+      displayName: '街道を進む',
       description: '通常の敵構成で次の区画へ進む。',
       accent: 'cyan',
     },

@@ -31,7 +31,7 @@ export const LOADOUT_DEFINITIONS: Readonly<
   explosive: {
     id: 'explosive',
     displayName: 'KABOOM・キャラバン',
-    tagline: 'RocketとMineで敵群を粉砕',
+    tagline: 'ロケットと地雷で敵群を粉砕',
     primaryWeaponId: 'rocket-launcher',
     secondaryWeaponId: 'mine-launcher',
     unlockId: 'loadout-explosive',

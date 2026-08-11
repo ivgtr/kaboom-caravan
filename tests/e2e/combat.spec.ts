@@ -4,7 +4,9 @@ test('starts a new post-MVP run from the kawaii garage', async ({ page }) => {
   await page.setViewportSize({ width: 1184, height: 689 });
   await page.goto('/');
 
-  const garage = page.getByRole('dialog').filter({ hasText: 'KAWAII GARAGE' });
+  const garage = page
+    .getByRole('dialog')
+    .filter({ hasText: 'キャラバン整備庫' });
   await expect(garage).toBeVisible();
   await expect(
     garage.getByRole('button', { name: /KABOOM・キャラバン/ }),
@@ -24,7 +26,7 @@ async function enableReactiveParry(page: import('@playwright/test').Page) {
     if (!feedback) return;
     let parryHeld = false;
     const reactToWarning = () => {
-      if (!feedback.textContent?.includes('WATCH OUT!') || parryHeld) return;
+      if (!feedback.textContent?.includes('攻撃が来る！') || parryHeld) return;
       parryHeld = true;
       window.dispatchEvent(
         new KeyboardEvent('keydown', { code: 'KeyQ', bubbles: true }),
@@ -58,8 +60,8 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
 
   await expect(health).toContainText('100');
   const progress = page.getByRole('region', { name: '戦闘進行' });
-  await expect(progress).toContainText('BATTLE 1/10');
-  await expect(progress).toContainText('SALVAGE ×1.0');
+  await expect(progress).toContainText('第1戦 / 全10戦');
+  await expect(progress).toContainText('戦利品 ×1.0');
   await expect(progress).not.toContainText('SAFE');
   await expect(progress).not.toContainText('DANGER');
   await expect(main).toContainText('50');
@@ -143,7 +145,7 @@ test('renders an acquired module on the physical caravan mounts', async ({
   await page.keyboard.down('Space');
   await page.keyboard.down('d');
 
-  const rewards = page.getByRole('dialog').filter({ hasText: 'SALVAGE TIME!' });
+  const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
   await expect(rewards).toBeVisible({ timeout: 45_000 });
   await page.keyboard.up('e');
   await page.keyboard.up('Space');
@@ -171,12 +173,10 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto('/?debug=1&rewardPreview=full-modules');
 
-    const rewards = page
-      .getByRole('dialog')
-      .filter({ hasText: 'SALVAGE TIME!' });
+    const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
     const oldestModuleName = '冷却ファン';
     await expect(rewards).toBeVisible();
-    await expect(rewards).toContainText('MODULE 4/4');
+    await expect(rewards).toContainText('モジュール 4/4');
     const moduleCards = rewards.locator('.reward-module');
     const moduleCardCount = await moduleCards.count();
     expect(moduleCardCount).toBeGreaterThan(0);
@@ -372,7 +372,7 @@ test('shows a recoverable message when Canvas 2D is unavailable', async ({
   await page.goto('/?quickStart=1');
 
   const error = page.getByRole('alert');
-  await expect(error).toContainText('DISPLAY ERROR');
+  await expect(error).toContainText('表示エラー');
   await expect(error.getByRole('button', { name: '再読み込み' })).toBeVisible();
   await expect(page.getByRole('button', { name: '主武器' })).toHaveCount(0);
 });
@@ -395,7 +395,7 @@ for (const viewport of [
 
     const clear = page.locator('.battle-clear');
     await expect(clear).toBeVisible({ timeout: 45_000 });
-    await expect(clear).toContainText(/TIME \d{2}:\d{2}\.\d{2}/);
+    await expect(clear).toContainText(/討伐時間 \d{2}:\d{2}\.\d{2}/);
     if (process.env.CAPTURE_UI_REVIEW) {
       await waitForAnimations(clear);
       await page.screenshot({
@@ -403,9 +403,7 @@ for (const viewport of [
       });
     }
 
-    const rewards = page
-      .getByRole('dialog')
-      .filter({ hasText: 'SALVAGE TIME!' });
+    const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
     await expect(rewards).toBeVisible();
     await page.keyboard.up('e');
     await page.keyboard.up('Space');
@@ -473,10 +471,10 @@ for (const viewport of [
     const slotPicker = rewards.getByLabel('武器の装着先を選択');
     await expect(slotPicker).toBeVisible();
     await expect(
-      slotPicker.getByRole('button', { name: /主武器 MAIN/ }),
+      slotPicker.getByRole('button', { name: /主武器 主/ }),
     ).toBeVisible();
     await expect(
-      slotPicker.getByRole('button', { name: /副武器 SUB/ }),
+      slotPicker.getByRole('button', { name: /副武器 副/ }),
     ).toBeVisible();
     if (process.env.CAPTURE_UI_REVIEW) {
       await waitForAnimations(slotPicker);
@@ -501,11 +499,11 @@ for (const viewport of [
     await expect(slotPicker).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await expect(
-      slotPicker.getByRole('button', { name: /副武器 SUB/ }),
+      slotPicker.getByRole('button', { name: /副武器 副/ }),
     ).toHaveClass(/selected/);
     await page.keyboard.press('ArrowLeft');
     await expect(
-      slotPicker.getByRole('button', { name: /主武器 MAIN/ }),
+      slotPicker.getByRole('button', { name: /主武器 主/ }),
     ).toHaveClass(/selected/);
     await page.keyboard.press('Space');
     await expect(rewards).toHaveCount(0);
@@ -517,7 +515,7 @@ test('uses a slot confirmation step for a newly acquired weapon', async ({
   page,
 }) => {
   await page.goto('/?debug=1&rewardPreview=weapon-slot');
-  const rewards = page.getByRole('dialog').filter({ hasText: 'SALVAGE TIME!' });
+  const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
   const newWeapon = rewards
     .locator('.reward-card.reward-weapon:not(.reward-upgrade)')
     .first();
@@ -526,7 +524,7 @@ test('uses a slot confirmation step for a newly acquired weapon', async ({
   await newWeapon.click();
   const slotPicker = rewards.getByLabel('武器の装着先を選択');
   await expect(slotPicker).toBeVisible();
-  await slotPicker.getByRole('button', { name: /副武器 SUB/ }).click();
+  await slotPicker.getByRole('button', { name: /副武器 副/ }).click();
   await expect(rewards).toHaveCount(0);
   await expect(page.getByRole('button', { name: '副武器' })).toBeVisible();
 });
