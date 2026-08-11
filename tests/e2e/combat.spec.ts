@@ -19,6 +19,65 @@ test('starts a new post-MVP run from the kawaii garage', async ({ page }) => {
   );
 });
 
+test('navigates the garage with shared menu controls and skips locked loadouts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1184, height: 689 });
+  await page.goto('/');
+
+  const garage = page
+    .getByRole('dialog')
+    .filter({ hasText: 'キャラバン整備庫' });
+  const standard = garage.getByRole('button', {
+    name: /スタンダード・キャラバン/,
+  });
+  const blaze = garage.getByRole('button', {
+    name: /ブレイズ・キャラバン/,
+  });
+  const locked = garage.getByRole('button', { name: /KABOOM・キャラバン/ });
+
+  await expect(standard).toBeFocused();
+  await page.keyboard.press('KeyD');
+  await expect(blaze).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(locked).not.toBeFocused();
+  await expect(standard).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(blaze).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(garage).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+});
+
+test('uses the same navigation controls for routes and the result screen', async ({
+  page,
+}) => {
+  await page.goto('/?debug=1&routePreview=1');
+  const routes = page.getByRole('dialog').filter({ hasText: '進路選択' });
+  const normalRoute = routes.getByRole('button', { name: /街道を進む/ });
+  const alternateRoute = routes.getByRole('button', {
+    name: /強敵の待ち伏せ/,
+  });
+
+  await expect(normalRoute).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(alternateRoute).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(routes).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+
+  await page.goto('/?debug=1&resultPreview=defeat');
+  const result = page.getByRole('dialog').filter({ hasText: 'キャラバン大破' });
+  const restart = result.getByRole('button', { name: '整備庫へ戻る' });
+  await expect(restart).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(result).toHaveCount(0);
+  await expect(
+    page.getByRole('dialog').filter({ hasText: 'キャラバン整備庫' }),
+  ).toBeVisible();
+});
+
 async function enableReactiveParry(page: import('@playwright/test').Page) {
   await page.locator('.combat-feedback').waitFor({ state: 'attached' });
   await page.evaluate(() => {

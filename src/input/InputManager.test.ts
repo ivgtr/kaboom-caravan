@@ -6,6 +6,7 @@ describe('InputManager', () => {
 
   beforeEach(() => {
     input = new InputManager(window);
+    input.setContext('combat');
     input.connect();
   });
 
@@ -22,7 +23,7 @@ describe('InputManager', () => {
       firePrimary: true,
     });
 
-    input.setEnabled(false);
+    input.setContext('menu');
 
     expect(input.readCommand()).toMatchObject({
       move: 0,
@@ -30,12 +31,12 @@ describe('InputManager', () => {
     });
   });
 
-  it('ignores reward keys until combat is enabled again', () => {
-    input.setEnabled(false);
+  it('does not carry menu keys into combat', () => {
+    input.setContext('menu');
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA' }));
 
-    input.setEnabled(true);
+    input.setContext('combat');
 
     expect(input.readCommand()).toMatchObject({
       move: 0,
@@ -45,8 +46,8 @@ describe('InputManager', () => {
 
   it('does not revive a cleared key from operating-system key repeat', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
-    input.setEnabled(false);
-    input.setEnabled(true);
+    input.setContext('menu');
+    input.setContext('combat');
     window.dispatchEvent(
       new KeyboardEvent('keydown', { code: 'Space', repeat: true }),
     );
@@ -67,5 +68,87 @@ describe('InputManager', () => {
       move: 0,
       fireSecondary: false,
     });
+  });
+
+  it('maps keyboard bindings to shared menu actions', () => {
+    input.setContext('menu');
+    const actions: string[] = [];
+    input.subscribeToMenu((action) => actions.push(action));
+
+    for (const code of [
+      'KeyA',
+      'ArrowRight',
+      'Space',
+      'Enter',
+      'Escape',
+      'Digit1',
+      'Numpad2',
+      'Digit3',
+    ]) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    }
+
+    expect(actions).toEqual([
+      'previous',
+      'next',
+      'confirm',
+      'confirm',
+      'cancel',
+      'shortcut-1',
+      'shortcut-2',
+      'shortcut-3',
+    ]);
+  });
+
+  it('repeats navigation but never repeats confirm or shortcuts', () => {
+    input.setContext('menu');
+    const actions: string[] = [];
+    input.subscribeToMenu((action) => actions.push(action));
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyD', repeat: true }),
+    );
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Space', repeat: true }),
+    );
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Digit1', repeat: true }),
+    );
+
+    expect(actions).toEqual(['next']);
+  });
+
+  it('does not intercept menu shortcuts while entering text', () => {
+    input.setContext('menu');
+    const actions: string[] = [];
+    input.subscribeToMenu((action) => actions.push(action));
+    const field = document.createElement('input');
+    document.body.append(field);
+
+    field.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyA', bubbles: true }),
+    );
+
+    expect(actions).toEqual([]);
+    field.remove();
+  });
+
+  it('leaves Space and Enter activation to focused native buttons', () => {
+    input.setContext('menu');
+    const actions: string[] = [];
+    input.subscribeToMenu((action) => actions.push(action));
+    const button = document.createElement('button');
+    document.body.append(button);
+
+    const event = new KeyboardEvent('keydown', {
+      code: 'Space',
+      bubbles: true,
+      cancelable: true,
+    });
+    button.dispatchEvent(event);
+
+    expect(actions).toEqual([]);
+    expect(event.defaultPrevented).toBe(false);
+    button.remove();
   });
 });

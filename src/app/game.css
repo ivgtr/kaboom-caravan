@@ -204,8 +204,10 @@ button {
 }
 .garage-loadouts > button:hover,
 .garage-loadouts > button:focus-visible,
+.garage-loadouts > button.selected,
 .route-panel > div > button:hover,
-.route-panel > div > button:focus-visible {
+.route-panel > div > button:focus-visible,
+.route-panel > div > button.selected {
   transform: translateY(-7px);
   filter: brightness(1.06);
 }
@@ -833,7 +835,7 @@ button {
 .reward-panel header strong {
   font-size: clamp(18px, 3vw, 30px);
 }
-.reward-keyboard-hint {
+.menu-control-hint {
   margin-top: 2px;
   color: #d8f9ef;
   font-size: 10px;

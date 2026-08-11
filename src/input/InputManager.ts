@@ -1,9 +1,39 @@
 import type { Movement, PlayerCommand } from '../game/simulation/types';
 
+export type InputContext = 'combat' | 'menu';
+export type MenuAction =
+  | 'previous'
+  | 'next'
+  | 'confirm'
+  | 'cancel'
+  | 'shortcut-1'
+  | 'shortcut-2'
+  | 'shortcut-3';
+export type MenuActionListener = (action: MenuAction) => void;
+
+const MENU_ACTION_BY_CODE: Readonly<Record<string, MenuAction>> = {
+  ArrowLeft: 'previous',
+  KeyA: 'previous',
+  ArrowRight: 'next',
+  KeyD: 'next',
+  Space: 'confirm',
+  Enter: 'confirm',
+  Escape: 'cancel',
+  Digit1: 'shortcut-1',
+  Numpad1: 'shortcut-1',
+  Digit2: 'shortcut-2',
+  Numpad2: 'shortcut-2',
+  Digit3: 'shortcut-3',
+  Numpad3: 'shortcut-3',
+};
+
+const REPEATABLE_MENU_ACTIONS = new Set<MenuAction>(['previous', 'next']);
+
 export class InputManager {
   private readonly pressed = new Set<string>();
   private readonly virtual = new Set<VirtualControl>();
-  private enabled = true;
+  private readonly menuListeners = new Set<MenuActionListener>();
+  private context: InputContext = 'menu';
 
   constructor(private readonly target: Window = window) {}
 
@@ -25,12 +55,14 @@ export class InputManager {
       'visibilitychange',
       this.onVisibilityChange,
     );
+    this.menuListeners.clear();
     this.reset();
   }
 
-  setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
-    if (!enabled) this.reset();
+  setContext(context: InputContext): void {
+    if (this.context === context) return;
+    this.reset();
+    this.context = context;
   }
 
   readonly reset = (): void => {
@@ -39,11 +71,18 @@ export class InputManager {
   };
 
   setVirtualControl(control: VirtualControl, active: boolean): void {
-    if (active && this.enabled) this.virtual.add(control);
+    if (active && this.context === 'combat') this.virtual.add(control);
     else this.virtual.delete(control);
   }
 
+  subscribeToMenu(listener: MenuActionListener): () => void {
+    this.menuListeners.add(listener);
+    return () => this.menuListeners.delete(listener);
+  }
+
   readCommand(): PlayerCommand {
+    if (this.context !== 'combat') return IDLE_COMMAND;
+
     let move: Movement = 0;
     if (
       this.pressed.has('ArrowLeft') ||
@@ -70,7 +109,10 @@ export class InputManager {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (!this.enabled) return;
+    if (this.context === 'menu') {
+      this.handleMenuKeyDown(event);
+      return;
+    }
     if (event.repeat && !this.pressed.has(event.code)) return;
     if (
       ['ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft'].includes(event.code)
@@ -80,6 +122,25 @@ export class InputManager {
     this.pressed.add(event.code);
   };
 
+  private handleMenuKeyDown(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey || isTextEntry(event)) {
+      return;
+    }
+    const action = MENU_ACTION_BY_CODE[event.code];
+    if (!action) return;
+    if (event.repeat && !REPEATABLE_MENU_ACTIONS.has(action)) {
+      if (action === 'confirm' && event.target instanceof HTMLButtonElement) {
+        event.preventDefault();
+      }
+      return;
+    }
+    if (action === 'confirm' && event.target instanceof HTMLButtonElement) {
+      return;
+    }
+    event.preventDefault();
+    for (const listener of this.menuListeners) listener(action);
+  }
+
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     this.pressed.delete(event.code);
   };
@@ -87,6 +148,23 @@ export class InputManager {
   private readonly onVisibilityChange = (): void => {
     if (this.target.document.hidden) this.reset();
   };
+}
+
+const IDLE_COMMAND: PlayerCommand = {
+  move: 0,
+  firePrimary: false,
+  fireSecondary: false,
+  activateSkill: false,
+};
+
+function isTextEntry(event: KeyboardEvent): boolean {
+  const target = event.target;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
 }
 
 export type VirtualControl =

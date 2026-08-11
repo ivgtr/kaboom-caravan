@@ -38,10 +38,14 @@ import {
   LOADOUT_IDS,
   type LoadoutId,
 } from '../game/data/loadoutDefinitions';
-import type { RouteChoice } from '../game/data/routeDefinitions';
+import {
+  createRouteChoices,
+  type RouteChoice,
+} from '../game/data/routeDefinitions';
 import type { WeaponLevel } from '../game/build/weaponUpgrade';
 import type { CombatEvent, SimulationState } from '../game/simulation/types';
 import { InputManager, type VirtualControl } from '../input/InputManager';
+import { useMenuNavigation } from '../input/useMenuNavigation';
 import { GameRenderer } from '../render/GameRenderer';
 import { runtimeAssetUrl } from '../runtimeAssets';
 import { getEquipmentArt } from './equipmentAssets';
@@ -184,6 +188,17 @@ function createInitialGameSession(): GameSessionState {
     );
     return session;
   }
+  if (parameters.has('debug') && parameters.has('routePreview')) {
+    session.phase = 'route';
+    session.routeChoices = createRouteChoices(session.run.encounterIndex);
+    return session;
+  }
+  if (parameters.has('debug') && parameters.has('resultPreview')) {
+    const result = parameters.get('resultPreview');
+    session.phase = result === 'victory' ? 'victory' : 'defeat';
+    session.combat.status = session.phase;
+    return session;
+  }
   if (parameters.has('debug') && parameters.has('supplyPreview')) {
     session.combat.loot = [
       {
@@ -303,7 +318,7 @@ export function GameApp() {
         sessionRef.current = session;
         const phaseChanged = session.phase !== lastPhase;
         if (phaseChanged) {
-          input.setEnabled(session.phase === 'combat');
+          input.setContext(session.phase === 'combat' ? 'combat' : 'menu');
           audio.setPhase(session.phase);
         }
         if (session.combat.events !== lastHandledEvents) {
@@ -342,7 +357,7 @@ export function GameApp() {
       },
       (alpha) => renderer.render(sessionRef.current.combat, alpha),
     );
-    input.setEnabled(sessionRef.current.phase === 'combat');
+    input.setContext(sessionRef.current.phase === 'combat' ? 'combat' : 'menu');
     input.connect();
     loop.start();
     return () => {
@@ -376,7 +391,7 @@ export function GameApp() {
     input.reset();
     const session = selectReward(sessionRef.current, rewardId, weaponSlot);
     sessionRef.current = session;
-    input.setEnabled(session.phase === 'combat');
+    input.setContext(session.phase === 'combat' ? 'combat' : 'menu');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback(`第${session.run.encounterIndex + 1}戦へ出撃！`);
@@ -386,7 +401,7 @@ export function GameApp() {
     input.reset();
     const session = restartGameSession(sessionRef.current);
     sessionRef.current = session;
-    input.setEnabled(false);
+    input.setContext('menu');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('整備庫へ帰還');
@@ -403,7 +418,7 @@ export function GameApp() {
       weaponSlot,
     );
     sessionRef.current = session;
-    input.setEnabled(session.phase === 'combat');
+    input.setContext(session.phase === 'combat' ? 'combat' : 'menu');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback(
@@ -422,7 +437,7 @@ export function GameApp() {
     input.reset();
     const session = startGameSession(sessionRef.current, loadoutId);
     sessionRef.current = session;
-    input.setEnabled(true);
+    input.setContext('combat');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('キャラバン出撃！');
@@ -432,7 +447,7 @@ export function GameApp() {
     input.reset();
     const session = selectRoute(sessionRef.current, routeId);
     sessionRef.current = session;
-    input.setEnabled(true);
+    input.setContext('combat');
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('次の区画へ進撃！');
@@ -597,11 +612,12 @@ export function GameApp() {
         {muted ? '音声 なし' : '音声 あり'}
       </button>
       {sessionView.phase === 'garage' && (
-        <GaragePanel meta={meta} onStart={startRun} />
+        <GaragePanel input={input} meta={meta} onStart={startRun} />
       )}
       {sessionView.phase === 'reward' && !showClear && (
         <RewardPanel
           source="battle"
+          input={input}
           choices={sessionView.rewardChoices}
           moduleIds={sessionView.moduleIds}
           primaryWeaponId={sessionView.primaryWeaponId}
@@ -614,6 +630,7 @@ export function GameApp() {
       {sessionView.phase === 'weapon-cache' && (
         <RewardPanel
           source="weapon-cache"
+          input={input}
           choices={sessionView.rewardChoices}
           moduleIds={sessionView.moduleIds}
           primaryWeaponId={sessionView.primaryWeaponId}
@@ -632,91 +649,78 @@ export function GameApp() {
         </section>
       )}
       {sessionView.phase === 'route' && (
-        <RoutePanel choices={sessionView.routeChoices} onChoose={chooseRoute} />
+        <RoutePanel
+          input={input}
+          choices={sessionView.routeChoices}
+          onChoose={chooseRoute}
+        />
       )}
       {(sessionView.phase === 'victory' || sessionView.phase === 'defeat') && (
-        <section className="result-panel" role="dialog" aria-modal="true">
-          <strong>
-            {sessionView.phase === 'victory' ? '遠征完遂！' : 'キャラバン大破'}
-          </strong>
-          <span>
-            {sessionView.phase === 'victory'
-              ? 'カワイイ・フォートレスを撃破した！'
-              : 'ここで遠征は終了だ……'}
-          </span>
-          <b className="run-time-score">
-            {sessionView.phase === 'victory' ? '遠征時間' : '生存時間'}{' '}
-            {formatTimeScore(sessionView.elapsedCombatTicks)}
-          </b>
-          <div className="run-record-grid">
-            <span>
-              討伐数 <b>{sessionView.enemiesDefeated}</b>
-            </span>
-            <span>
-              迎撃数 <b>{sessionView.parries}</b>
-            </span>
-            <span>
-              総ダメージ <b>{Math.round(sessionView.damageDealt)}</b>
-            </span>
-            <span>
-              お宝 <b>{sessionView.treasureCollected}</b>
-            </span>
-          </div>
-          <div className="result-build" aria-label="最終ビルド">
-            <span>最終装備</span>
-            <b>
-              主武器{' '}
-              {WEAPON_DEFINITIONS[sessionView.primaryWeaponId].displayName} LV.
-              {sessionView.weaponLevels[sessionView.primaryWeaponId] ?? 1}
-            </b>
-            <b>
-              副武器{' '}
-              {WEAPON_DEFINITIONS[sessionView.secondaryWeaponId].displayName}{' '}
-              LV.{sessionView.weaponLevels[sessionView.secondaryWeaponId] ?? 1}
-            </b>
-            <small>
-              {sessionView.moduleIds.length > 0
-                ? sessionView.moduleIds
-                    .map((id) => MODULE_DEFINITIONS[id].displayName)
-                    .join(' / ')
-                : 'モジュールなし'}
-            </small>
-          </div>
-          {meta.bestVictoryTicks !== undefined && (
-            <small>最速記録 {formatTimeScore(meta.bestVictoryTicks)}</small>
-          )}
-          <button type="button" onClick={restart}>
-            整備庫へ戻る
-          </button>
-        </section>
+        <ResultPanel
+          input={input}
+          view={sessionView}
+          meta={meta}
+          onRestart={restart}
+        />
       )}
     </main>
   );
 }
 
 function GaragePanel({
+  input,
   meta,
   onStart,
 }: {
+  input: InputManager;
   meta: MetaProgression;
   onStart: (id: LoadoutId) => void;
 }) {
+  const isLocked = useCallback(
+    (index: number) => !meta.unlockedLoadouts.includes(LOADOUT_IDS[index]!),
+    [meta.unlockedLoadouts],
+  );
+  const startSelectedLoadout = useCallback(
+    (index: number) => {
+      const id = LOADOUT_IDS[index];
+      if (id && !isLocked(index)) onStart(id);
+    },
+    [isLocked, onStart],
+  );
+  const navigation = useMenuNavigation({
+    input,
+    itemCount: LOADOUT_IDS.length,
+    isItemDisabled: isLocked,
+    onConfirm: startSelectedLoadout,
+  });
+
   return (
     <section className="garage-panel" role="dialog" aria-modal="true">
       <header>
         <span>キャラバン整備庫</span>
         <strong>初期武装を選んで出撃しよう</strong>
+        <MenuControlHint />
       </header>
       <div className="garage-loadouts">
-        {LOADOUT_IDS.map((id) => {
+        {LOADOUT_IDS.map((id, index) => {
           const loadout = LOADOUT_DEFINITIONS[id];
           const unlocked = meta.unlockedLoadouts.includes(id);
           return (
             <button
               type="button"
               key={id}
+              className={
+                navigation.selectedIndex === index ? 'selected' : undefined
+              }
               disabled={!unlocked}
-              onClick={() => onStart(id)}
+              aria-current={
+                navigation.selectedIndex === index ? 'true' : undefined
+              }
+              {...navigation.bindItem(index)}
+              onClick={() => {
+                navigation.select(index, false);
+                onStart(id);
+              }}
             >
               <div className="garage-weapon-pair">
                 <EquipmentGlyph id={loadout.primaryWeaponId} />
@@ -753,25 +757,48 @@ function GaragePanel({
 }
 
 function RoutePanel({
+  input,
   choices,
   onChoose,
 }: {
+  input: InputManager;
   choices: RouteChoice[];
   onChoose: (id: string) => void;
 }) {
+  const chooseSelectedRoute = useCallback(
+    (index: number) => {
+      const choice = choices[index];
+      if (choice) onChoose(choice.id);
+    },
+    [choices, onChoose],
+  );
+  const navigation = useMenuNavigation({
+    input,
+    itemCount: choices.length,
+    onConfirm: chooseSelectedRoute,
+  });
+
   return (
     <section className="route-panel" role="dialog" aria-modal="true">
       <header>
         <span>進路選択</span>
         <strong>次に進む区画を選ぼう</strong>
+        <MenuControlHint />
       </header>
       <div>
-        {choices.map((choice) => (
+        {choices.map((choice, index) => (
           <button
             type="button"
-            className={`route-${choice.accent}`}
+            className={`route-${choice.accent}${navigation.selectedIndex === index ? ' selected' : ''}`}
             key={choice.id}
-            onClick={() => onChoose(choice.id)}
+            aria-current={
+              navigation.selectedIndex === index ? 'true' : undefined
+            }
+            {...navigation.bindItem(index)}
+            onClick={() => {
+              navigation.select(index, false);
+              onChoose(choice.id);
+            }}
           >
             <i>
               {choice.type === 'elite'
@@ -786,6 +813,98 @@ function RoutePanel({
         ))}
       </div>
     </section>
+  );
+}
+
+function ResultPanel({
+  input,
+  view,
+  meta,
+  onRestart,
+}: {
+  input: InputManager;
+  view: SessionView;
+  meta: MetaProgression;
+  onRestart: () => void;
+}) {
+  const restart = useCallback(() => onRestart(), [onRestart]);
+  const navigation = useMenuNavigation({
+    input,
+    itemCount: 1,
+    onConfirm: restart,
+  });
+
+  return (
+    <section className="result-panel" role="dialog" aria-modal="true">
+      <strong>
+        {view.phase === 'victory' ? '遠征完遂！' : 'キャラバン大破'}
+      </strong>
+      <span>
+        {view.phase === 'victory'
+          ? 'カワイイ・フォートレスを撃破した！'
+          : 'ここで遠征は終了だ……'}
+      </span>
+      <b className="run-time-score">
+        {view.phase === 'victory' ? '遠征時間' : '生存時間'}{' '}
+        {formatTimeScore(view.elapsedCombatTicks)}
+      </b>
+      <div className="run-record-grid">
+        <span>
+          討伐数 <b>{view.enemiesDefeated}</b>
+        </span>
+        <span>
+          迎撃数 <b>{view.parries}</b>
+        </span>
+        <span>
+          総ダメージ <b>{Math.round(view.damageDealt)}</b>
+        </span>
+        <span>
+          お宝 <b>{view.treasureCollected}</b>
+        </span>
+      </div>
+      <div className="result-build" aria-label="最終ビルド">
+        <span>最終装備</span>
+        <b>
+          主武器 {WEAPON_DEFINITIONS[view.primaryWeaponId].displayName} LV.
+          {view.weaponLevels[view.primaryWeaponId] ?? 1}
+        </b>
+        <b>
+          副武器 {WEAPON_DEFINITIONS[view.secondaryWeaponId].displayName} LV.
+          {view.weaponLevels[view.secondaryWeaponId] ?? 1}
+        </b>
+        <small>
+          {view.moduleIds.length > 0
+            ? view.moduleIds
+                .map((id) => MODULE_DEFINITIONS[id].displayName)
+                .join(' / ')
+            : 'モジュールなし'}
+        </small>
+      </div>
+      {meta.bestVictoryTicks !== undefined && (
+        <small>最速記録 {formatTimeScore(meta.bestVictoryTicks)}</small>
+      )}
+      <MenuControlHint singleAction />
+      <button type="button" {...navigation.bindItem(0)} onClick={onRestart}>
+        整備庫へ戻る
+      </button>
+    </section>
+  );
+}
+
+function MenuControlHint({
+  singleAction = false,
+  shortcuts,
+}: {
+  singleAction?: boolean;
+  shortcuts?: string;
+}) {
+  return (
+    <small className="menu-control-hint">
+      {singleAction
+        ? 'SPACE・ENTER 決定'
+        : 'A・D / ←・→ 選択 / SPACE・ENTER 決定'}
+      {shortcuts ? ` / ${shortcuts}` : ''}
+    </small>
   );
 }
 
@@ -838,6 +957,7 @@ function HeatMeter({
 }
 
 function RewardPanel({
+  input,
   source,
   choices,
   moduleIds,
@@ -847,6 +967,7 @@ function RewardPanel({
   onChoose,
   onReroll,
 }: {
+  input: InputManager;
   source: 'battle' | 'weapon-cache';
   choices: RewardChoice[];
   moduleIds: ModuleId[];
@@ -859,13 +980,6 @@ function RewardPanel({
   const [pendingWeapon, setPendingWeapon] = useState<
     Extract<RewardChoice, { type: 'weapon' }> | undefined
   >();
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [selectedSlot, setSelectedSlot] = useState<WeaponSlot>('primary');
-  const cardButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const slotButtonRefs = useRef<Record<WeaponSlot, HTMLButtonElement | null>>({
-    primary: null,
-    secondary: null,
-  });
   const replacedModuleId =
     moduleIds.length >= MODULE_SLOT_COUNT ? moduleIds[0] : undefined;
   const replacedModuleName = replacedModuleId
@@ -879,7 +993,6 @@ function RewardPanel({
           onChoose(choice.id);
           return;
         }
-        setSelectedSlot('primary');
         setPendingWeapon(choice);
         return;
       }
@@ -888,100 +1001,20 @@ function RewardPanel({
     [onChoose],
   );
 
-  const focusCard = useCallback(
+  const confirmCard = useCallback(
     (index: number) => {
-      if (choices.length === 0) return;
-      const nextIndex = (index + choices.length) % choices.length;
-      setSelectedIndex(nextIndex);
-      cardButtonRefs.current[nextIndex]?.focus();
+      const choice = choices[index];
+      if (choice) beginEquip(choice);
     },
-    [choices.length],
+    [beginEquip, choices],
   );
-
-  const focusSlot = useCallback((slot: WeaponSlot) => {
-    setSelectedSlot(slot);
-    slotButtonRefs.current[slot]?.focus();
-  }, []);
-
-  const closeSlotPicker = useCallback(() => {
-    cardButtonRefs.current[selectedIndex]?.focus();
-    setPendingWeapon(undefined);
-  }, [selectedIndex]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-
-      const digitMatch = /^(?:Digit|Numpad)([1-3])$/.exec(event.code);
-      const digitIndex = digitMatch ? Number(digitMatch[1]) - 1 : undefined;
-
-      if (pendingWeapon) {
-        if (
-          event.code === 'ArrowLeft' ||
-          event.code === 'KeyA' ||
-          digitIndex === 0
-        ) {
-          event.preventDefault();
-          focusSlot('primary');
-          return;
-        }
-        if (
-          event.code === 'ArrowRight' ||
-          event.code === 'KeyD' ||
-          digitIndex === 1
-        ) {
-          event.preventDefault();
-          focusSlot('secondary');
-          return;
-        }
-        if (event.code === 'Space' || event.code === 'Enter') {
-          event.preventDefault();
-          if (!event.repeat) onChoose(pendingWeapon.id, selectedSlot);
-          return;
-        }
-        if (event.code === 'Escape') {
-          event.preventDefault();
-          closeSlotPicker();
-        }
-        return;
-      }
-
-      if (digitIndex !== undefined && choices[digitIndex]) {
-        event.preventDefault();
-        setSelectedIndex(digitIndex);
-        if (!event.repeat) beginEquip(choices[digitIndex]);
-        return;
-      }
-      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
-        event.preventDefault();
-        focusCard(selectedIndex - 1);
-        return;
-      }
-      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
-        event.preventDefault();
-        focusCard(selectedIndex + 1);
-        return;
-      }
-      if (event.code === 'Space' || event.code === 'Enter') {
-        event.preventDefault();
-        const choice = choices[selectedIndex];
-        if (choice && !event.repeat) beginEquip(choice);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    beginEquip,
-    choices,
-    closeSlotPicker,
-    focusCard,
-    focusSlot,
-    onChoose,
-    pendingWeapon,
-    selectedIndex,
-    selectedSlot,
-  ]);
+  const navigation = useMenuNavigation({
+    input,
+    itemCount: choices.length,
+    enabled: !pendingWeapon,
+    shortcuts: true,
+    onConfirm: confirmCard,
+  });
 
   return (
     <section
@@ -999,9 +1032,7 @@ function RewardPanel({
               ? 'その場で搭載する武器を選ぼう'
               : '持ち帰る装備をひとつ選ぼう'}
           </strong>
-          <small className="reward-keyboard-hint">
-            A・D / ←・→ で移動 / SPACEで決定 / 1〜3で即決
-          </small>
+          <MenuControlHint shortcuts="1〜3 即決" />
         </div>
         <b>
           {source === 'weapon-cache'
@@ -1022,7 +1053,7 @@ function RewardPanel({
       <div className="reward-grid">
         {choices.map((choice, index) => (
           <article
-            className={`reward-card reward-${choice.type} rarity-${choice.rarity}${choice.type === 'weapon' && choice.isUpgrade ? ' reward-upgrade' : ''}${selectedIndex === index ? ' selected' : ''}`}
+            className={`reward-card reward-${choice.type} rarity-${choice.rarity}${choice.type === 'weapon' && choice.isUpgrade ? ' reward-upgrade' : ''}${navigation.selectedIndex === index ? ' selected' : ''}`}
             key={choice.id}
           >
             <div className="reward-meta">
@@ -1057,16 +1088,14 @@ function RewardPanel({
               className="reward-card-select"
               type="button"
               aria-label={`${choice.displayName}を選択${choice.type === 'module' && replacedModuleName ? `、${replacedModuleName}と交換` : ''}`}
-              aria-current={selectedIndex === index ? 'true' : undefined}
-              ref={(element) => {
-                cardButtonRefs.current[index] = element;
-              }}
+              aria-current={
+                navigation.selectedIndex === index ? 'true' : undefined
+              }
+              {...navigation.bindItem(index)}
               onClick={() => {
-                setSelectedIndex(index);
+                navigation.select(index, false);
                 beginEquip(choice);
               }}
-              onFocus={() => setSelectedIndex(index)}
-              onPointerEnter={() => setSelectedIndex(index)}
             >
               <span
                 className={`reward-card-action${choice.type === 'module' && replacedModuleName ? ' has-swap' : ''}`}
@@ -1089,58 +1118,87 @@ function RewardPanel({
         ))}
       </div>
       {pendingWeapon && (
-        <section className="slot-picker" aria-label="武器の装着先を選択">
-          <div className="slot-picker-visual">
-            <EquipmentGlyph id={pendingWeapon.weaponId} />
-          </div>
-          <div className="slot-picker-copy">
-            <span>装着先を選択</span>
-            <strong>{pendingWeapon.displayName}</strong>
-            <p>置き換える武器スロットを選ぼう</p>
-          </div>
-          <div className="slot-picker-actions">
-            <button
-              className={selectedSlot === 'primary' ? 'selected' : undefined}
-              type="button"
-              aria-label={`主武器 主 1、現在${WEAPON_DEFINITIONS[primaryWeaponId].displayName}`}
-              ref={(element) => {
-                slotButtonRefs.current.primary = element;
-              }}
-              onFocus={() => setSelectedSlot('primary')}
-              onClick={() => onChoose(pendingWeapon.id, 'primary')}
-            >
-              <span className="slot-role">主武器</span>
-              <kbd>1</kbd>
-              <strong>{WEAPON_DEFINITIONS[primaryWeaponId].displayName}</strong>
-              <small>この枠へ装着</small>
-            </button>
-            <button
-              className={selectedSlot === 'secondary' ? 'selected' : undefined}
-              type="button"
-              aria-label={`副武器 副 2、現在${WEAPON_DEFINITIONS[secondaryWeaponId].displayName}`}
-              ref={(element) => {
-                slotButtonRefs.current.secondary = element;
-              }}
-              onFocus={() => setSelectedSlot('secondary')}
-              onClick={() => onChoose(pendingWeapon.id, 'secondary')}
-            >
-              <span className="slot-role">副武器</span>
-              <kbd>2</kbd>
-              <strong>
-                {WEAPON_DEFINITIONS[secondaryWeaponId].displayName}
-              </strong>
-              <small>この枠へ装着</small>
-            </button>
-          </div>
-          <button
-            className="slot-picker-cancel"
-            type="button"
-            onClick={closeSlotPicker}
-          >
-            戻る
-          </button>
-        </section>
+        <WeaponSlotPicker
+          input={input}
+          reward={pendingWeapon}
+          primaryWeaponId={primaryWeaponId}
+          secondaryWeaponId={secondaryWeaponId}
+          onChoose={onChoose}
+          onCancel={() => setPendingWeapon(undefined)}
+        />
       )}
+    </section>
+  );
+}
+
+function WeaponSlotPicker({
+  input,
+  reward,
+  primaryWeaponId,
+  secondaryWeaponId,
+  onChoose,
+  onCancel,
+}: {
+  input: InputManager;
+  reward: Extract<RewardChoice, { type: 'weapon' }>;
+  primaryWeaponId: WeaponId;
+  secondaryWeaponId: WeaponId;
+  onChoose: (rewardId: string, weaponSlot?: WeaponSlot) => void;
+  onCancel: () => void;
+}) {
+  const chooseSlot = useCallback(
+    (index: number) =>
+      onChoose(reward.id, index === 0 ? 'primary' : 'secondary'),
+    [onChoose, reward.id],
+  );
+  const navigation = useMenuNavigation({
+    input,
+    itemCount: 2,
+    shortcuts: true,
+    onConfirm: chooseSlot,
+    onCancel,
+  });
+
+  return (
+    <section className="slot-picker" aria-label="武器の装着先を選択">
+      <div className="slot-picker-visual">
+        <EquipmentGlyph id={reward.weaponId} />
+      </div>
+      <div className="slot-picker-copy">
+        <span>装着先を選択</span>
+        <strong>{reward.displayName}</strong>
+        <p>置き換える武器スロットを選ぼう</p>
+        <MenuControlHint shortcuts="1・2 装着 / ESC 戻る" />
+      </div>
+      <div className="slot-picker-actions">
+        <button
+          className={navigation.selectedIndex === 0 ? 'selected' : undefined}
+          type="button"
+          aria-label={`主武器 主 1、現在${WEAPON_DEFINITIONS[primaryWeaponId].displayName}`}
+          {...navigation.bindItem(0)}
+          onClick={() => onChoose(reward.id, 'primary')}
+        >
+          <span className="slot-role">主武器</span>
+          <kbd>1</kbd>
+          <strong>{WEAPON_DEFINITIONS[primaryWeaponId].displayName}</strong>
+          <small>この枠へ装着</small>
+        </button>
+        <button
+          className={navigation.selectedIndex === 1 ? 'selected' : undefined}
+          type="button"
+          aria-label={`副武器 副 2、現在${WEAPON_DEFINITIONS[secondaryWeaponId].displayName}`}
+          {...navigation.bindItem(1)}
+          onClick={() => onChoose(reward.id, 'secondary')}
+        >
+          <span className="slot-role">副武器</span>
+          <kbd>2</kbd>
+          <strong>{WEAPON_DEFINITIONS[secondaryWeaponId].displayName}</strong>
+          <small>この枠へ装着</small>
+        </button>
+      </div>
+      <button className="slot-picker-cancel" type="button" onClick={onCancel}>
+        戻る
+      </button>
     </section>
   );
 }
