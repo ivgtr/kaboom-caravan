@@ -783,6 +783,20 @@ button {
   grid-template-rows: auto minmax(0, 1fr);
   padding: clamp(12px, 3vh, 30px) clamp(14px, 4vw, 54px);
 }
+.weapon-cache-panel {
+  background:
+    radial-gradient(circle at 50% 46%, rgb(98 218 197 / 32%), transparent 42%),
+    linear-gradient(rgb(29 45 65 / 72%), rgb(39 52 73 / 88%));
+}
+.weapon-cache-panel header span {
+  color: #70ead5;
+}
+.weapon-cache-panel .reward-card {
+  animation: card-pop 0.35s both;
+}
+.weapon-cache-panel .reward-card.selected {
+  animation: cache-card-glow 1.4s ease-in-out infinite alternate;
+}
 .reward-panel header {
   display: flex;
   align-items: center;
@@ -1174,6 +1188,11 @@ button {
   from {
     opacity: 0;
     transform: translateY(25px) scale(0.9);
+  }
+}
+@keyframes cache-card-glow {
+  to {
+    filter: drop-shadow(0 0 13px rgb(98 218 197 / 48%));
   }
 }
 @keyframes slot-picker-pop {

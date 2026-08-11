@@ -177,24 +177,67 @@ describe('weapon resources', () => {
 });
 
 describe('frontline and combat outcome', () => {
-  it('drops elite treasure and magnetizes it into the caravan', () => {
+  it('applies repair, ammo and weapon-cache pickups immediately', () => {
     const initial = createSimulation();
-    initial.enemies = [
+    initial.player.hitPoints = 50;
+    initial.player.ammo = 5;
+    initial.loot = [
       {
-        ...initial.enemies[0]!,
-        id: 'elite-target',
-        elite: true,
-        position: 12,
-        previousPosition: 12,
-        hitPoints: 0,
+        id: 'repair-test',
+        kind: 'repair',
+        position: 10,
+        previousPosition: 10,
+        value: 16,
+        ageSeconds: 0,
+      },
+      {
+        id: 'ammo-test',
+        kind: 'ammo',
+        position: 10,
+        previousPosition: 10,
+        value: 12,
+        ageSeconds: 0,
+      },
+      {
+        id: 'cache-test',
+        kind: 'weapon-cache',
+        position: 10,
+        previousPosition: 10,
+        value: 1,
+        ageSeconds: 0,
       },
     ];
 
-    const dropped = stepSimulation(initial, IDLE_COMMAND, 0);
-    expect(dropped.events.some(({ type }) => type === 'loot-dropped')).toBe(
-      true,
-    );
-    expect(dropped.treasureCollected).toBeGreaterThan(0);
+    const collected = stepSimulation(initial, IDLE_COMMAND, 0);
+
+    expect(collected.player.hitPoints).toBe(66);
+    expect(collected.player.ammo).toBe(17);
+    expect(collected.treasureCollected).toBe(1);
+    expect(
+      collected.events.filter(({ type }) => type === 'loot-collected'),
+    ).toHaveLength(3);
+  });
+
+  it('distributes deterministic drops across all three supply kinds', () => {
+    const kinds = new Set<string>();
+    for (let index = 0; index < 300; index += 1) {
+      const initial = createSimulation(index + 1);
+      initial.enemies = [
+        {
+          ...initial.enemies[0]!,
+          id: `drop-target-${index}`,
+          position: 30,
+          previousPosition: 30,
+          hitPoints: 0,
+        },
+      ];
+      const result = stepSimulation(initial, IDLE_COMMAND, 0);
+      for (const event of result.events) {
+        if (event.type === 'loot-dropped') kinds.add(event.kind);
+      }
+    }
+
+    expect(kinds).toEqual(new Set(['repair', 'ammo', 'weapon-cache']));
   });
 
   it('retreats under enemy pressure and increases rewards when advancing', () => {

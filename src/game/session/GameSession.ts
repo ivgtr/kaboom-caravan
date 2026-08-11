@@ -4,6 +4,7 @@ import type { ModuleId, WeaponId } from '../data/ids';
 import { MVP_ENCOUNTERS } from '../data/runDefinitions';
 import {
   generateRewardChoices,
+  generateWeaponCacheChoices,
   type RewardRarity,
   type RewardChoice,
 } from '../reward/rewardSystem';
@@ -30,7 +31,13 @@ import {
 } from '../data/routeDefinitions';
 
 export type SessionPhase =
-  'garage' | 'combat' | 'reward' | 'route' | 'victory' | 'defeat';
+  | 'garage'
+  | 'combat'
+  | 'weapon-cache'
+  | 'reward'
+  | 'route'
+  | 'victory'
+  | 'defeat';
 export type WeaponSlot = 'primary' | 'secondary';
 
 export interface RunState {
@@ -44,6 +51,8 @@ export interface RunState {
   lastEncounterTreasure: number;
   rewardRerolls: number;
   rewardRerollIndex: number;
+  pendingWeaponCaches: number;
+  weaponCacheSequence: number;
   loadoutId: LoadoutId;
   currentRoute: RouteType;
   enemiesDefeated: number;
@@ -106,6 +115,8 @@ function createRun(seed: number, loadoutId: LoadoutId): RunState {
     lastEncounterTreasure: 0,
     rewardRerolls: 0,
     rewardRerollIndex: 0,
+    pendingWeaponCaches: 0,
+    weaponCacheSequence: 0,
     loadoutId,
     currentRoute: 'normal',
     enemiesDefeated: 0,
@@ -174,6 +185,30 @@ export function stepGameSession(
         0,
       ),
   };
+  const collectedWeaponCaches = combat.events.filter(
+    (event) => event.type === 'loot-collected' && event.kind === 'weapon-cache',
+  ).length;
+  if (combat.status !== 'defeat' && collectedWeaponCaches > 0) {
+    const run = {
+      ...progressedRun,
+      pendingWeaponCaches:
+        progressedRun.pendingWeaponCaches + collectedWeaponCaches,
+    };
+    return {
+      ...session,
+      phase: 'weapon-cache',
+      combat,
+      run,
+      rewardChoices: generateWeaponCacheChoices(
+        run.seed,
+        run.encounterIndex,
+        combat.tick,
+        run.build,
+        combat.frontline.rewardMultiplier,
+        run.weaponCacheSequence,
+      ),
+    };
+  }
   if (combat.status === 'active') {
     return { ...session, combat, run: progressedRun };
   }
@@ -258,6 +293,59 @@ function applyModule(build: BuildState, moduleId: ModuleId): BuildState {
       ? [...build.moduleIds, moduleId]
       : [...build.moduleIds.slice(1), moduleId];
   return { ...build, moduleIds };
+}
+
+export function selectWeaponCacheReward(
+  session: GameSessionState,
+  rewardId: string,
+  weaponSlot: WeaponSlot = 'secondary',
+): GameSessionState {
+  if (session.phase !== 'weapon-cache') return session;
+  const reward = session.rewardChoices.find(
+    (choice): choice is Extract<RewardChoice, { type: 'weapon' }> =>
+      choice.id === rewardId && choice.type === 'weapon',
+  );
+  if (!reward) throw new Error(`Weapon cache reward not found: ${rewardId}`);
+  const build = applyWeapon(
+    session.run.build,
+    reward.weaponId,
+    weaponSlot,
+    reward.rarity,
+  );
+  const pendingWeaponCaches = Math.max(0, session.run.pendingWeaponCaches - 1);
+  const run: RunState = {
+    ...session.run,
+    build,
+    pendingWeaponCaches,
+    weaponCacheSequence: session.run.weaponCacheSequence + 1,
+  };
+  const combat = {
+    ...session.combat,
+    build: structuredClone(build),
+    events: [],
+  };
+  if (pendingWeaponCaches > 0) {
+    return {
+      ...session,
+      run,
+      combat,
+      rewardChoices: generateWeaponCacheChoices(
+        run.seed,
+        run.encounterIndex,
+        combat.tick,
+        build,
+        combat.frontline.rewardMultiplier,
+        run.weaponCacheSequence,
+      ),
+    };
+  }
+  return {
+    ...session,
+    phase: 'combat',
+    run,
+    combat,
+    rewardChoices: [],
+  };
 }
 
 export function rerollRewards(session: GameSessionState): GameSessionState {

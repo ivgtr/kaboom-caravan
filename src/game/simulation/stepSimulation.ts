@@ -22,6 +22,7 @@ import type {
   CombatEvent,
   EnemyProjectileState,
   EnemyState,
+  LootState,
   PlayerCommand,
   ProjectileState,
   SimulationState,
@@ -120,12 +121,24 @@ function createProjectiles(
 }
 
 const LOOT_DROP_CHANCE: Record<EnemyState['typeId'], number> = {
-  basic: 0.35,
-  rusher: 0.4,
-  heavy: 0.7,
-  artillery: 0.6,
-  bomber: 0.55,
-  'kawaii-fortress': 1,
+  basic: 0.28,
+  rusher: 0.34,
+  heavy: 0.52,
+  artillery: 0.46,
+  bomber: 0.48,
+  'kawaii-fortress': 0,
+};
+
+const LOOT_KIND_WEIGHTS: Record<
+  EnemyState['typeId'],
+  readonly [repair: number, ammo: number]
+> = {
+  basic: [0.32, 0.6],
+  rusher: [0.42, 0.46],
+  heavy: [0.52, 0.3],
+  artillery: [0.2, 0.62],
+  bomber: [0.32, 0.43],
+  'kawaii-fortress': [0, 0],
 };
 
 function deterministicLootRoll(seed: number, enemyId: string): number {
@@ -136,9 +149,23 @@ function deterministicLootRoll(seed: number, enemyId: string): number {
   return (hash >>> 0) / 0x1_0000_0000;
 }
 
-function lootValue(enemy: EnemyState): number {
-  if (enemy.typeId === 'kawaii-fortress') return 5;
-  if (enemy.typeId === 'heavy' || enemy.typeId === 'artillery') return 2;
+function rollLoot(
+  enemy: EnemyState,
+  roll: number,
+): LootState['kind'] | undefined {
+  const baseChance = LOOT_DROP_CHANCE[enemy.typeId];
+  const chance = Math.min(0.9, baseChance + (enemy.elite ? 0.18 : 0));
+  if (roll >= chance) return undefined;
+  const kindRoll = roll / chance;
+  const [repairWeight, ammoWeight] = LOOT_KIND_WEIGHTS[enemy.typeId];
+  if (kindRoll < repairWeight) return 'repair';
+  if (kindRoll < repairWeight + ammoWeight) return 'ammo';
+  return 'weapon-cache';
+}
+
+function lootValue(enemy: EnemyState, kind: LootState['kind']): number {
+  if (kind === 'repair') return enemy.typeId === 'heavy' ? 24 : 16;
+  if (kind === 'ammo') return enemy.typeId === 'artillery' ? 18 : 12;
   return 1;
 }
 
@@ -454,11 +481,16 @@ export function stepSimulation(
   let wave = state.wave;
 
   const remainingLoot: typeof loot = [];
+  const clearedField = enemies.length === 0 && Boolean(wave?.completed);
   for (const item of loot) {
     const distance = playerPosition - item.position;
     const magnetizedPosition =
-      Math.abs(distance) <= 14
-        ? moveTowards(item.position, playerPosition, 34 * deltaSeconds)
+      Math.abs(distance) <= 14 || clearedField
+        ? moveTowards(
+            item.position,
+            playerPosition,
+            (clearedField ? 64 : 34) * deltaSeconds,
+          )
         : item.position;
     const movedItem = {
       ...item,
@@ -467,10 +499,20 @@ export function stepSimulation(
       ageSeconds: item.ageSeconds + deltaSeconds,
     };
     if (Math.abs(magnetizedPosition - playerPosition) <= 3.2) {
-      treasureCollected += item.value;
+      if (item.kind === 'repair') {
+        playerHitPoints = Math.min(
+          playerStats.maximumHitPoints,
+          playerHitPoints + item.value,
+        );
+      } else if (item.kind === 'ammo') {
+        ammo = Math.min(playerStats.maximumAmmo, ammo + item.value);
+      } else {
+        treasureCollected += item.value;
+      }
       events.push({
         type: 'loot-collected',
         lootId: item.id,
+        kind: item.kind,
         value: item.value,
       });
     } else {
@@ -673,16 +715,14 @@ export function stepSimulation(
       enemyId: enemy.id,
       enemyTypeId: enemy.typeId,
     });
-    if (
-      enemy.elite ||
-      deterministicLootRoll(state.seed, enemy.id) <
-        LOOT_DROP_CHANCE[enemy.typeId]
-    ) {
+    const kind = rollLoot(enemy, deterministicLootRoll(state.seed, enemy.id));
+    if (kind) {
       const id = `loot-${nextEntitySequence}`;
-      const value = lootValue(enemy);
+      const value = lootValue(enemy, kind);
       nextEntitySequence += 1;
       loot.push({
         id,
+        kind,
         previousPosition: enemy.position,
         position: enemy.position,
         value,
@@ -691,6 +731,7 @@ export function stepSimulation(
       events.push({
         type: 'loot-dropped',
         lootId: id,
+        kind,
         position: enemy.position,
         value,
       });
@@ -809,24 +850,13 @@ export function stepSimulation(
     enemies.length === 0 &&
     projectiles.length === 0 &&
     enemyProjectiles.length === 0 &&
+    loot.length === 0 &&
     (!wave || wave.completed)
   ) {
     status = 'victory';
   }
   if (status !== 'active')
     events.push({ type: 'combat-ended', result: status });
-  if (status === 'victory' && loot.length > 0) {
-    for (const item of loot) {
-      const recoveredValue = Math.max(1, Math.ceil(item.value / 2));
-      treasureCollected += recoveredValue;
-      events.push({
-        type: 'loot-collected',
-        lootId: item.id,
-        value: recoveredValue,
-      });
-    }
-    loot = [];
-  }
 
   return {
     ...state,

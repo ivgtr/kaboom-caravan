@@ -1,6 +1,7 @@
 import type { WeaponId } from '../game/data/ids';
 import type { SessionPhase } from '../game/session/GameSession';
 import type { CombatEvent } from '../game/simulation/types';
+import type { LootKind } from '../game/simulation/types';
 
 interface VoiceOptions {
   type?: OscillatorType;
@@ -77,8 +78,11 @@ export class AudioDirector {
         case 'projectile-hit':
           if (this.canPlay('hit', EVENT_INTERVALS.hit)) this.playHit();
           break;
+        case 'loot-dropped':
+          this.playSupplyDrop(event.kind);
+          break;
         case 'loot-collected':
-          this.playLoot(event.value);
+          this.playLoot(event.kind, event.value);
           break;
         case 'attack-parried':
           this.playParry();
@@ -189,16 +193,32 @@ export class AudioDirector {
     });
   }
 
-  private playLoot(value: number): void {
-    const root = 520 + Math.min(3, value) * 35;
+  private playSupplyDrop(kind: LootKind): void {
+    const root = kind === 'repair' ? 310 : kind === 'ammo' ? 390 : 520;
+    this.voice(root, 0.09, {
+      type: 'triangle',
+      endFrequency: root * 1.2,
+      volume: kind === 'weapon-cache' ? 0.026 : 0.015,
+      attack: 0.01,
+      filterFrequency: 1_600,
+    });
+  }
+
+  private playLoot(kind: LootKind, value: number): void {
+    const root =
+      kind === 'repair'
+        ? 440 + value * 2
+        : kind === 'ammo'
+          ? 360 + value * 2
+          : 620;
     this.voice(root, 0.1, {
       type: 'sine',
       endFrequency: root * 1.08,
-      volume: 0.025,
+      volume: kind === 'weapon-cache' ? 0.032 : 0.022,
       attack: 0.012,
       filterFrequency: 2_400,
     });
-    this.voice(root * 1.25, 0.12, {
+    this.voice(root * (kind === 'weapon-cache' ? 1.5 : 1.25), 0.12, {
       type: 'sine',
       endFrequency: root * 1.34,
       volume: 0.02,

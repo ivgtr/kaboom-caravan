@@ -122,6 +122,39 @@ function moduleChoice(moduleId: ModuleId, rarity: RewardRarity): RewardChoice {
   };
 }
 
+export function generateWeaponCacheChoices(
+  seed: number,
+  encounterIndex: number,
+  combatTick: number,
+  build: BuildState,
+  riskMultiplier: number,
+  cacheIndex = 0,
+): Extract<RewardChoice, { type: 'weapon' }>[] {
+  const random = createSeededRandom(
+    rewardSeed(
+      seed ^ Math.imul(combatTick + 1, 0x27d4eb2d),
+      encounterIndex,
+      cacheIndex,
+    ),
+  );
+  const candidates = (Object.keys(WEAPON_DEFINITIONS) as WeaponId[]).filter(
+    (weaponId) => !isWeaponEquipped(build, weaponId),
+  );
+  const choices: Extract<RewardChoice, { type: 'weapon' }>[] = [];
+  while (choices.length < 3 && candidates.length > 0) {
+    const selected = weightedPick(candidates, () => 1, random);
+    candidates.splice(candidates.indexOf(selected), 1);
+    choices.push(
+      weaponChoice(
+        selected,
+        build,
+        rewardRarity(1, riskMultiplier, random),
+      ) as Extract<RewardChoice, { type: 'weapon' }>,
+    );
+  }
+  return choices;
+}
+
 export function generateRewardChoices(
   seed: number,
   encounterIndex: number,

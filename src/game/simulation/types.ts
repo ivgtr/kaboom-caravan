@@ -115,8 +115,11 @@ export interface BuildState {
   moduleIds: ModuleId[];
 }
 
+export type LootKind = 'repair' | 'ammo' | 'weapon-cache';
+
 export interface LootState {
   id: EntityId;
+  kind: LootKind;
   previousPosition: number;
   position: number;
   value: number;
@@ -152,10 +155,16 @@ export type CombatEvent =
   | {
       type: 'loot-dropped';
       lootId: EntityId;
+      kind: LootKind;
       position: number;
       value: number;
     }
-  | { type: 'loot-collected'; lootId: EntityId; value: number }
+  | {
+      type: 'loot-collected';
+      lootId: EntityId;
+      kind: LootKind;
+      value: number;
+    }
   | { type: 'vehicle-hit'; sourceId: EntityId; damage: number }
   | { type: 'overheated' }
   | { type: 'cooled' }

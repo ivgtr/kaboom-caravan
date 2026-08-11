@@ -47,6 +47,40 @@ async function enableReactiveParry(page: import('@playwright/test').Page) {
   });
 }
 
+async function waitThroughWeaponCaches(
+  page: import('@playwright/test').Page,
+  terminal: import('@playwright/test').Locator,
+  timeout: number,
+) {
+  const deadline = Date.now() + timeout;
+  const cache = page.getByRole('dialog').filter({ hasText: '武器箱を発見！' });
+  while (Date.now() < deadline) {
+    const remaining = Math.max(1, deadline - Date.now());
+    const visible = await Promise.race([
+      terminal
+        .waitFor({ state: 'visible', timeout: remaining })
+        .then(() => 'terminal' as const),
+      cache
+        .waitFor({ state: 'visible', timeout: remaining })
+        .then(() => 'cache' as const),
+    ]);
+    if (visible === 'terminal') return;
+
+    await page.keyboard.up('e');
+    await page.keyboard.up('Space');
+    await page.keyboard.up('d');
+    await cache.locator('.reward-card').first().click();
+    await cache
+      .getByLabel('武器の装着先を選択')
+      .getByRole('button', { name: /副武器 副/ })
+      .click();
+    await page.keyboard.down('e');
+    await page.keyboard.down('Space');
+    await page.keyboard.down('d');
+  }
+  throw new Error(`Combat outcome was not visible within ${timeout}ms`);
+}
+
 test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   page,
 }) => {
@@ -146,7 +180,7 @@ test('renders an acquired module on the physical caravan mounts', async ({
   await page.keyboard.down('d');
 
   const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
-  await expect(rewards).toBeVisible({ timeout: 45_000 });
+  await waitThroughWeaponCaches(page, rewards, 45_000);
   await page.keyboard.up('e');
   await page.keyboard.up('Space');
   await page.keyboard.up('d');
@@ -394,7 +428,7 @@ for (const viewport of [
     await page.keyboard.down('d');
 
     const clear = page.locator('.battle-clear');
-    await expect(clear).toBeVisible({ timeout: 45_000 });
+    await waitThroughWeaponCaches(page, clear, 45_000);
     await expect(clear).toContainText(/討伐時間 \d{2}:\d{2}\.\d{2}/);
     if (process.env.CAPTURE_UI_REVIEW) {
       await waitForAnimations(clear);
@@ -527,6 +561,44 @@ test('uses a slot confirmation step for a newly acquired weapon', async ({
   await slotPicker.getByRole('button', { name: /副武器 副/ }).click();
   await expect(rewards).toHaveCount(0);
   await expect(page.getByRole('button', { name: '副武器' })).toBeVisible();
+});
+
+test('pauses combat and offers three weapons when a weapon cache is opened', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto('/?debug=1&weaponCachePreview=1');
+  const cache = page.getByRole('dialog').filter({ hasText: '武器箱を発見！' });
+
+  await expect(cache).toBeVisible();
+  await expect(cache.locator('.reward-card.reward-weapon')).toHaveCount(3);
+  await expect(cache.locator('.reward-module')).toHaveCount(0);
+  await expect(cache).toContainText('武器 3択');
+  if (process.env.CAPTURE_UI_REVIEW) {
+    await page.screenshot({
+      path: 'artifacts/ui/review/weapon_cache_844x390.png',
+    });
+  }
+  await cache.locator('.reward-card.reward-weapon').first().click();
+  const slotPicker = cache.getByLabel('武器の装着先を選択');
+  await expect(slotPicker).toBeVisible();
+  await slotPicker.getByRole('button', { name: /副武器 副/ }).click();
+  await expect(cache).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+});
+
+test('renders repair, ammo and weapon-cache supplies as separate drops', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1184, height: 689 });
+  await page.goto('/?debug=1&supplyPreview=1');
+
+  await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
+  if (process.env.CAPTURE_UI_REVIEW) {
+    await page.screenshot({
+      path: 'artifacts/ui/review/supply_drops_1184x689.png',
+    });
+  }
 });
 
 for (const viewport of [

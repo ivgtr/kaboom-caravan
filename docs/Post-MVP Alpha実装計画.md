@@ -15,13 +15,16 @@
 - Lv.でDamage、Cooldown、RangeとWeapon固有挙動を強化する
 - Rare／Epic Weaponは取得時のLv.上昇量を増やす
 
-### Treasure Drop
+### Supply Drop
 
-- Enemy撃破時にSeedとEnemy IDからDropを決定する
-- 地面へ落下したTreasureはCaravan接近時に吸着・回収する
-- 未回収品はBattle Clear時に50%相当で回収する
-- Treasure量はReward RarityとReroll獲得数へ反映する
-- EliteとBossはTreasureを確定Dropする
+- Enemy撃破時にSeedとEnemy IDからDrop有無と種類を決定する
+- Dropは修理キット、弾薬箱、武器箱の3種類とする
+- 修理キットは耐久を16（Heavyは24）、弾薬箱は弾薬を12（Artilleryは18）即時補充する
+- 武器箱は戦闘を一時停止し、現在未装備の武器3択からその場で1つを搭載する
+- Drop率はBasic 28%、Rusher 34%、Heavy 52%、Artillery 46%、Bomber 48%とし、種類の重みもEnemyごとに分散する
+- EliteはDrop率を18ポイント上げ、Bossは戦闘終了後に選択が発生しないようDrop対象外とする
+- 地面へ落下したSupplyはCaravan接近時に吸着し、敵全滅後は取り残しを自動吸着する
+- Drop／回収時は種類別の色、記号、パーティクル、効果音を使用する
 
 ### Route
 
@@ -54,8 +57,8 @@
 
 ## 2. Responsibility
 
-- Simulation: Weapon Lv.、Loot Entity、Elite補正、決定論
-- Session: Garage、Route、Reward、Reroll、Run戦績
+- Simulation: Weapon Lv.、Supply Entity、Elite補正、決定論
+- Session: Garage、Route、Reward、武器箱選択、Reroll、Run戦績
 - Progression: Save Migration、Unlock、History
 - Presentation: Loot、Elite Aura、Garage／Route／Result UI、Audio
 
@@ -63,7 +66,8 @@
 
 - 同一Weapon選択で装着先確認を挟まずLv.が上がる
 - Lv.3でWeapon固有挙動が変わる
-- EnemyからTreasureが見える形でDropし、Caravanへ吸着する
+- Enemyから3種類のSupplyが見分けられる形でDropし、Caravanへ吸着する
+- 修理／弾薬は回収時に即時反映され、武器箱は同じCombat内で武器3択を開く
 - Treasure 3以上でReroll、5以上で追加Rerollを得る
 - 3回のRoute選択が1ランへ反映される
 - 3つのInitial Loadoutがあり、ExplosiveはUnlock条件を持つ
@@ -73,7 +77,7 @@
 
 ## 4. Verification
 
-- `npm run check`: lint、81 Unit Test、TypeScript Build、Formatを実行
+- `npm run check`: lint、88 Unit Test、TypeScript Build、Formatを実行
 - `npm run test:e2e`: Desktop／Mobile Landscapeを含むUI・操作回帰を実行
 - Fixed Seed `1 / 42 / 2026`: 通常ルート選択時の10戦完走と最終Buildを固定
-- 追加の手動確認対象: Elite難易度、Treasure吸着の気持ちよさ、Audio音量バランス、3初期Buildの勝率差
+- 追加の手動確認対象: Elite難易度、Supply吸着と武器箱選択のテンポ、Audio音量バランス、3初期Buildの勝率差

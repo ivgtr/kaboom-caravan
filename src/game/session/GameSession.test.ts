@@ -9,6 +9,7 @@ import {
   restartGameSession,
   selectRoute,
   selectReward,
+  selectWeaponCacheReward,
   startGameSession,
   stepGameSession,
 } from './GameSession';
@@ -149,6 +150,77 @@ describe('game session', () => {
 
     expect(next.run.build.primaryWeaponId).toBe('machine-cannon');
     expect(next.run.build.weaponLevels['machine-cannon']).toBe(2);
+  });
+
+  it('pauses combat for a collected weapon cache and resumes after equipping', () => {
+    const session = createGameSession(17);
+    session.combat.loot = [
+      {
+        id: 'weapon-cache-test',
+        kind: 'weapon-cache',
+        previousPosition: session.combat.player.position,
+        position: session.combat.player.position,
+        value: 1,
+        ageSeconds: 0,
+      },
+    ];
+
+    const paused = stepGameSession(
+      session,
+      IDLE_COMMAND,
+      SIMULATION_STEP_SECONDS,
+    );
+    const choice = paused.rewardChoices[0]!;
+    const resumed = selectWeaponCacheReward(paused, choice.id, 'secondary');
+
+    expect(paused.phase).toBe('weapon-cache');
+    expect(paused.rewardChoices).toHaveLength(3);
+    expect(paused.rewardChoices.every(({ type }) => type === 'weapon')).toBe(
+      true,
+    );
+    expect(resumed.phase).toBe('combat');
+    expect(resumed.run.encounterIndex).toBe(0);
+    expect(resumed.run.pendingWeaponCaches).toBe(0);
+    expect(resumed.combat.build).toEqual(resumed.run.build);
+  });
+
+  it('opens a final weapon cache before resolving battle victory', () => {
+    const session = createGameSession(18);
+    session.combat.enemies = [];
+    session.combat.projectiles = [];
+    session.combat.enemyProjectiles = [];
+    if (session.combat.wave) session.combat.wave.completed = true;
+    session.combat.loot = [
+      {
+        id: 'last-weapon-cache',
+        kind: 'weapon-cache',
+        previousPosition: session.combat.player.position,
+        position: session.combat.player.position,
+        value: 1,
+        ageSeconds: 0,
+      },
+    ];
+
+    const paused = stepGameSession(
+      session,
+      IDLE_COMMAND,
+      SIMULATION_STEP_SECONDS,
+    );
+    const equipped = selectWeaponCacheReward(
+      paused,
+      paused.rewardChoices[0]!.id,
+      'secondary',
+    );
+    const resolved = stepGameSession(
+      equipped,
+      IDLE_COMMAND,
+      SIMULATION_STEP_SECONDS,
+    );
+
+    expect(paused.phase).toBe('weapon-cache');
+    expect(paused.combat.status).toBe('victory');
+    expect(equipped.phase).toBe('combat');
+    expect(resolved.phase).toBe('reward');
   });
 
   it('offers route decisions and applies salvage benefits', () => {

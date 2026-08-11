@@ -16,6 +16,7 @@ import { WEAPON_DEFINITIONS } from '../game/data/weaponDefinitions';
 import { MODULE_DEFINITIONS } from '../game/data/moduleDefinitions';
 import {
   generateRewardChoices,
+  generateWeaponCacheChoices,
   type RewardChoice,
 } from '../game/reward/rewardSystem';
 import {
@@ -25,6 +26,7 @@ import {
   restartGameSession,
   selectRoute,
   selectReward,
+  selectWeaponCacheReward,
   startGameSession,
   stepGameSession,
   type GameSessionState,
@@ -167,6 +169,46 @@ function createInitialGameSession(): GameSessionState {
       ? createGameSession(1)
       : createGarageSession(1);
   const rewardPreview = parameters.get('rewardPreview');
+  if (parameters.has('debug') && parameters.has('weaponCachePreview')) {
+    session.phase = 'weapon-cache';
+    session.rewardChoices = generateWeaponCacheChoices(
+      session.run.seed,
+      session.run.encounterIndex,
+      session.combat.tick,
+      session.run.build,
+      1,
+    );
+    return session;
+  }
+  if (parameters.has('debug') && parameters.has('supplyPreview')) {
+    session.combat.loot = [
+      {
+        id: 'preview-repair',
+        kind: 'repair',
+        previousPosition: 34,
+        position: 34,
+        value: 16,
+        ageSeconds: 0,
+      },
+      {
+        id: 'preview-ammo',
+        kind: 'ammo',
+        previousPosition: 49,
+        position: 49,
+        value: 12,
+        ageSeconds: 0,
+      },
+      {
+        id: 'preview-weapon-cache',
+        kind: 'weapon-cache',
+        previousPosition: 64,
+        position: 64,
+        value: 1,
+        ageSeconds: 0,
+      },
+    ];
+    return session;
+  }
   if (
     !parameters.has('debug') ||
     (rewardPreview !== 'full-modules' && rewardPreview !== 'weapon-slot')
@@ -344,6 +386,25 @@ export function GameApp() {
     setHud(toHudSnapshot(session.combat));
     setSessionView(toSessionView(session));
     setFeedback('整備庫へ帰還');
+  };
+  const chooseWeaponCacheReward = (
+    rewardId: string,
+    weaponSlot: WeaponSlot = 'secondary',
+  ) => {
+    audio.playUiConfirm();
+    input.reset();
+    const session = selectWeaponCacheReward(
+      sessionRef.current,
+      rewardId,
+      weaponSlot,
+    );
+    sessionRef.current = session;
+    input.setEnabled(session.phase === 'combat');
+    setHud(toHudSnapshot(session.combat));
+    setSessionView(toSessionView(session));
+    setFeedback(
+      session.phase === 'combat' ? '新武装を搭載！' : '次の武器箱を開封！',
+    );
   };
   const reroll = () => {
     audio.playUiConfirm();
@@ -531,6 +592,7 @@ export function GameApp() {
       )}
       {sessionView.phase === 'reward' && !showClear && (
         <RewardPanel
+          source="battle"
           choices={sessionView.rewardChoices}
           moduleIds={sessionView.moduleIds}
           primaryWeaponId={sessionView.primaryWeaponId}
@@ -538,6 +600,18 @@ export function GameApp() {
           rerolls={sessionView.rewardRerolls}
           onChoose={chooseReward}
           onReroll={reroll}
+        />
+      )}
+      {sessionView.phase === 'weapon-cache' && (
+        <RewardPanel
+          source="weapon-cache"
+          choices={sessionView.rewardChoices}
+          moduleIds={sessionView.moduleIds}
+          primaryWeaponId={sessionView.primaryWeaponId}
+          secondaryWeaponId={sessionView.secondaryWeaponId}
+          rerolls={0}
+          onChoose={chooseWeaponCacheReward}
+          onReroll={() => undefined}
         />
       )}
       {showClear && (
@@ -738,6 +812,7 @@ function Meter({ value, max }: { value: number; max: number }) {
 }
 
 function RewardPanel({
+  source,
   choices,
   moduleIds,
   primaryWeaponId,
@@ -746,6 +821,7 @@ function RewardPanel({
   onChoose,
   onReroll,
 }: {
+  source: 'battle' | 'weapon-cache';
   choices: RewardChoice[];
   moduleIds: ModuleId[];
   primaryWeaponId: WeaponId;
@@ -882,26 +958,40 @@ function RewardPanel({
   ]);
 
   return (
-    <section className="reward-panel" role="dialog" aria-modal="true">
+    <section
+      className={`reward-panel${source === 'weapon-cache' ? ' weapon-cache-panel' : ''}`}
+      role="dialog"
+      aria-modal="true"
+    >
       <header>
         <div>
-          <span>戦利品選択</span>
-          <strong>持ち帰る装備をひとつ選ぼう</strong>
+          <span>
+            {source === 'weapon-cache' ? '武器箱を発見！' : '戦利品選択'}
+          </span>
+          <strong>
+            {source === 'weapon-cache'
+              ? 'その場で搭載する武器を選ぼう'
+              : '持ち帰る装備をひとつ選ぼう'}
+          </strong>
           <small className="reward-keyboard-hint">
             A・D / ←・→ で移動 / SPACEで決定 / 1〜3で即決
           </small>
         </div>
         <b>
-          モジュール {moduleIds.length}/{MODULE_SLOT_COUNT}
+          {source === 'weapon-cache'
+            ? '武器 3択'
+            : `モジュール ${moduleIds.length}/${MODULE_SLOT_COUNT}`}
         </b>
-        <button
-          className="reward-reroll"
-          type="button"
-          disabled={rerolls <= 0}
-          onClick={onReroll}
-        >
-          引き直し ×{rerolls}
-        </button>
+        {source === 'battle' && (
+          <button
+            className="reward-reroll"
+            type="button"
+            disabled={rerolls <= 0}
+            onClick={onReroll}
+          >
+            引き直し ×{rerolls}
+          </button>
+        )}
       </header>
       <div className="reward-grid">
         {choices.map((choice, index) => (
@@ -1089,9 +1179,17 @@ function describeCombatEvent(event: CombatEvent): string {
     case 'enemy-killed':
       return '撃破！';
     case 'loot-dropped':
-      return 'お宝発見！';
+      return event.kind === 'repair'
+        ? '修理キット出現！'
+        : event.kind === 'ammo'
+          ? '弾薬箱出現！'
+          : '武器箱出現！';
     case 'loot-collected':
-      return `お宝 +${event.value}`;
+      return event.kind === 'repair'
+        ? `耐久 +${event.value}`
+        : event.kind === 'ammo'
+          ? `弾薬 +${event.value}`
+          : '武器箱を開封！';
     case 'vehicle-hit':
       return `被弾！ -${event.damage.toFixed(0)}`;
     case 'overheated':

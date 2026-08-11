@@ -6,6 +6,7 @@ import {
 import type {
   EnemyProjectileVisualId,
   EnemyState,
+  LootKind,
   SimulationState,
 } from '../game/simulation/types';
 import { MODULE_ART, WEAPON_ART } from '../app/equipmentAssets';
@@ -85,7 +86,8 @@ interface VisualEffect {
     | 'bomber-burst'
     | 'parry-ready'
     | 'parry-success'
-    | 'loot';
+    | 'loot'
+    | 'supply-drop';
   worldPosition: number;
   ageSeconds: number;
   durationSeconds: number;
@@ -93,6 +95,7 @@ interface VisualEffect {
   vfxFamily?: VfxFamily;
   enemyVisualId?: EnemyProjectileVisualId;
   enemyTypeId?: EnemyTypeId;
+  lootKind?: LootKind;
 }
 
 interface CharacterMotionRuntime {
@@ -242,12 +245,12 @@ export class GameRenderer {
     this.drawExhaustPuffs();
 
     for (const item of state.loot) {
-      this.drawTreasureLoot(
+      this.drawSupplyLoot(
         this.worldToScreen(
           item.previousPosition +
             (item.position - item.previousPosition) * alpha,
         ),
-        item.value,
+        item.kind,
         item.ageSeconds,
       );
     }
@@ -1257,12 +1260,21 @@ export class GameRenderer {
             ageSeconds: 0,
             durationSeconds: this.reducedMotion ? 0.3 : 0.58,
           });
+        } else if (event.type === 'loot-dropped') {
+          this.emitEffect({
+            kind: 'supply-drop',
+            worldPosition: event.position,
+            ageSeconds: 0,
+            durationSeconds: 0.58,
+            lootKind: event.kind,
+          });
         } else if (event.type === 'loot-collected') {
           this.emitEffect({
             kind: 'loot',
             worldPosition: state.player.position,
             ageSeconds: 0,
             durationSeconds: 0.46,
+            lootKind: event.kind,
           });
         } else if (event.type === 'overheated') {
           this.emitEffect({
@@ -1305,13 +1317,21 @@ export class GameRenderer {
           : effect.kind === 'muzzle'
             ? this.groundY -
               Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
-            : effect.kind === 'explosion' && effect.weaponId === 'mine-launcher'
+            : effect.kind === 'supply-drop'
               ? this.groundY -
-                Math.min(38, Math.max(24, this.viewportHeight * 0.045))
-              : this.groundY -
-                Math.min(80, Math.max(44, this.viewportHeight * 0.09));
+                Math.min(32, Math.max(18, this.viewportHeight * 0.025))
+              : effect.kind === 'explosion' &&
+                  effect.weaponId === 'mine-launcher'
+                ? this.groundY -
+                  Math.min(38, Math.max(24, this.viewportHeight * 0.045))
+                : this.groundY -
+                  Math.min(80, Math.max(44, this.viewportHeight * 0.09));
       if (effect.kind === 'loot') {
-        this.drawLootCollectedVfx(x, y, progress);
+        this.drawLootCollectedVfx(x, y, progress, effect.lootKind);
+        continue;
+      }
+      if (effect.kind === 'supply-drop') {
+        this.drawSupplyDropVfx(x, y, progress, effect.lootKind);
         continue;
       }
       if (effect.kind === 'smoke') {
@@ -1464,16 +1484,18 @@ export class GameRenderer {
     context.restore();
   }
 
-  private drawTreasureLoot(x: number, value: number, ageSeconds: number): void {
+  private drawSupplyLoot(x: number, kind: LootKind, ageSeconds: number): void {
     const context = this.context;
     const size = Math.min(34, Math.max(22, this.viewportHeight * 0.042));
     const bounce = this.reducedMotion ? 0 : Math.sin(ageSeconds * 5.5) * 3;
     const y = this.groundY - size * 0.55 + bounce;
+    const color =
+      kind === 'repair' ? '#ff8875' : kind === 'ammo' ? '#ffd05a' : '#62dac5';
     context.save();
     context.translate(x, y);
-    context.shadowColor = '#ffe06f';
-    context.shadowBlur = 10;
-    context.fillStyle = value >= 3 ? '#ffd05a' : '#ff8875';
+    context.shadowColor = color;
+    context.shadowBlur = kind === 'weapon-cache' ? 18 : 10;
+    context.fillStyle = color;
     context.strokeStyle = '#263249';
     context.lineWidth = Math.max(2, size * 0.09);
     context.beginPath();
@@ -1498,21 +1520,53 @@ export class GameRenderer {
     );
     context.fill();
     context.stroke();
-    context.fillStyle = '#62dac5';
-    context.beginPath();
-    context.arc(0, 0, size * 0.1, 0, Math.PI * 2);
-    context.fill();
+    context.fillStyle = '#263249';
+    if (kind === 'repair') {
+      context.fillRect(-size * 0.06, -size * 0.15, size * 0.12, size * 0.3);
+      context.fillRect(-size * 0.15, -size * 0.06, size * 0.3, size * 0.12);
+    } else if (kind === 'ammo') {
+      for (let index = -1; index <= 1; index += 1) {
+        context.beginPath();
+        context.roundRect(
+          index * size * 0.16 - size * 0.045,
+          -size * 0.14,
+          size * 0.09,
+          size * 0.28,
+          size * 0.04,
+        );
+        context.fill();
+      }
+    } else {
+      context.beginPath();
+      for (let point = 0; point < 10; point += 1) {
+        const angle = -Math.PI / 2 + (point * Math.PI) / 5;
+        const radius = point % 2 === 0 ? size * 0.17 : size * 0.075;
+        const px = Math.cos(angle) * radius;
+        const py = Math.sin(angle) * radius;
+        if (point === 0) context.moveTo(px, py);
+        else context.lineTo(px, py);
+      }
+      context.closePath();
+      context.fill();
+    }
     context.restore();
   }
 
-  private drawLootCollectedVfx(x: number, y: number, progress: number): void {
+  private drawLootCollectedVfx(
+    x: number,
+    y: number,
+    progress: number,
+    kind?: LootKind,
+  ): void {
     const context = this.context;
     const fade = Math.max(0, 1 - progress);
     const radius = 14 + progress * 42;
+    const color =
+      kind === 'repair' ? '#ff8875' : kind === 'ammo' ? '#ffd05a' : '#62dac5';
     context.save();
     context.globalAlpha = fade;
-    context.strokeStyle = '#ffe06f';
-    context.fillStyle = '#62dac5';
+    context.strokeStyle = color;
+    context.fillStyle = color;
     context.lineWidth = 4;
     context.beginPath();
     context.arc(x, y, radius, 0, Math.PI * 2);
@@ -1528,6 +1582,35 @@ export class GameRenderer {
         Math.PI * 2,
       );
       context.fill();
+    }
+    context.restore();
+  }
+
+  private drawSupplyDropVfx(
+    x: number,
+    y: number,
+    progress: number,
+    kind?: LootKind,
+  ): void {
+    const context = this.context;
+    const color =
+      kind === 'repair' ? '#ff8875' : kind === 'ammo' ? '#ffd05a' : '#62dac5';
+    const burst = Math.sin(Math.min(1, progress) * Math.PI);
+    context.save();
+    context.globalAlpha = Math.max(0, 1 - progress);
+    context.strokeStyle = color;
+    context.lineWidth = 3;
+    context.beginPath();
+    context.arc(x, y, 12 + progress * 38, 0, Math.PI * 2);
+    context.stroke();
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (index * Math.PI) / 4;
+      const inner = 18 + progress * 18;
+      const outer = inner + 8 + burst * 10;
+      context.beginPath();
+      context.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
+      context.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
+      context.stroke();
     }
     context.restore();
   }

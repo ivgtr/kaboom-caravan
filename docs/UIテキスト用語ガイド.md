@@ -22,6 +22,10 @@
 | Run              | 遠征               | -        |
 | Reward           | 戦利品             | -        |
 | Treasure         | お宝               | -        |
+| Supply Drop      | 補給物資           | 補給     |
+| Repair Supply    | 修理キット         | 修理     |
+| Ammo Supply      | 弾薬箱             | 弾薬     |
+| Weapon Cache     | 武器箱             | 武器箱   |
 | Reroll           | 引き直し           | -        |
 | Module           | モジュール         | -        |
 | Garage           | 整備庫             | -        |
