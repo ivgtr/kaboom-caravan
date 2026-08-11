@@ -18,7 +18,7 @@
 | Primary Weapon   | 主武器             | 主       |
 | Secondary Weapon | 副武器             | 副       |
 | Parry            | 迎撃               | 迎撃     |
-| Dash             | 急加速             | 加速     |
+| Boost            | 急加速             | 加速     |
 | Combat           | 戦闘               | 戦       |
 | Run              | 遠征               | -        |
 | Reward           | 戦利品             | -        |
