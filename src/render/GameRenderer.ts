@@ -56,6 +56,17 @@ const PERFORMANCE_SAMPLE_LIMIT = 240;
 const PERFORMANCE_STRESS_PLAYER_PROJECTILES = 100;
 const PERFORMANCE_STRESS_ENEMY_PROJECTILES = 32;
 const PERFORMANCE_STRESS_EFFECTS = 48;
+const PLAYER_HEIGHT_RATIO = 0.3;
+const PLAYER_MINIMUM_SIZE = 120;
+const PLAYER_MAXIMUM_SIZE = 240;
+const ENEMY_HEIGHT_RATIOS: Readonly<Record<EnemyTypeId, number>> = {
+  basic: 0.18,
+  rusher: 0.22,
+  heavy: 0.25,
+  artillery: 0.25,
+  bomber: 0.18,
+  'kawaii-fortress': 0.46,
+};
 const WORLD_ART = {
   background: runtimeAssetUrl(
     'assets/world/env_background_integrated_2x1_v005.webp',
@@ -408,7 +419,7 @@ export class GameRenderer {
     const context = this.context;
     const player = this.assets.get(PLAYER_CHASSIS_ART.source);
     if (player) {
-      const width = Math.min(190, Math.max(118, this.viewportHeight * 0.25));
+      const width = this.caravanSize;
       const size = width * PLAYER_CHASSIS_ART.displayScale;
       const recoil = this.weaponRecoil(primaryWeaponId);
       const hitOffset = this.hitOffset(this.playerMotion, -1);
@@ -605,22 +616,7 @@ export class GameRenderer {
     const motionAsset = ENEMY_MOTION_ART[typeId];
     const monster = this.assets.get(motionAsset.source);
     if (monster) {
-      const relativeSize: Record<EnemyTypeId, number> = {
-        basic: 0.14,
-        rusher: 0.17,
-        heavy: 0.2,
-        artillery: 0.2,
-        bomber: 0.14,
-        'kawaii-fortress': 0.4,
-      };
-      const size =
-        Math.min(
-          typeId === 'kawaii-fortress' ? 360 : 150,
-          Math.max(
-            typeId === 'kawaii-fortress' ? 180 : 62,
-            this.viewportHeight * relativeSize[typeId],
-          ),
-        ) * motionAsset.displayScale;
+      const size = this.enemySize(typeId);
       const runtime = this.enemyMotions.get(enemy.id);
       const pose = this.selectEnemyPose(enemy, runtime);
       const hitOffset = runtime ? this.hitOffset(runtime, 1) : 0;
@@ -977,7 +973,7 @@ export class GameRenderer {
   private drawExhaustPuffs(): void {
     const rig = this.assets.get(PLAYER_RIG_ART.source);
     if (!rig) return;
-    const baseSize = Math.min(190, Math.max(118, this.viewportHeight * 0.25));
+    const baseSize = this.caravanSize;
     const context = this.context;
     for (const puff of this.exhaustPuffs) {
       const progress = puff.ageSeconds / puff.durationSeconds;
@@ -1350,15 +1346,13 @@ export class GameRenderer {
         : this.worldToScreen(effect.worldPosition);
       const y =
         effect.kind === 'parry-ready' || effect.kind === 'parry-success'
-          ? this.groundY -
-            Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.46
+          ? this.groundY - this.caravanSize * 0.46
           : effect.kind === 'smoke'
             ? this.groundY -
-              Math.min(190, Math.max(118, this.viewportHeight * 0.25)) *
+              this.caravanSize *
                 (effect.weaponSlot === 'secondary' ? 0.56 : 0.72)
             : effect.kind === 'muzzle'
-              ? this.groundY -
-                Math.min(190, Math.max(118, this.viewportHeight * 0.25)) * 0.65
+              ? this.groundY - this.caravanSize * 0.65
               : effect.kind === 'supply-drop'
                 ? this.groundY -
                   Math.min(32, Math.max(18, this.viewportHeight * 0.025))
@@ -1438,10 +1432,7 @@ export class GameRenderer {
       this.drawVfxParticles(effect, family, x, y, progress);
     }
     if (this.parryVfxPreview !== undefined) {
-      const caravanWidth = Math.min(
-        190,
-        Math.max(118, this.viewportHeight * 0.25),
-      );
+      const caravanWidth = this.caravanSize;
       this.drawParryVfx(
         playerX,
         this.groundY - caravanWidth * 0.46,
@@ -1712,10 +1703,7 @@ export class GameRenderer {
       successful ? PARRY_VFX_ART.successSource : PARRY_VFX_ART.readySource,
     );
     if (!image) return;
-    const caravanWidth = Math.min(
-      190,
-      Math.max(118, this.viewportHeight * 0.25),
-    );
+    const caravanWidth = this.caravanSize;
     const easedBurst = Math.sin(Math.min(1, progress) * Math.PI);
     const baseScale = successful
       ? PARRY_VFX_ART.successScale
@@ -1753,22 +1741,7 @@ export class GameRenderer {
     const isBoss = enemyTypeId === 'kawaii-fortress';
     const asset = ENEMY_MOTION_ART[enemyTypeId];
     const image = this.assets.get(asset.source);
-    const relativeSize: Record<EnemyTypeId, number> = {
-      basic: 0.14,
-      rusher: 0.17,
-      heavy: 0.2,
-      artillery: 0.2,
-      bomber: 0.14,
-      'kawaii-fortress': 0.4,
-    };
-    const size =
-      Math.min(
-        isBoss ? 360 : 150,
-        Math.max(
-          isBoss ? 180 : 62,
-          this.viewportHeight * relativeSize[enemyTypeId],
-        ),
-      ) * asset.displayScale;
+    const size = this.enemySize(enemyTypeId);
     const bodyEnd = isBoss ? 0.44 : 0.38;
 
     if (image && progress < bodyEnd) {
@@ -2440,11 +2413,7 @@ export class GameRenderer {
     if (preview === 'normal') {
       this.drawEnemyDeathVfx('basic', x, 0.42);
     } else if (preview === 'boss') {
-      this.drawBossDeathSequence(
-        x,
-        Math.min(360, Math.max(180, this.viewportHeight * 0.4)),
-        0.42,
-      );
+      this.drawBossDeathSequence(x, this.enemySize('kawaii-fortress'), 0.42);
     } else if (preview === 'bomber') {
       this.drawGeneratedVfx('explosive', 'impact', x, y, 0.3);
     } else {
@@ -2694,6 +2663,25 @@ export class GameRenderer {
 
   private get groundY(): number {
     return Math.min(this.viewportHeight * 0.84, this.viewportHeight - 84);
+  }
+
+  private get caravanSize(): number {
+    return Math.min(
+      PLAYER_MAXIMUM_SIZE,
+      Math.max(PLAYER_MINIMUM_SIZE, this.viewportHeight * PLAYER_HEIGHT_RATIO),
+    );
+  }
+
+  private enemySize(typeId: EnemyTypeId): number {
+    const isBoss = typeId === 'kawaii-fortress';
+    const baseSize = Math.min(
+      isBoss ? 420 : 190,
+      Math.max(
+        isBoss ? 200 : 70,
+        this.viewportHeight * ENEMY_HEIGHT_RATIOS[typeId],
+      ),
+    );
+    return baseSize * ENEMY_MOTION_ART[typeId].displayScale;
   }
 
   private readonly resize = (): void => {
