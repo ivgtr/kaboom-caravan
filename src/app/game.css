@@ -1469,30 +1469,21 @@ button {
     font-size: 10px;
   }
   .reward-grid {
-    --mobile-reward-card-height: calc(100dvh - 80px);
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: start;
-    gap: 12px;
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: calc(50vw - var(--mobile-reward-card-height) / 3);
-    padding: 0
-      max(
-        12px,
-        calc(50vw - var(--mobile-reward-card-height) / 3),
-        env(safe-area-inset-left)
-      )
-      max(20px, env(safe-area-inset-bottom));
-    scrollbar-width: none;
+    gap: 8px;
+    width: min(780px, 100%);
+    overflow: visible;
+    padding: 0 max(10px, env(safe-area-inset-right))
+      max(20px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
   }
   .reward-card {
-    flex: 0 0 auto;
-    width: auto;
-    max-width: none;
-    height: var(--mobile-reward-card-height);
-    scroll-snap-align: center;
+    justify-self: center;
+    width: 100%;
+    max-width: calc((100dvh - 80px) * 2 / 3);
+    height: auto;
   }
   .reward-card p {
     font-size: 9px;
@@ -1603,11 +1594,6 @@ button {
   .result-panel button {
     min-width: 150px;
     padding: 5px 14px;
-  }
-}
-@media (max-width: 760px) and (max-height: 520px) and (orientation: landscape) {
-  .reward-grid {
-    --mobile-reward-card-height: calc(100dvh - 74px);
   }
 }
 @media (max-width: 600px) and (orientation: portrait) {

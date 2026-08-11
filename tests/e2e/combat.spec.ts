@@ -828,6 +828,8 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
   );
   expect(cardBoxes).toHaveLength(3);
   for (const [index, box] of cardBoxes.entries()) {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(844);
     expect(box.top).toBeGreaterThanOrEqual(0);
     expect(box.bottom).toBeLessThanOrEqual(390);
     expect(box.width / box.height).toBeCloseTo(2 / 3, 2);
@@ -839,17 +841,17 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
       box.bottom,
     );
   }
-  const selectedBox = await cards.nth(2).boundingBox();
-  expect(selectedBox).not.toBeNull();
-  expect(selectedBox!.x).toBeGreaterThanOrEqual(0);
-  expect(selectedBox!.x + selectedBox!.width).toBeLessThanOrEqual(844);
-  expect(selectedBox!.x + selectedBox!.width / 2).toBeCloseTo(844 / 2, 0);
+  expect(
+    await cache
+      .locator('.reward-grid')
+      .evaluate((grid) => grid.scrollWidth <= grid.clientWidth),
+  ).toBe(true);
   if (process.env.CAPTURE_UI_REVIEW) {
     await page.screenshot({
       path: 'artifacts/ui/review/weapon_cache_844x390.png',
     });
   }
-  await cards.first().click();
+  await cards.nth(1).click();
   const slotPicker = cache.getByLabel('武器の装着先を選択');
   await expect(slotPicker).toBeVisible();
   await expect(slotPicker.locator('.slot-picker-actions strong')).toHaveCount(
