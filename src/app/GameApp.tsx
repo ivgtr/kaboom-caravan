@@ -8,6 +8,8 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react';
+import { CombatPauseController } from '../input/CombatPauseController';
+import { PauseMenu } from './PauseMenu';
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 import { MODULE_SLOT_COUNT } from '../game/build/build';
 import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
@@ -273,6 +275,8 @@ export function GameApp() {
   const [input] = useState(() => new InputManager());
   const [audio] = useState(() => new AudioDirector());
   const [muted, setMuted] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const pauseControllerRef = useRef<CombatPauseController | null>(null);
   const [meta, setMeta] = useState(loadMetaProgression);
   const recordedRunRef = useRef<string | undefined>(undefined);
   const [initialSession] = useState(createInitialGameSession);
@@ -285,6 +289,10 @@ export function GameApp() {
   const [showClear, setShowClear] = useState(false);
   const [renderError, setRenderError] = useState<string>();
   const debug = new URLSearchParams(window.location.search).has('debug');
+
+  useEffect(() => {
+    audio.setMuted(muted || paused);
+  }, [audio, muted, paused]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -362,9 +370,27 @@ export function GameApp() {
     );
     input.setContext(sessionRef.current.phase === 'combat' ? 'combat' : 'menu');
     input.connect();
+    const pauseController = new CombatPauseController({
+      canPause: () => sessionRef.current.phase === 'combat',
+      onPause: () => {
+        loop.stop();
+        input.setContext('menu');
+        setHud(toHudSnapshot(sessionRef.current.combat));
+        setPaused(true);
+      },
+      onResume: () => {
+        input.setContext('combat');
+        setPaused(false);
+        loop.start();
+      },
+    });
+    pauseControllerRef.current = pauseController;
     loop.start();
+    pauseController.connect();
     return () => {
       if (clearTimer) window.clearTimeout(clearTimer);
+      pauseController.disconnect();
+      pauseControllerRef.current = null;
       loop.stop();
       input.disconnect();
       renderer.dispose();
@@ -608,6 +634,20 @@ export function GameApp() {
           </>
         )
       )}
+      {combatVisible && !renderError && (
+        <button
+          type="button"
+          className="pause-toggle"
+          aria-label="一時停止と操作ガイド"
+          aria-keyshortcuts="Escape P"
+          onClick={() => pauseControllerRef.current?.pause()}
+        >
+          一時停止 <kbd>ESC</kbd>
+        </button>
+      )}
+      {paused && (
+        <PauseMenu onResume={() => pauseControllerRef.current?.resume()} />
+      )}
       {debug && (
         <aside className="debug-panel">
           tick {hud.tick} / position {hud.position.toFixed(1)} / heat 主{' '}
@@ -621,7 +661,6 @@ export function GameApp() {
         onClick={() => {
           const next = !muted;
           setMuted(next);
-          audio.setMuted(next);
         }}
       >
         {muted ? '音声 なし' : '音声 あり'}
