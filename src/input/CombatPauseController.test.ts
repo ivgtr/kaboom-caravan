@@ -7,14 +7,14 @@ import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 describe('CombatPauseController', () => {
   let controller: CombatPauseController;
   let canPause: boolean;
-  let onPause: ReturnType<typeof vi.fn>;
-  let onResume: ReturnType<typeof vi.fn>;
+  let onPause: ReturnType<typeof vi.fn<() => void>>;
+  let onResume: ReturnType<typeof vi.fn<() => void>>;
 
   beforeEach(() => {
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
     canPause = true;
-    onPause = vi.fn();
-    onResume = vi.fn();
+    onPause = vi.fn<() => void>();
+    onResume = vi.fn<() => void>();
     controller = new CombatPauseController({
       canPause: () => canPause,
       onPause,
