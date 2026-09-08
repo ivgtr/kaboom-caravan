@@ -1,35 +1,38 @@
 import { expect, test } from '@playwright/test';
 
-test('pause freezes the HUD and resumes only on request', async ({ page }) => {
+test('freezes combat until explicit resume', async ({ page }) => {
   await page.goto('/?debug');
-  await page.getByRole('button', { name: '一時停止と操作ガイド' }).click();
+  const pauseButton = page.getByRole('button', {
+    name: '一時停止と操作ガイド',
+  });
+  await pauseButton.click();
   const dialog = page.getByRole('dialog', { name: '一時停止中' });
+  const resumeButton = dialog.getByRole('button', { name: '戦闘を再開' });
+  const hud = page.locator('.debug-panel');
+  const health = page.locator('.compact-hud progress');
   await expect(dialog).toBeVisible();
-  const before = await page.locator('.debug-panel').textContent();
-  const hp = await page.locator('.compact-hud progress').getAttribute('value');
+  const before = await hud.textContent();
+  const hitPoints = await health.getAttribute('value');
   await page.waitForTimeout(400);
-  expect(await page.locator('.debug-panel').textContent()).toBe(before);
-  expect(
-    await page.locator('.compact-hud progress').getAttribute('value'),
-  ).toBe(hp);
-  await expect(dialog.getByRole('button', { name: '戦闘を再開' })).toBeFocused();
+  expect(await hud.textContent()).toBe(before);
+  expect(await health.getAttribute('value')).toBe(hitPoints);
+  await expect(resumeButton).toBeFocused();
   await page.locator('.pause-toggle').evaluate((element) => {
     if (element instanceof HTMLElement) element.focus();
   });
-  await expect(dialog.getByRole('button', { name: '戦闘を再開' })).toBeFocused();
+  await expect(resumeButton).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
-  await expect(page.locator('.debug-panel')).not.toHaveText(before ?? '');
-  await expect(
-    page.getByRole('button', { name: '一時停止と操作ガイド' }),
-  ).toBeFocused();
+  await expect(hud).not.toHaveText(before ?? '');
+  await expect(pauseButton).toBeFocused();
 });
 
 test('blur pauses until explicit resume', async ({ page }) => {
   await page.goto('/?debug');
-  await expect(
-    page.getByRole('button', { name: '一時停止と操作ガイド' }),
-  ).toBeVisible();
+  const pauseButton = page.getByRole('button', {
+    name: '一時停止と操作ガイド',
+  });
+  await expect(pauseButton).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   const dialog = page.getByRole('dialog', { name: '一時停止中' });
   await expect(dialog).toBeVisible();
@@ -58,16 +61,14 @@ test('Escape still cancels weapon slot selection', async ({ page }) => {
     .locator('.reward-card:not(.reward-upgrade).reward-weapon button')
     .first()
     .click();
-  await expect(
-    page.getByRole('region', { name: '武器の装着先を選択' }),
-  ).toBeVisible();
+  const slotPicker = page.getByRole('region', {
+    name: '武器の装着先を選択',
+  });
+  await expect(slotPicker).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(
-    page.getByRole('region', { name: '武器の装着先を選択' }),
-  ).not.toBeVisible();
-  await expect(
-    page.getByRole('dialog', { name: '一時停止中' }),
-  ).not.toBeVisible();
+  await expect(slotPicker).not.toBeVisible();
+  const pauseDialog = page.getByRole('dialog', { name: '一時停止中' });
+  await expect(pauseDialog).not.toBeVisible();
 });
 
 for (const viewport of [
@@ -82,18 +83,17 @@ for (const viewport of [
       await page.getByRole('button', { name: '一時停止と操作ガイド' }).tap();
       const dialog = page.getByRole('dialog', { name: '一時停止中' });
       await expect(dialog).toBeVisible();
-      expect(
-        await dialog.evaluate((element) => {
-          const rect = element.getBoundingClientRect();
-          return (
-            rect.left >= 0 &&
-            rect.right <= innerWidth &&
-            rect.top >= 0 &&
-            rect.bottom <= innerHeight &&
-            element.scrollWidth <= element.clientWidth
-          );
-        }),
-      ).toBe(true);
+      const layoutFits = await dialog.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.left >= 0 &&
+          rect.right <= innerWidth &&
+          rect.top >= 0 &&
+          rect.bottom <= innerHeight &&
+          element.scrollWidth <= element.clientWidth
+        );
+      });
+      expect(layoutFits).toBe(true);
       await dialog.getByRole('button', { name: '戦闘を再開' }).tap();
       await expect(dialog).not.toBeVisible();
     });
