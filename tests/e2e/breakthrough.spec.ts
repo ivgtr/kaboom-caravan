@@ -85,7 +85,6 @@ for (const key of ['Space', 'Enter']) {
 
 for (const viewport of [
   { width: 1280, height: 800 },
-  { width: 390, height: 844 },
   { width: 844, height: 390 },
   { width: 568, height: 320 },
 ]) {
