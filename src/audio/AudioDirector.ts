@@ -70,6 +70,22 @@ export class AudioDirector {
     if (!this.context || this.muted) return;
     for (const event of events) {
       switch (event.type) {
+        case 'breakthrough-ready':
+          this.playUiConfirm();
+          break;
+        case 'breakthrough-activated':
+          this.voice(100, 0.35, {
+            type: 'triangle',
+            endFrequency: 420,
+            volume: 0.06,
+          });
+          this.voice(440, 0.28, {
+            type: 'sine',
+            endFrequency: 660,
+            delay: 0.1,
+            volume: 0.035,
+          });
+          break;
         case 'weapon-fired':
           if (this.canPlay('fire', EVENT_INTERVALS.fire)) {
             this.playWeapon(event.weaponId);

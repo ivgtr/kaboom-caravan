@@ -71,6 +71,12 @@ export function PauseMenu({ onResume }: { onResume: () => void }) {
             </dd>
           </div>
           <div>
+            <dt>前線突破</dt>
+            <dd>
+              <kbd>E</kbd> / ボタンをタップ
+            </dd>
+          </div>
+          <div>
             <dt>停止 / 再開</dt>
             <dd>
               <kbd>ESC</kbd> / <kbd>P</kbd>
@@ -78,7 +84,9 @@ export function PauseMenu({ onResume }: { onResume: () => void }) {
           </div>
         </dl>
         <p className="pause-touch-hint">
-          タッチ操作は画面左右のボタンを長押し。
+          25mより前での命中やパリィで突破ゲージを蓄積。満タンでEを押すと敵弾一掃・排熱と4秒の連射強化。弾薬は消費し、無敵にはなりません。
+          未使用ゲージは次の戦闘へ持ち越せます。
+          移動・射撃のタッチ操作は画面左右のボタンを長押し。
           タブやウィンドウを離れると自動で一時停止します。
         </p>
       </section>

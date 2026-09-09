@@ -33,6 +33,7 @@ export interface PlayerCommand {
   fireSecondary: boolean;
   activateSkill: boolean;
   boost: boolean;
+  activateBreakthrough: boolean;
 }
 
 export interface PlayerState {
@@ -113,6 +114,12 @@ export interface ProjectileState {
   maximumAgeSeconds: number;
 }
 
+export interface BreakthroughState {
+  charge: number;
+  remainingSeconds: number;
+  hitChargeCooldown: number;
+}
+
 export interface FrontlineState {
   position: number;
   pressure: number;
@@ -147,6 +154,8 @@ export interface WaveState {
 }
 
 export type CombatEvent =
+  | { type: 'breakthrough-ready' }
+  | { type: 'breakthrough-activated' }
   | {
       type: 'weapon-fired';
       projectileId: EntityId;
@@ -222,6 +231,7 @@ export interface SimulationState {
   build: BuildState;
   player: PlayerState;
   frontline: FrontlineState;
+  breakthrough: BreakthroughState;
   wave?: WaveState;
   enemies: EnemyState[];
   projectiles: ProjectileState[];
@@ -238,4 +248,5 @@ export const IDLE_COMMAND: PlayerCommand = {
   fireSecondary: false,
   activateSkill: false,
   boost: false,
+  activateBreakthrough: false,
 };

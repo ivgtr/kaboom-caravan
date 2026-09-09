@@ -59,6 +59,7 @@ export interface RunState {
   enemiesDefeated: number;
   parries: number;
   damageDealt: number;
+  breakthroughCharge: number;
 }
 
 export interface GameSessionState {
@@ -92,6 +93,7 @@ function createCombat(
   combat.player.ammo = stats.maximumAmmo;
   combat.player.energy = stats.maximumEnergy;
   combat.eliteEncounter = run.currentRoute === 'elite';
+  combat.breakthrough.charge = run.breakthroughCharge;
   return combat;
 }
 
@@ -123,6 +125,7 @@ function createRun(seed: number, loadoutId: LoadoutId): RunState {
     enemiesDefeated: 0,
     parries: 0,
     damageDealt: 0,
+    breakthroughCharge: 0,
   };
 }
 
@@ -167,6 +170,7 @@ export function stepGameSession(
   const combat = stepSimulation(session.combat, command, deltaSeconds);
   const progressedRun: RunState = {
     ...session.run,
+    breakthroughCharge: combat.breakthrough.charge,
     enemiesDefeated:
       session.run.enemiesDefeated +
       combat.events.filter(({ type }) => type === 'enemy-killed').length,

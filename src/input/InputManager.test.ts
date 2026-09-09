@@ -118,6 +118,56 @@ describe('InputManager', () => {
     });
   });
 
+  it('buffers E for one fixed step and never repeats a held activation', () => {
+    const press = (repeat = false) =>
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyE', repeat }),
+      );
+    press();
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
+    expect(input.readCommand().activateBreakthrough).toBe(true);
+    expect(input.readCommand().activateBreakthrough).toBe(false);
+    press();
+    expect(input.readCommand().activateBreakthrough).toBe(true);
+    press(true);
+    press();
+    expect(input.readCommand().activateBreakthrough).toBe(false);
+  });
+
+  it('buffers button taps but discards them on pause, blur and menu transitions', () => {
+    input.requestBreakthrough();
+    expect(input.readCommand().activateBreakthrough).toBe(true);
+    input.requestBreakthrough();
+    window.dispatchEvent(new Event('blur'));
+    expect(input.readCommand().activateBreakthrough).toBe(false);
+    input.requestBreakthrough();
+    input.setContext('menu');
+    input.requestBreakthrough();
+    input.setContext('combat');
+    expect(input.readCommand().activateBreakthrough).toBe(false);
+  });
+
+  it('does not steal E from shortcuts, text fields or IME composition', () => {
+    for (const options of [
+      { altKey: true },
+      { ctrlKey: true },
+      { metaKey: true },
+      { isComposing: true },
+    ]) {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyE', ...options }),
+      );
+      expect(input.readCommand().activateBreakthrough).toBe(false);
+    }
+    const field = document.createElement('input');
+    document.body.append(field);
+    field.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }),
+    );
+    expect(input.readCommand().activateBreakthrough).toBe(false);
+    field.remove();
+  });
+
   it('maps keyboard bindings to shared menu actions', () => {
     input.setContext('menu');
     const actions: string[] = [];
