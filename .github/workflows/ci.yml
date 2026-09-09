@@ -25,8 +25,6 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Format branch snapshot
-        run: npm run format
       - name: Lint, unit tests, build and formatting
         run: npm run check
       - name: Install Chromium
@@ -35,7 +33,7 @@ jobs:
         run: npm run test:e2e -- tests/e2e/pause.spec.ts tests/e2e/breakthrough.spec.ts tests/e2e/combat-core.spec.ts tests/e2e/battlefield-objective.spec.ts
         env:
           CAPTURE_UI_REVIEW: '1'
-      - name: Save interaction report and formatter output
+      - name: Save interaction report and review screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -43,7 +41,5 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            index.html
-            tests/e2e/pause.spec.ts
           retention-days: 7
           if-no-files-found: ignore
