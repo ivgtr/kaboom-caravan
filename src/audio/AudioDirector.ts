@@ -70,6 +70,7 @@ export class AudioDirector {
     if (!this.context || this.muted) return;
     for (const event of events) {
       switch (event.type) {
+        case 'core-ready':
         case 'breakthrough-ready':
           this.playUiConfirm();
           break;

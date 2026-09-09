@@ -1,3 +1,4 @@
+import { createCombatCoreState } from './combatCore';
 import { createEnemy } from '../combat/createEnemy';
 import type { WaveId } from '../data/ids';
 import { createWaveState } from '../wave/waveSystem';
@@ -43,6 +44,7 @@ export function createSimulation(seed = 1): SimulationState {
       rewardMultiplier: 1,
     },
     breakthrough: { charge: 0, remainingSeconds: 0, hitChargeCooldown: 0 },
+    core: createCombatCoreState(),
     enemies: [
       createEnemy('basic', 'enemy-1', 55),
       createEnemy('basic', 'enemy-2', 72),

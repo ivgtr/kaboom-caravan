@@ -1,7 +1,17 @@
 import { useEffect, useRef } from 'react';
 import './pause.css';
+import {
+  COMBAT_CORE_DEFINITIONS,
+  type CombatCoreId,
+} from '../game/data/combatCoreDefinitions';
 
-export function PauseMenu({ onResume }: { onResume: () => void }) {
+export function PauseMenu({
+  onResume,
+  coreId,
+}: {
+  onResume: () => void;
+  coreId?: CombatCoreId;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -90,6 +100,14 @@ export function PauseMenu({ onResume }: { onResume: () => void }) {
           タブやウィンドウを離れると自動で一時停止します。
         </p>
       </section>
+      {coreId && (
+        <section className="pause-core" aria-label="改造コアの使い方">
+          <h2>{COMBAT_CORE_DEFINITIONS[coreId].displayName}</h2>
+          <p>{COMBAT_CORE_DEFINITIONS[coreId].description}</p>
+          <p>{COMBAT_CORE_DEFINITIONS[coreId].tradeoff}</p>
+          <p>{COMBAT_CORE_DEFINITIONS[coreId].equipmentHint}</p>
+        </section>
+      )}
       <button type="button" className="pause-resume" onClick={onResume}>
         戦闘を再開
       </button>

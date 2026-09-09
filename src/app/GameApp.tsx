@@ -10,6 +10,17 @@ import {
 } from 'react';
 import { CombatPauseController } from '../input/CombatPauseController';
 import { PauseMenu } from './PauseMenu';
+import {
+  CombatCorePanel,
+  CombatCoreHud,
+  CoreBuildHint,
+} from './CombatCorePanel';
+import {
+  COMBAT_CORE_DEFINITIONS,
+  isCombatCoreId,
+  type CombatCoreId,
+} from '../game/data/combatCoreDefinitions';
+import { IDLE_COMMAND, type CombatCoreState } from '../game/simulation/types';
 import { BreakthroughControl } from './BreakthroughControl';
 import { hasBreakthroughThreat } from '../game/simulation/breakthrough';
 import { createEnemy } from '../game/combat/createEnemy';
@@ -31,6 +42,7 @@ import {
   rerollRewards,
   restartGameSession,
   selectRoute,
+  selectCombatCore,
   selectReward,
   selectWeaponCacheReward,
   startGameSession,
@@ -82,6 +94,7 @@ const REWARD_RARITY_LABELS = {
 } as const;
 
 interface HudSnapshot {
+  core: CombatCoreState;
   breakthrough: BreakthroughState;
   breakthroughThreat: boolean;
   tick: number;
@@ -105,6 +118,7 @@ interface HudSnapshot {
 }
 
 interface SessionView {
+  coreId?: CombatCoreId;
   phase: SessionPhase;
   encounterIndex: number;
   encounterName: string;
@@ -135,6 +149,7 @@ function formatTimeScore(ticks: number): string {
 
 function toHudSnapshot(state: SimulationState): HudSnapshot {
   return {
+    core: state.core,
     breakthrough: state.breakthrough,
     breakthroughThreat: hasBreakthroughThreat(state),
     tick: state.tick,
@@ -161,6 +176,7 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
 function toSessionView(session: GameSessionState): SessionView {
   const { build } = session.run;
   return {
+    coreId: build.coreId,
     phase: session.phase,
     encounterIndex: session.run.encounterIndex,
     encounterName:
@@ -190,6 +206,45 @@ function createInitialGameSession(): GameSessionState {
       ? createGameSession(1)
       : createGarageSession(1);
   const rewardPreview = parameters.get('rewardPreview');
+  const corePreview = parameters.get('corePreview');
+  if (parameters.has('debug') && corePreview) {
+    if (corePreview === 'choice') {
+      session.combat.status = 'victory';
+      return stepGameSession(session, IDLE_COMMAND, 1 / 60);
+    }
+    if (isCombatCoreId(corePreview)) {
+      session.run.build.coreId = corePreview;
+      session.combat.build = structuredClone(session.run.build);
+      session.combat.player.position = 40;
+      session.combat.player.previousPosition = 40;
+      session.combat.enemies = [
+        {
+          ...createEnemy('heavy', 'core-preview', 80),
+          speed: 0,
+          hitPoints: 100000,
+        },
+      ];
+      // Deterministic live combat fixture; only the explicit debug URL uses it.
+      session.combat.wave = undefined;
+      if (corePreview === 'counter') {
+        session.combat.enemyProjectiles = [
+          {
+            id: 'core-preview-shot',
+            ownerId: 'core-preview',
+            position: 70,
+            previousPosition: 70,
+            velocity: -12,
+            radius: 1,
+            damage: 10,
+            ageSeconds: 0,
+            maximumAgeSeconds: 10,
+            visualId: 'spore',
+          },
+        ];
+      }
+      return session;
+    }
+  }
   if (parameters.has('debug') && parameters.has('breakthroughPreview')) {
     const charge =
       parameters.get('breakthroughPreview') === 'charging' ? 94 : 100;
@@ -366,12 +421,19 @@ export function GameApp() {
               ({ type }) => type === 'attack-parried',
             ) ??
             session.combat.events.find(
+              ({ type }) => type === 'core-ready' || type === 'core-triggered',
+            ) ??
+            session.combat.events.find(
               ({ type }) => type === 'enemy-attack-windup',
             ) ??
             session.combat.events.at(-1);
           if (feedbackEvent) setFeedback(describeCombatEvent(feedbackEvent));
         }
-        if (phaseChanged && session.phase === 'reward') {
+        if (
+          phaseChanged &&
+          (session.phase === 'core-choice' ||
+            (session.phase === 'reward' && lastPhase !== 'core-choice'))
+        ) {
           setShowClear(true);
           clearTimer = window.setTimeout(() => setShowClear(false), 1200);
         }
@@ -438,6 +500,16 @@ export function GameApp() {
     onLostPointerCapture: () => setControl(control, false),
   });
 
+  const chooseCore = (coreId: CombatCoreId) => {
+    audio.playUiConfirm();
+    input.reset();
+    const session = selectCombatCore(sessionRef.current, coreId);
+    sessionRef.current = session;
+    input.setContext('menu');
+    setHud(toHudSnapshot(session.combat));
+    setSessionView(toSessionView(session));
+    setFeedback(`${COMBAT_CORE_DEFINITIONS[coreId].displayName}を搭載！`);
+  };
   const chooseReward = (
     rewardId: string,
     weaponSlot: WeaponSlot = 'secondary',
@@ -569,6 +641,13 @@ export function GameApp() {
             <p className="combat-feedback" aria-live="polite">
               {feedback}
             </p>
+            {sessionView.coreId && (
+              <CombatCoreHud
+                id={sessionView.coreId}
+                state={hud.core}
+                position={hud.position}
+              />
+            )}
             <BreakthroughControl
               state={hud.breakthrough}
               position={hud.position}
@@ -678,7 +757,10 @@ export function GameApp() {
         </button>
       )}
       {paused && (
-        <PauseMenu onResume={() => pauseControllerRef.current?.resume()} />
+        <PauseMenu
+          coreId={sessionView.coreId}
+          onResume={() => pauseControllerRef.current?.resume()}
+        />
       )}
       {debug && (
         <aside className="debug-panel">
@@ -700,11 +782,15 @@ export function GameApp() {
       {sessionView.phase === 'garage' && (
         <GaragePanel input={input} meta={meta} onStart={startRun} />
       )}
+      {sessionView.phase === 'core-choice' && !showClear && (
+        <CombatCorePanel input={input} onChoose={chooseCore} />
+      )}
       {sessionView.phase === 'reward' && !showClear && (
         <RewardPanel
           source="battle"
           input={input}
           choices={sessionView.rewardChoices}
+          coreId={sessionView.coreId}
           moduleIds={sessionView.moduleIds}
           primaryWeaponId={sessionView.primaryWeaponId}
           secondaryWeaponId={sessionView.secondaryWeaponId}
@@ -718,6 +804,7 @@ export function GameApp() {
           source="weapon-cache"
           input={input}
           choices={sessionView.rewardChoices}
+          coreId={sessionView.coreId}
           moduleIds={sessionView.moduleIds}
           primaryWeaponId={sessionView.primaryWeaponId}
           secondaryWeaponId={sessionView.secondaryWeaponId}
@@ -954,6 +1041,7 @@ function ResultPanel({
           </div>
           <div className="result-build" aria-label="最終ビルド">
             <span>最終装備</span>
+            <CoreBuildHint id={view.coreId} />
             <b>
               主武器 {WEAPON_DEFINITIONS[view.primaryWeaponId].displayName} LV.
               {view.weaponLevels[view.primaryWeaponId] ?? 1}
@@ -1053,6 +1141,7 @@ function HeatMeter({
 }
 
 function RewardPanel({
+  coreId,
   input,
   source,
   choices,
@@ -1065,6 +1154,7 @@ function RewardPanel({
 }: {
   input: InputManager;
   source: 'battle' | 'weapon-cache';
+  coreId?: CombatCoreId;
   choices: RewardChoice[];
   moduleIds: ModuleId[];
   primaryWeaponId: WeaponId;
@@ -1144,6 +1234,7 @@ function RewardPanel({
               : '持ち帰る装備をひとつ選ぼう'}
           </strong>
           <MenuControlHint shortcuts="1〜3 即決" />
+          <CoreBuildHint id={coreId} />
         </div>
         <b>
           {source === 'weapon-cache'
@@ -1379,6 +1470,10 @@ function describeCombatEvent(event: CombatEvent): string {
       return '突破準備完了！ Eで発動';
     case 'breakthrough-activated':
       return '前線突破！ 4秒間の反撃チャンス';
+    case 'core-ready':
+      return `${COMBAT_CORE_DEFINITIONS[event.coreId].displayName}：準備完了！`;
+    case 'core-triggered':
+      return `${COMBAT_CORE_DEFINITIONS[event.coreId].displayName}：強化斉射！`;
     case 'weapon-fired':
       return '発射！';
     case 'projectile-hit':
