@@ -15,6 +15,10 @@ export interface EnemyDefinition {
   attackWindupSeconds: number;
   attackCooldownSeconds: number;
   frontlinePressure: number;
+  breakThresholds: readonly number[];
+  breakDurationSeconds: number;
+  breakRecoilDistance: number;
+  breakArmorDamage: number;
   assetId: string;
 }
 
@@ -25,7 +29,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       displayName: 'モスモコ',
       description: '苔と小石をまとい、群れで前線へ転がり込む標準Monster。',
       behaviorId: 'advance',
-      hitPoints: 42,
+      hitPoints: 34,
       armor: 0,
       speed: 5.5,
       radius: 1.5,
@@ -35,6 +39,10 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.18,
       attackCooldownSeconds: 1,
       frontlinePressure: 1,
+      breakThresholds: [0.48],
+      breakDurationSeconds: 0.52,
+      breakRecoilDistance: 3.2,
+      breakArmorDamage: 0,
       assetId: 'enm_basic',
     },
     rusher: {
@@ -42,7 +50,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       displayName: 'ハナツノ',
       description: '花角を伏せて高速突進する、優先撃破対象の四足Monster。',
       behaviorId: 'rush',
-      hitPoints: 30,
+      hitPoints: 26,
       armor: 0,
       speed: 8,
       radius: 1.2,
@@ -52,6 +60,10 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.12,
       attackCooldownSeconds: 0.8,
       frontlinePressure: 1.4,
+      breakThresholds: [0.55],
+      breakDurationSeconds: 0.45,
+      breakRecoilDistance: 4.5,
+      breakArmorDamage: 0,
       assetId: 'enm_rusher',
     },
     heavy: {
@@ -59,8 +71,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       displayName: 'ガレキガメ',
       description: '旧文明の小さな護符を滑らかな甲羅へ宿す、高耐久Monster。',
       behaviorId: 'heavyAdvance',
-      hitPoints: 110,
-      armor: 4,
+      hitPoints: 88,
+      armor: 3,
       speed: 4,
       radius: 2.1,
       contactDamage: 16,
@@ -69,6 +81,10 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.28,
       attackCooldownSeconds: 1.3,
       frontlinePressure: 1.8,
+      breakThresholds: [0.72, 0.38],
+      breakDurationSeconds: 0.7,
+      breakRecoilDistance: 2.8,
+      breakArmorDamage: 1,
       assetId: 'enm_heavy',
     },
     artillery: {
@@ -76,7 +92,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       displayName: 'ホウシダケ',
       description: '巨大な傘から胞子弾を放ち、キャラバンへ前進を要求する。',
       behaviorId: 'stopAndShoot',
-      hitPoints: 55,
+      hitPoints: 45,
       armor: 1,
       speed: 5.5,
       radius: 1.7,
@@ -86,6 +102,10 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.42,
       attackCooldownSeconds: 2.4,
       frontlinePressure: 1.2,
+      breakThresholds: [0.58],
+      breakDurationSeconds: 0.62,
+      breakRecoilDistance: 4,
+      breakArmorDamage: 1,
       assetId: 'enm_artillery',
     },
     bomber: {
@@ -93,7 +113,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       displayName: 'バクレツミ',
       description: '熟した爆裂果を抱え、接近すると破裂する小型Monster。',
       behaviorId: 'suicideRush',
-      hitPoints: 24,
+      hitPoints: 22,
       armor: 0,
       speed: 8,
       radius: 1,
@@ -103,6 +123,10 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.24,
       attackCooldownSeconds: 99,
       frontlinePressure: 1.5,
+      breakThresholds: [0.5],
+      breakDurationSeconds: 0.38,
+      breakRecoilDistance: 5,
+      breakArmorDamage: 0,
       assetId: 'enm_bomber',
     },
     'kawaii-fortress': {
@@ -111,7 +135,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       description:
         '古代Coreを宿し、胞子砲撃・眷属召喚・突進を行う巨大Guardian。',
       behaviorId: 'bossFortress',
-      hitPoints: 440,
+      hitPoints: 360,
       armor: 3,
       speed: 2.5,
       radius: 5,
@@ -121,6 +145,10 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.55,
       attackCooldownSeconds: 2.8,
       frontlinePressure: 4,
+      breakThresholds: [0.68, 0.36],
+      breakDurationSeconds: 0.58,
+      breakRecoilDistance: 1.6,
+      breakArmorDamage: 1,
       assetId: 'boss_kawaii_fortress',
     },
   };
