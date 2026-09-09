@@ -144,9 +144,13 @@ test.describe('touch landscape 844x390', () => {
         clientWidth: document.documentElement.clientWidth,
       };
     });
-    expect(viewportFit.height).toBeLessThanOrEqual(viewportFit.visualHeight + 1);
+    expect(viewportFit.height).toBeLessThanOrEqual(
+      viewportFit.visualHeight + 1,
+    );
     expect(viewportFit.height).toBeLessThanOrEqual(viewportFit.innerHeight + 1);
-    expect(viewportFit.height).toBeLessThanOrEqual(viewportFit.clientHeight + 1);
+    expect(viewportFit.height).toBeLessThanOrEqual(
+      viewportFit.clientHeight + 1,
+    );
     expect(viewportFit.width).toBeLessThanOrEqual(viewportFit.visualWidth + 1);
     expect(viewportFit.width).toBeLessThanOrEqual(viewportFit.innerWidth + 1);
     expect(viewportFit.width).toBeLessThanOrEqual(viewportFit.clientWidth + 1);
