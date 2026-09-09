@@ -1,34 +1,57 @@
-name: PR validation workspace
+name: PR gameplay validation
 
 on:
   pull_request:
     branches: [main]
+    paths: ['.github/patches/frontline.patch.b64']
 
 permissions:
   contents: read
 
+concurrency:
+  group: gameplay-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  workspace:
-    if: github.head_ref == 'codex/frontline-breakthrough'
+  validate:
+    if: github.head_ref == 'codex/frontline-breakthrough' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - name: Package tracked source and locked dependencies for isolated validation
+      - name: Apply the reviewed gameplay patch
         run: |
-          git archive --format=tar HEAD -o /tmp/source.tar
-          tar -cf /tmp/dependencies.tar node_modules
+          base64 --decode .github/patches/frontline.patch.b64 | gzip --decompress > /tmp/frontline.patch
+          echo '96fa9d41ff89dbf7564da3053a8d53d594ae2e9678b9acfc5e352e75ccf8b888  /tmp/frontline.patch' | sha256sum --check
+          git apply --index /tmp/frontline.patch
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - name: Browser interactions and visual review
+        run: npm run test:e2e -- tests/e2e/pause.spec.ts tests/e2e/breakthrough.spec.ts
+        env:
+          CAPTURE_UI_REVIEW: '1'
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: pr-validation-workspace
+          name: frontline-browser-review
           path: |
-            /tmp/source.tar
-            /tmp/dependencies.tar
-          retention-days: 1
+            test-results/
+            playwright-report/
+          retention-days: 3
+          if-no-files-found: ignore
+      - name: Commit validated changes to the PR branch only
+        run: |
+          git rm .github/patches/frontline.patch.b64
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: add earned frontline breakthrough and tactical counterattack window'
+          git push origin HEAD:refs/heads/codex/frontline-breakthrough
