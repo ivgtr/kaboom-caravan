@@ -24,14 +24,7 @@ describe('enemy break combat', () => {
     expect(enemy.frontlinePressure).toBeCloseTo(0.2);
     expect(broken.events).toHaveLength(0);
 
-    const staggered = stepEnemyBehaviors(
-      broken.enemies,
-      10,
-      2.5,
-      1,
-      100,
-      0.2,
-    );
+    const staggered = stepEnemyBehaviors(broken.enemies, 10, 2.5, 1, 100, 0.2);
 
     expect(staggered.enemies[0]!.position).toBe(50);
     expect(staggered.enemies[0]!.breakRemainingSeconds).toBeCloseTo(0.25);
@@ -100,14 +93,7 @@ describe('enemy break combat', () => {
     expect(broken.enemies[0]!.attackWindupRemaining).toBe(windupSeconds);
     expect(broken.rangedAttacks).toHaveLength(0);
 
-    const paused = stepEnemyBehaviors(
-      broken.enemies,
-      10,
-      2.5,
-      1,
-      100,
-      0.2,
-    );
+    const paused = stepEnemyBehaviors(broken.enemies, 10, 2.5, 1, 100, 0.2);
     expect(paused.enemies[0]!.attackWindupRemaining).toBe(windupSeconds);
   });
 });
