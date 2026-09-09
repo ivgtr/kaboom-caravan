@@ -1,3 +1,10 @@
+/* Dialog/reward focus must not scroll the fixed game viewport. */
+main.game-shell {
+  overflow: clip;
+}
+.core-scroll-hint {
+  display: none;
+}
 .core-choice-panel {
   box-sizing: border-box;
   margin: auto;
@@ -56,6 +63,7 @@
   font-size: 13px;
   line-height: 1.65;
   cursor: pointer;
+  touch-action: pan-y;
 }
 .core-choice-card.selected,
 .core-choice-card:focus-visible {
@@ -142,6 +150,10 @@
   .core-choice-panel {
     padding: 18px;
   }
+  .core-scroll-hint {
+    display: block;
+    margin-top: 6px;
+  }
   .core-choice-grid {
     grid-template-columns: 1fr;
   }
@@ -153,7 +165,7 @@
     font-size: 22px;
   }
   .core-hud {
-    top: 104px;
+    top: 168px;
     left: 10px;
     width: 180px;
   }
@@ -163,6 +175,13 @@
   }
 }
 @media (orientation: landscape) and (max-height: 520px) {
+  .core-scroll-hint {
+    display: none;
+  }
+  .pause-menu .pause-core {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
   .core-choice-panel {
     padding: 14px;
   }

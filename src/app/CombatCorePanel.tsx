@@ -38,11 +38,22 @@ export function CombatCorePanel({
     return () => dialog.close();
   }, []);
   useEffect(() => {
-    dialogRef.current
-      ?.querySelector<HTMLElement>(
-        `[data-core="${COMBAT_CORE_IDS[navigation.selectedIndex]}"]`,
-      )
-      ?.scrollIntoView({ block: 'nearest' });
+    const dialog = dialogRef.current;
+    const card = dialog?.querySelector<HTMLElement>(
+      `[data-core="${COMBAT_CORE_IDS[navigation.selectedIndex]}"]`,
+    );
+    if (!dialog || !card) return;
+    // Scroll this dialog, never the fixed game viewport behind it.
+    if (navigation.selectedIndex === 0) {
+      dialog.scrollTop = 0;
+      return;
+    }
+    const bounds = dialog.getBoundingClientRect();
+    const item = card.getBoundingClientRect();
+    if (item.top < bounds.top + 8)
+      dialog.scrollTop += item.top - bounds.top - 8;
+    else if (item.bottom > bounds.bottom - 8)
+      dialog.scrollTop += item.bottom - bounds.bottom + 8;
   }, [navigation.selectedIndex]);
   return (
     <dialog
@@ -51,14 +62,27 @@ export function CombatCorePanel({
       aria-labelledby="core-choice-title"
       aria-describedby="core-choice-description"
       onCancel={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        event.preventDefault();
+        navigation.select(
+          (navigation.selectedIndex +
+            (event.shiftKey ? -1 : 1) +
+            COMBAT_CORE_IDS.length) %
+            COMBAT_CORE_IDS.length,
+        );
+      }}
     >
       <header>
         <span>第1戦 制圧報酬 / 改造コア</span>
         <h1 id="core-choice-title">この遠征の戦い方を決めよう</h1>
         <p id="core-choice-description">
-          遠征中は変更不可。モジュール枠は使わず、この後に通常の戦利品も選べます。
+          3つから1つ選択。遠征中は変更不可。モジュール枠は使わず、この後に通常の戦利品も選べます。
         </p>
-        <small>A・D / ←・→ 選択 / SPACE・ENTER 決定 / 1〜3 即決</small>
+        <small>A・D / ←・→ / TAB 選択 / SPACE・ENTER 決定 / 1〜3 即決</small>
+        <small className="core-scroll-hint">
+          下にスクロールして3つのコアを比べよう
+        </small>
       </header>
       <div className="core-choice-grid">
         {COMBAT_CORE_IDS.map((id, index) => {
@@ -91,6 +115,7 @@ export function CombatCorePanel({
     </dialog>
   );
 }
+
 export function CombatCoreHud({
   id,
   state,
@@ -118,6 +143,7 @@ export function CombatCoreHud({
     </aside>
   );
 }
+
 export function CoreBuildHint({ id }: { id?: CombatCoreId }) {
   if (!id) return null;
   const core = COMBAT_CORE_DEFINITIONS[id];

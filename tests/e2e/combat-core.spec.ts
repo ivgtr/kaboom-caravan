@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
+
 const names = {
   relay: '連携機関',
   siege: '展開砲座',
   counter: '反攻蓄電器',
 } as const;
+
 test('normal starts have no core, and debug previews require the debug flag', async ({
   page,
 }) => {
@@ -12,6 +14,7 @@ test('normal starts have no core, and debug previews require the debug flag', as
   await expect(page.locator('.core-hud')).toHaveCount(0);
   await expect(page.locator('.core-choice-panel')).toHaveCount(0);
 });
+
 for (const [index, id] of (['relay', 'siege', 'counter'] as const).entries()) {
   test(`${id}: core selection preserves ordinary rewards and takes effect in Battle 2`, async ({
     page,
@@ -41,6 +44,7 @@ for (const [index, id] of (['relay', 'siege', 'counter'] as const).entries()) {
     ).toContainText(names[id]);
   });
 }
+
 test('core dialog traps background focus, ignores Escape, and supports arrows plus native Enter', async ({
   page,
 }) => {
@@ -57,6 +61,13 @@ test('core dialog traps background focus, ignores Escape, and supports arrows pl
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('[data-core="siege"]')).toBeFocused();
   await page.keyboard.press('Tab');
+  await expect(page.locator('[data-core="counter"]')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('[data-core="counter"]')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('[data-core="siege"]')).toBeFocused();
   expect(
     await dialog.evaluate((element) =>
       element.contains(document.activeElement),
@@ -67,6 +78,7 @@ test('core dialog traps background focus, ignores Escape, and supports arrows pl
     '改造コア：展開砲座',
   );
 });
+
 test('relay arms the opposite weapon on real fire and both held cancels it', async ({
   page,
 }) => {
@@ -83,6 +95,7 @@ test('relay arms the opposite weapon on real fire and both held cancels it', asy
   await page.keyboard.up('KeyC');
   await page.keyboard.up('Space');
 });
+
 test('siege deploys, movement cancels it, and partial deployment freezes during pause and blur', async ({
   page,
 }) => {
@@ -111,6 +124,7 @@ test('siege deploys, movement cancels it, and partial deployment freezes during 
   await page.getByRole('button', { name: '戦闘を再開' }).click();
   await expect(hud).toContainText('展開中');
 });
+
 test('counter parries a real incoming projectile and consumes one empowered volley', async ({
   page,
 }) => {
@@ -135,6 +149,7 @@ test('counter parries a real incoming projectile and consumes one empowered voll
   await expect(hud).toContainText('パリィ成功');
   await page.keyboard.up('KeyC');
 });
+
 for (const viewport of [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -161,6 +176,10 @@ for (const viewport of [
         );
       });
       expect(fits).toBe(true);
+      await expect(page.locator('[data-core="counter"]')).toHaveCSS(
+        'touch-action',
+        'pan-y',
+      );
       if (process.env.CAPTURE_UI_REVIEW)
         await page.screenshot({
           path: `test-results/core-choice-${viewport.width}x${viewport.height}.png`,
@@ -175,6 +194,12 @@ for (const viewport of [
         });
       await page.locator('.reward-module button').first().tap();
       await expect(page.locator('.core-hud')).toBeVisible();
+      expect(
+        await page.locator('.game-shell').evaluate((element) => ({
+          top: element.scrollTop,
+          left: element.scrollLeft,
+        })),
+      ).toEqual({ top: 0, left: 0 });
       const obstruction = await page
         .locator('.core-hud')
         .evaluate((element) => {
@@ -215,6 +240,21 @@ for (const viewport of [
       await expect(
         page.getByRole('region', { name: '改造コアの使い方' }),
       ).toContainText('反攻蓄電器');
+      const coreGuide = page.getByRole('region', { name: '改造コアの使い方' });
+      const controlGuide = page.getByRole('region', { name: '操作ガイド' });
+      const [coreBox, controlsBox] = await Promise.all([
+        coreGuide.boundingBox(),
+        controlGuide.boundingBox(),
+      ]);
+      expect(coreBox).not.toBeNull();
+      expect(controlsBox).not.toBeNull();
+      expect(coreBox!.y).toBeGreaterThanOrEqual(
+        controlsBox!.y + controlsBox!.height,
+      );
+      if (process.env.CAPTURE_UI_REVIEW)
+        await page.screenshot({
+          path: `test-results/core-pause-${viewport.width}x${viewport.height}.png`,
+        });
       await page.getByRole('button', { name: '戦闘を再開' }).tap();
       await expect(page.locator('.pause-menu')).not.toBeVisible();
     });
