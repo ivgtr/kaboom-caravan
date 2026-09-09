@@ -30,11 +30,12 @@ jobs:
       - run: npm ci
       - run: npx prettier --write src/app/CombatCorePanel.tsx src/app/combat-core.css src/game/data/combatCoreDefinitions.ts src/game/simulation/combatCore.ts src/game/simulation/combatCore.test.ts src/game/session/combatCoreSession.test.ts tests/e2e/combat-core.spec.ts docs/combat-cores.md
       - run: npm run check
-      - name: Commit only on the authorized feature branch
+      - name: Commit only game changes on the authorized feature branch
         run: |
           test "$(git branch --show-current)" = codex/run-defining-upgrades
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git restore --source=HEAD -- .github/workflows
           git add -A
           git commit -m 'feat: add run-defining combat cores with deterministic regression coverage'
           git push origin HEAD:codex/run-defining-upgrades
