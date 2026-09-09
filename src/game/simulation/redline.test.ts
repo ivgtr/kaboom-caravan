@@ -5,7 +5,7 @@ import { REDLINE_RULES, stepSimulation } from './stepSimulation';
 import { IDLE_COMMAND, SIMULATION_STEP_SECONDS } from './types';
 
 describe('REDLINE blood-ammo loop', () => {
-  it('converts hull integrity into a level-3 emergency volley when ammo is empty', () => {
+  it('requires a deliberate boost + fire override before spending hull', () => {
     const initial = createSimulation();
     initial.player.ammo = 0;
 
@@ -15,12 +15,30 @@ describe('REDLINE blood-ammo loop', () => {
       SIMULATION_STEP_SECONDS,
     );
 
+    expect(result.player.hitPoints).toBe(100);
+    expect(result.player.ammo).toBe(0);
+    expect(result.projectiles).toHaveLength(0);
+    expect(result.events.some(({ type }) => type === 'weapon-fired')).toBe(false);
+  });
+
+  it('converts hull integrity into a level-3 emergency volley when deliberately overridden', () => {
+    const initial = createSimulation();
+    initial.player.ammo = 0;
+
+    const result = stepSimulation(
+      initial,
+      { ...IDLE_COMMAND, boost: true, firePrimary: true },
+      SIMULATION_STEP_SECONDS,
+    );
+
     expect(result.player.hitPoints).toBe(
       100 - REDLINE_RULES.hullCostPerAmmo,
     );
     expect(result.player.ammo).toBe(0);
     expect(result.projectiles).toHaveLength(2);
-    expect(result.projectiles.every(({ damage }) => damage === 13.8)).toBe(true);
+    for (const projectile of result.projectiles) {
+      expect(projectile.damage).toBeCloseTo(13.8);
+    }
     expect(result.build.weaponLevels['machine-cannon']).toBe(1);
     expect(result.events).toContainEqual({
       type: 'vehicle-hit',
@@ -36,12 +54,13 @@ describe('REDLINE blood-ammo loop', () => {
       {
         ...createEnemy('bomber', 'redline-target', 14.8),
         speed: 0,
+        hitPoints: 15,
       },
     ];
 
     const result = stepSimulation(
       initial,
-      { ...IDLE_COMMAND, firePrimary: true },
+      { ...IDLE_COMMAND, boost: true, firePrimary: true },
       SIMULATION_STEP_SECONDS,
     );
 
@@ -66,7 +85,7 @@ describe('REDLINE blood-ammo loop', () => {
 
     const result = stepSimulation(
       initial,
-      { ...IDLE_COMMAND, firePrimary: true },
+      { ...IDLE_COMMAND, boost: true, firePrimary: true },
       SIMULATION_STEP_SECONDS,
     );
 

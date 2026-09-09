@@ -10,8 +10,8 @@ import type {
 
 /**
  * REDLINE turns an empty magazine from a dead state into a dangerous comeback
- * state. Hull integrity is fed directly into the weapon loader, and requested
- * weapons are temporarily driven at their level-3 profile for that volley.
+ * state. Hold boost while firing to feed hull integrity into the weapon loader;
+ * requested weapons are temporarily driven at their level-3 profile.
  */
 export const REDLINE_RULES = {
   hullCostPerAmmo: 8,
@@ -91,16 +91,21 @@ function salvageDryKills(state: SimulationState): SimulationState {
 }
 
 /**
- * Preserve the established simulation and only intervene when the caravan is
- * completely dry. A REDLINE volley may spend every hull-ammo unit except the
- * final hit point; enemy damage can still finish the player on the same tick.
+ * Preserve the established simulation and only intervene on the deliberate
+ * BOOST + FIRE override while the caravan is completely dry. A REDLINE volley
+ * may spend every hull-ammo unit except the final hit point; enemy damage can
+ * still finish the player on the same tick.
  */
 export function stepSimulation(
   state: SimulationState,
   command: PlayerCommand,
   deltaSeconds: number,
 ): SimulationState {
-  if (state.status !== 'active' || state.player.ammo > 0) {
+  if (
+    state.status !== 'active' ||
+    state.player.ammo > 0 ||
+    !command.boost
+  ) {
     return salvageDryKills(stepBaseSimulation(state, command, deltaSeconds));
   }
 

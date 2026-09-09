@@ -1,7 +1,7 @@
 @import './gameBase.css';
 
-/* REDLINE is intentionally advertised before it is needed: ammo hitting zero
-   should read as a mode switch, not as a broken fire button. */
+/* Ammo zero is a choice point, not an automatic hull burn: the player must
+   deliberately hold boost with either fire control to enter REDLINE. */
 .weapon.main .ammo {
   overflow: visible;
 }
@@ -9,7 +9,7 @@
   position: absolute;
   top: calc(100% + 2px);
   left: 50%;
-  content: '弾切れ→REDLINE';
+  content: 'SHIFT+射撃→REDLINE';
   padding: 1px 4px;
   border-radius: 999px;
   background: rgb(38 50 73 / 82%);
