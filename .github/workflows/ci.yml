@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Format branch snapshot
+        run: npm run format
       - name: Lint, unit tests, build and formatting
         run: npm run check
       - name: Install Chromium
@@ -41,5 +43,7 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            src/app/immersive.css
+            tests/e2e/pause.spec.ts
           retention-days: 7
           if-no-files-found: ignore
