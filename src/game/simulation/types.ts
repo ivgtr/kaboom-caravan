@@ -137,6 +137,8 @@ export interface BreakthroughState {
   charge: number;
   remainingSeconds: number;
   hitChargeCooldown: number;
+  /** One all-in activation per encounter. Omitted/false on a fresh battle. */
+  committed?: boolean;
 }
 
 export interface FrontlineState {
