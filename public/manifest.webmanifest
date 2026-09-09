@@ -1,0 +1,10 @@
+{
+  "name": "Kaboom Caravan",
+  "short_name": "Kaboom Caravan",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#202b42",
+  "theme_color": "#222737"
+}
