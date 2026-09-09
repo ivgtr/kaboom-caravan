@@ -9,6 +9,10 @@ import {
   COMBAT_CORE_DEFINITIONS,
   type CombatCoreId,
 } from '../game/data/combatCoreDefinitions';
+import {
+  requestImmersiveFullscreen,
+  useImmersiveViewport,
+} from './ImmersiveShell';
 
 export function PauseMenu({
   onResume,
@@ -20,19 +24,23 @@ export function PauseMenu({
   coreId?: CombatCoreId;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const viewport = useImmersiveViewport();
 
   useEffect(() => {
+    if (viewport.blocked) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
     const previousFocus = document.activeElement;
     dialog.showModal();
     return () => {
-      dialog.close();
+      if (dialog.open) dialog.close();
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
         previousFocus.focus({ preventScroll: true });
       }
     };
-  }, []);
+  }, [viewport.blocked]);
+
+  if (viewport.blocked) return null;
 
   return (
     <dialog
@@ -125,6 +133,17 @@ export function PauseMenu({
           <p>{COMBAT_CORE_DEFINITIONS[coreId].equipmentHint}</p>
         </section>
       )}
+      {viewport.coarsePointer &&
+        viewport.fullscreenAvailable &&
+        !viewport.fullscreen && (
+          <button
+            type="button"
+            className="pause-fullscreen"
+            onClick={() => void requestImmersiveFullscreen()}
+          >
+            URLバーを隠して全画面表示
+          </button>
+        )}
       <button type="button" className="pause-resume" onClick={onResume}>
         戦闘を再開
       </button>
