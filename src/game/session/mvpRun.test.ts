@@ -84,9 +84,7 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     elapsedTicks: 7621,
     encounterTicks: [447, 495, 514, 514, 526, 523, 702, 862, 2366, 672],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 125, 125],
-    forwardDistances: [
-      69.845, 70, 59.2, 60.2, 69, 64.94, 70, 70, 71.7, 62.6,
-    ],
+    forwardDistances: [69.845, 70, 59.2, 60.2, 69, 64.94, 70, 70, 71.7, 62.6],
     primaryShots: 189,
     secondaryShots: 53,
     enemyProjectiles: [17, 0, 17],
