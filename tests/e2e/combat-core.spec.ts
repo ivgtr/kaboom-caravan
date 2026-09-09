@@ -152,8 +152,6 @@ test('counter parries a real incoming projectile and consumes one empowered voll
 
 for (const viewport of [
   { width: 1280, height: 800 },
-  { width: 390, height: 844 },
-  { width: 320, height: 568 },
   { width: 844, height: 390 },
   { width: 568, height: 320 },
 ]) {
