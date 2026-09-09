@@ -25,8 +25,6 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Format objective review CSS
-        run: npx prettier --write src/app/battlefield-objective.css
       - name: Lint, unit tests, build and formatting
         run: npm run check
       - name: Install Chromium
@@ -43,6 +41,5 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            src/app/battlefield-objective.css
           retention-days: 7
           if-no-files-found: ignore
