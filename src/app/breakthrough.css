@@ -95,20 +95,29 @@
   margin: 7px auto 0;
   padding: 4px 9px;
   background: #263249;
-  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  clip-path: polygon(
+    6px 0,
+    100% 0,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    0 100%,
+    0 6px
+  );
   color: #fff4d9;
   font-size: 9px;
   font-weight: 800;
 }
 .breakthrough-panel[data-state='ready'] .breakthrough-button {
-  filter: drop-shadow(0 6px 3px rgb(25 35 53 / 38%)) drop-shadow(0 0 9px rgb(255 208 90 / 78%));
+  filter: drop-shadow(0 6px 3px rgb(25 35 53 / 38%))
+    drop-shadow(0 0 9px rgb(255 208 90 / 78%));
 }
 .breakthrough-panel[data-state='ready'] .breakthrough-button::after {
   background: #ffd05a;
   box-shadow: 0 0 7px #ffd05a;
 }
 .breakthrough-panel[data-state='active'] .breakthrough-button {
-  filter: drop-shadow(0 6px 3px rgb(25 35 53 / 38%)) drop-shadow(0 0 10px rgb(102 222 200 / 82%));
+  filter: drop-shadow(0 6px 3px rgb(25 35 53 / 38%))
+    drop-shadow(0 0 10px rgb(102 222 200 / 82%));
 }
 .breakthrough-panel[data-state='active'] .breakthrough-button::after {
   background: #66dec8;

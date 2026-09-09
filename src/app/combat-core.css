@@ -101,8 +101,7 @@ main.game-shell {
   border: 3px solid #263249;
   border-radius: 0;
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 62%), transparent 30%),
-    #fff4d9;
+    linear-gradient(145deg, rgb(255 255 255 / 62%), transparent 30%), #fff4d9;
   clip-path: polygon(
     14px 0,
     calc(100% - 14px) 0,
@@ -130,10 +129,30 @@ main.game-shell {
   position: absolute;
   inset: 8px;
   background:
-    radial-gradient(circle at 3px 3px, #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px),
-    radial-gradient(circle at calc(100% - 3px) 3px, #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px),
-    radial-gradient(circle at 3px calc(100% - 3px), #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px),
-    radial-gradient(circle at calc(100% - 3px) calc(100% - 3px), #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px);
+    radial-gradient(
+      circle at 3px 3px,
+      #ffd05a 0 2px,
+      #263249 2.5px 4px,
+      transparent 4.5px
+    ),
+    radial-gradient(
+      circle at calc(100% - 3px) 3px,
+      #ffd05a 0 2px,
+      #263249 2.5px 4px,
+      transparent 4.5px
+    ),
+    radial-gradient(
+      circle at 3px calc(100% - 3px),
+      #ffd05a 0 2px,
+      #263249 2.5px 4px,
+      transparent 4.5px
+    ),
+    radial-gradient(
+      circle at calc(100% - 3px) calc(100% - 3px),
+      #ffd05a 0 2px,
+      #263249 2.5px 4px,
+      transparent 4.5px
+    );
   content: '';
   pointer-events: none;
 }
@@ -141,9 +160,9 @@ main.game-shell {
 .core-choice-card:focus-visible {
   outline: 0;
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 66%), transparent 30%),
-    #dcf6e9;
-  filter: drop-shadow(0 7px 0 #263249) drop-shadow(0 0 10px rgb(102 222 200 / 88%));
+    linear-gradient(145deg, rgb(255 255 255 / 66%), transparent 30%), #dcf6e9;
+  filter: drop-shadow(0 7px 0 #263249)
+    drop-shadow(0 0 10px rgb(102 222 200 / 88%));
   transform: translateY(-4px);
 }
 .core-choice-card > strong {
@@ -232,7 +251,8 @@ main.game-shell {
   background: #ffd05a;
 }
 .core-hud.ready {
-  filter: drop-shadow(0 5px 3px rgb(25 35 53 / 35%)) drop-shadow(0 0 8px rgb(255 208 90 / 75%));
+  filter: drop-shadow(0 5px 3px rgb(25 35 53 / 35%))
+    drop-shadow(0 0 8px rgb(255 208 90 / 75%));
 }
 .core-build-hint {
   display: block;
@@ -248,7 +268,14 @@ main.game-shell {
   border: 2px solid #263249;
   border-radius: 0;
   background: #31535a;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  clip-path: polygon(
+    8px 0,
+    100% 0,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    0 100%,
+    0 8px
+  );
   color: #fff4d9;
 }
 .pause-core p {
