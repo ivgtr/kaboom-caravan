@@ -12,36 +12,78 @@ main.game-shell {
   max-height: calc(100dvh - 24px);
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 26px;
-  border: 2px solid #cfac71;
-  border-radius: 20px;
-  background: #182d32;
-  color: #fff5de;
-  box-shadow: 0 18px 80px #0009;
+  padding: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #263249;
+  box-shadow: none;
 }
 .core-choice-panel::backdrop {
-  background: #061419e8;
+  background:
+    radial-gradient(circle at 50% 40%, rgb(67 115 112 / 28%), transparent 46%),
+    repeating-linear-gradient(
+      0deg,
+      rgb(255 255 255 / 2%) 0,
+      rgb(255 255 255 / 2%) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    rgb(6 20 25 / 92%);
 }
 .core-choice-panel header {
-  margin-bottom: 20px;
+  position: relative;
+  width: min(760px, calc(100% - 36px));
+  margin: 0 auto 18px;
+  padding: 14px 54px 16px;
+  background: linear-gradient(180deg, #fff9e9, #f3d8b2);
+  clip-path: polygon(
+    22px 0,
+    calc(100% - 22px) 0,
+    100% 50%,
+    calc(100% - 22px) 100%,
+    22px 100%,
+    0 50%
+  );
+  filter: drop-shadow(0 5px 0 #263249) drop-shadow(0 9px 12px rgb(0 0 0 / 36%));
+  text-align: center;
+}
+.core-choice-panel header::before,
+.core-choice-panel header::after {
+  position: absolute;
+  top: 13px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #263249;
+  border-radius: 50%;
+  background: #ffd05a;
+  content: '';
+}
+.core-choice-panel header::before {
+  left: 30px;
+}
+.core-choice-panel header::after {
+  right: 30px;
 }
 .core-choice-panel header > span {
-  color: #f4cf86;
-  font-size: 12px;
-  font-weight: 700;
+  color: #b24055;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
 }
 .core-choice-panel h1 {
-  margin: 8px 0;
+  margin: 5px 0 3px;
   font-size: clamp(19px, 3vw, 28px);
 }
 .core-choice-panel p {
-  margin: 8px 0;
+  margin: 6px 0;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 .core-choice-panel header small {
-  font-size: 11px;
-  color: #c5d6d0;
+  color: #58647a;
+  font-size: 10px;
+  font-weight: 700;
 }
 .core-choice-grid {
   display: grid;
@@ -49,54 +91,100 @@ main.game-shell {
   gap: 14px;
 }
 .core-choice-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
-  padding: 22px 18px;
-  border: 2px solid #6b8e89;
-  border-radius: 14px;
-  color: #f8f6e9;
-  background: #243f42;
+  min-height: 330px;
+  padding: 24px 20px 22px;
+  border: 3px solid #263249;
+  border-radius: 0;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 62%), transparent 30%),
+    #fff4d9;
+  clip-path: polygon(
+    14px 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    14px 100%,
+    0 calc(100% - 14px),
+    0 14px
+  );
+  color: #263249;
+  filter: drop-shadow(0 7px 0 #263249) drop-shadow(0 10px 10px rgb(0 0 0 / 28%));
   text-align: left;
   font: inherit;
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.55;
   cursor: pointer;
   touch-action: pan-y;
+  transition:
+    transform 120ms ease,
+    filter 120ms ease,
+    background 120ms ease;
+}
+.core-choice-card::before {
+  position: absolute;
+  inset: 8px;
+  background:
+    radial-gradient(circle at 3px 3px, #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 3px) 3px, #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px),
+    radial-gradient(circle at 3px calc(100% - 3px), #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 3px) calc(100% - 3px), #ffd05a 0 2px, #263249 2.5px 4px, transparent 4.5px);
+  content: '';
+  pointer-events: none;
 }
 .core-choice-card.selected,
 .core-choice-card:focus-visible {
-  border-color: #ffe2a2;
-  outline: 2px solid #ffe2a2;
-  outline-offset: 2px;
-  background: #33554f;
+  outline: 0;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 66%), transparent 30%),
+    #dcf6e9;
+  filter: drop-shadow(0 7px 0 #263249) drop-shadow(0 0 10px rgb(102 222 200 / 88%));
+  transform: translateY(-4px);
 }
 .core-choice-card > strong {
+  color: #263249;
   font-size: 24px;
+  line-height: 1.05;
 }
 .core-style {
-  font-size: 11px;
-  color: #bfe2d7;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border: 2px solid #263249;
+  background: #66dec8;
+  color: #263249;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
 }
 .core-sequence {
-  padding: 9px;
-  background: #152b2e;
-  border-radius: 6px;
+  padding: 9px 11px;
+  border-left: 5px solid #ffd05a;
+  background: #263249;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%);
+  color: #fff4d9;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 .core-tradeoff {
-  color: #ffdcbb;
+  color: #b24055;
+  font-weight: 800;
 }
 .core-equipment {
-  color: #c4e7d9;
+  color: #1f756a;
   font-size: 12px;
+  font-weight: 800;
 }
 .core-choice-action {
   margin-top: auto;
   padding-top: 10px;
-  color: #ffe2a2;
+  border-top: 2px dashed rgb(38 50 73 / 28%);
+  color: #263249;
+  font-weight: 900;
 }
 .core-hud {
   position: absolute;
@@ -104,29 +192,47 @@ main.game-shell {
   top: 92px;
   left: 18px;
   width: 205px;
+  min-height: 70px;
   box-sizing: border-box;
-  padding: 8px 11px;
+  padding: 11px 22px;
   display: grid;
+  align-content: center;
   gap: 3px;
-  border: 1px solid #758e88;
-  border-radius: 9px;
-  background: #182d32eb;
-  color: #f5f3e8;
+  border: 0;
+  border-radius: 0;
+  background: var(--hud-ornament-image) center/100% 100% no-repeat;
+  color: #263249;
+  filter: drop-shadow(0 5px 3px rgb(25 35 53 / 35%));
   pointer-events: none;
 }
 .core-hud strong {
-  font-size: 12px;
+  color: #263249;
+  font-size: 11px;
+  letter-spacing: 0.06em;
 }
 .core-hud span {
-  font-size: 11px;
+  color: #536078;
+  font-size: 10px;
+  font-weight: 800;
 }
 .core-hud progress {
   width: 100%;
-  height: 4px;
-  accent-color: #f2ce85;
+  height: 8px;
+  overflow: hidden;
+  appearance: none;
+  border: 2px solid #263249;
+  border-radius: 99px;
+  background: #d8ddd6;
+  accent-color: #ffd05a;
+}
+.core-hud progress::-webkit-progress-bar {
+  background: #d8ddd6;
+}
+.core-hud progress::-webkit-progress-value {
+  background: #ffd05a;
 }
 .core-hud.ready {
-  border-color: #f2ce85;
+  filter: drop-shadow(0 5px 3px rgb(25 35 53 / 35%)) drop-shadow(0 0 8px rgb(255 208 90 / 75%));
 }
 .core-build-hint {
   display: block;
@@ -138,17 +244,30 @@ main.game-shell {
   max-width: 490px;
 }
 .pause-core {
-  padding: 10px;
-  border: 1px solid #bba06e;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border: 2px solid #263249;
+  border-radius: 0;
+  background: #31535a;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  color: #fff4d9;
 }
 .pause-core p {
+  color: #fff4d9;
   font-size: 13px;
   line-height: 1.6;
 }
+@media (hover: hover) {
+  .core-choice-card:hover {
+    transform: translateY(-3px);
+  }
+}
 @media (max-width: 620px) {
   .core-choice-panel {
-    padding: 18px;
+    padding: 12px;
+  }
+  .core-choice-panel header {
+    width: calc(100% - 10px);
+    padding: 12px 36px 14px;
   }
   .core-scroll-hint {
     display: block;
@@ -159,7 +278,8 @@ main.game-shell {
   }
   .core-choice-card {
     gap: 9px;
-    padding: 16px;
+    min-height: 0;
+    padding: 18px 16px;
   }
   .core-choice-card > strong {
     font-size: 22px;
@@ -168,6 +288,7 @@ main.game-shell {
     top: 168px;
     left: 10px;
     width: 180px;
+    padding: 10px 20px;
   }
   .reward-panel > header .core-build-hint {
     max-width: 235px;
@@ -183,36 +304,55 @@ main.game-shell {
     grid-row: auto;
   }
   .core-choice-panel {
-    padding: 14px;
+    padding: 10px;
   }
   .core-choice-panel header {
-    margin-bottom: 14px;
+    width: min(660px, calc(100% - 20px));
+    margin-bottom: 12px;
+    padding: 9px 42px 10px;
+  }
+  .core-choice-panel header::before,
+  .core-choice-panel header::after {
+    top: 9px;
+    width: 6px;
+    height: 6px;
   }
   .core-choice-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
   .core-choice-card {
-    padding: 12px;
-    gap: 8px;
-    font-size: 12px;
+    min-height: 0;
+    padding: 14px 12px;
+    gap: 7px;
+    border-width: 2px;
+    font-size: 11px;
   }
   .core-choice-card > strong {
-    font-size: 19px;
+    font-size: 18px;
+  }
+  .core-style {
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+  .core-sequence {
+    padding: 6px 8px;
+    font-size: 10px;
   }
   .core-hud {
     top: 62px;
     left: 8px;
     width: 160px;
-    padding: 5px 7px;
+    min-height: 56px;
+    padding: 7px 17px;
     gap: 2px;
   }
   .core-hud strong,
   .core-hud span {
-    font-size: 10px;
+    font-size: 9px;
   }
   .core-hud progress {
-    height: 3px;
+    height: 6px;
   }
   .reward-panel > header .core-build-hint {
     max-width: 350px;
