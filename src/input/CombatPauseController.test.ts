@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CombatPauseController } from './CombatPauseController';
+import {
+  COMBAT_PAUSE_REQUEST_EVENT,
+  CombatPauseController,
+} from './CombatPauseController';
 import { InputManager } from './InputManager';
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 
@@ -99,6 +102,13 @@ describe('CombatPauseController', () => {
     expect(onResume).not.toHaveBeenCalled();
   });
 
+  it('accepts an external viewport pause request idempotently', () => {
+    window.dispatchEvent(new Event(COMBAT_PAUSE_REQUEST_EVENT));
+    window.dispatchEvent(new Event(COMBAT_PAUSE_REQUEST_EVENT));
+    expect(onPause).toHaveBeenCalledTimes(1);
+    expect(onResume).not.toHaveBeenCalled();
+  });
+
   it('requires explicit resume after becoming visible', () => {
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
     document.dispatchEvent(new Event('visibilitychange'));
@@ -135,6 +145,7 @@ describe('CombatPauseController', () => {
     controller.resume();
     press('KeyP');
     window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event(COMBAT_PAUSE_REQUEST_EVENT));
     expect(onPause).toHaveBeenCalledTimes(1);
     expect(onResume).not.toHaveBeenCalled();
   });
