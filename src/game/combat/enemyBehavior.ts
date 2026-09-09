@@ -43,7 +43,6 @@ function prepareEnemyForStep(
         previousPosition: source.position,
         contactCooldown: Math.max(0, source.contactCooldown - deltaSeconds),
         frontlinePressure: normalFrontlinePressure * 0.2,
-        attackWindupRemaining: undefined,
         breakRemainingSeconds: Math.max(0, activeBreakSeconds - deltaSeconds),
       },
       interrupted: true,
@@ -79,21 +78,17 @@ function prepareEnemyForStep(
   }
 
   const crossedStages = nextStage - currentStage;
-  const recoilMultiplier = 1 + Math.max(0, nextStage - 1) * 0.15;
   const durationMultiplier = nextStage > 1 ? 1.2 : 1;
   return {
     enemy: {
       ...source,
       previousPosition: source.position,
-      position:
-        source.position + definition.breakRecoilDistance * recoilMultiplier,
       armor: Math.max(
         0,
         source.armor - definition.breakArmorDamage * crossedStages,
       ),
       contactCooldown: Math.max(source.contactCooldown, 0.35),
       frontlinePressure: normalFrontlinePressure * 0.2,
-      attackWindupRemaining: undefined,
       breakStage: nextStage,
       breakRemainingSeconds:
         definition.breakDurationSeconds * durationMultiplier,
