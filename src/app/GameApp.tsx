@@ -8,6 +8,17 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react';
+import { derivePlayerStats } from '../game/build/derivedStats';
+import { RoutePanel } from './RoutePanel';
+import {
+  BattlefieldObjectiveHud,
+  ObjectiveSummary,
+} from './BattlefieldObjectiveHud';
+import {
+  createBattlefieldObjective,
+  isObjectiveContested,
+} from '../game/simulation/battlefieldObjective';
+import type { BattlefieldObjectiveState } from '../game/simulation/types';
 import { CombatPauseController } from '../input/CombatPauseController';
 import { PauseMenu } from './PauseMenu';
 import {
@@ -94,6 +105,8 @@ const REWARD_RARITY_LABELS = {
 } as const;
 
 interface HudSnapshot {
+  objective?: BattlefieldObjectiveState;
+  objectiveContested: boolean;
   core: CombatCoreState;
   breakthrough: BreakthroughState;
   breakthroughThreat: boolean;
@@ -118,6 +131,10 @@ interface HudSnapshot {
 }
 
 interface SessionView {
+  vehicleHitPoints: number;
+  maximumHitPoints: number;
+  objectivesAttempted: number;
+  objectivesSecured: number;
   coreId?: CombatCoreId;
   phase: SessionPhase;
   encounterIndex: number;
@@ -149,6 +166,10 @@ function formatTimeScore(ticks: number): string {
 
 function toHudSnapshot(state: SimulationState): HudSnapshot {
   return {
+    objective: state.objective,
+    objectiveContested: Boolean(
+      state.objective && isObjectiveContested(state.objective, state.enemies),
+    ),
     core: state.core,
     breakthrough: state.breakthrough,
     breakthroughThreat: hasBreakthroughThreat(state),
@@ -176,6 +197,10 @@ function toHudSnapshot(state: SimulationState): HudSnapshot {
 function toSessionView(session: GameSessionState): SessionView {
   const { build } = session.run;
   return {
+    vehicleHitPoints: session.run.vehicleHitPoints,
+    maximumHitPoints: derivePlayerStats(build).maximumHitPoints,
+    objectivesAttempted: session.run.objectivesAttempted,
+    objectivesSecured: session.run.objectivesSecured,
     coreId: build.coreId,
     phase: session.phase,
     encounterIndex: session.run.encounterIndex,
@@ -205,6 +230,39 @@ function createInitialGameSession(): GameSessionState {
     parameters.has('quickStart') || parameters.has('debug')
       ? createGameSession(1)
       : createGarageSession(1);
+  const objectivePreview = parameters.get('objectivePreview');
+  if (
+    parameters.has('debug') &&
+    objectivePreview &&
+    ['repair', 'salvage', 'contested', 'expired'].includes(objectivePreview)
+  ) {
+    const preview = objectivePreview;
+    const kind = preview === 'repair' ? 'repair' : 'salvage';
+    const objective = createBattlefieldObjective(kind)!;
+    session.run.encounterIndex = 3;
+    session.run.currentRoute = kind;
+    session.run.objectivesAttempted = 1;
+    session.run.build.coreId = 'siege';
+    session.combat.build = structuredClone(session.run.build);
+    session.combat.objective = objective;
+    session.combat.wave = undefined;
+    session.combat.player.hitPoints = 40;
+    session.combat.player.position = kind === 'repair' ? 35 : 55;
+    session.combat.player.previousPosition = session.combat.player.position;
+    session.combat.enemies = [
+      {
+        ...createEnemy(
+          'heavy',
+          'objective-preview',
+          preview === 'contested' ? 65 : 95,
+        ),
+        speed: 0,
+        hitPoints: 100000,
+      },
+    ];
+    if (preview === 'expired') objective.remainingSeconds = 0.5;
+    return session;
+  }
   const rewardPreview = parameters.get('rewardPreview');
   const corePreview = parameters.get('corePreview');
   if (parameters.has('debug') && corePreview) {
@@ -271,6 +329,8 @@ function createInitialGameSession(): GameSessionState {
   }
   if (parameters.has('debug') && parameters.has('routePreview')) {
     session.phase = 'route';
+    session.run.encounterIndex =
+      parameters.get('routePreview') === 'boss' ? 9 : 3;
     session.routeChoices = createRouteChoices(session.run.encounterIndex);
     return session;
   }
@@ -412,6 +472,10 @@ export function GameApp() {
           lastHandledEvents = session.combat.events;
           audio.handleEvents(session.combat.events);
           const feedbackEvent =
+            session.combat.events.find(
+              ({ type }) =>
+                type === 'objective-secured' || type === 'objective-lost',
+            ) ??
             session.combat.events.find(
               ({ type }) =>
                 type === 'breakthrough-activated' ||
@@ -583,7 +647,7 @@ export function GameApp() {
   const combatVisible = sessionView.phase === 'combat';
   return (
     <main
-      className={`game-shell phase-${renderError ? 'error' : sessionView.phase}`}
+      className={`game-shell phase-${renderError ? 'error' : sessionView.phase}${hud.objective ? ' has-battlefield-objective' : ''}`}
       style={UI_ASSET_STYLES}
     >
       <div className="combat-stage">
@@ -646,6 +710,13 @@ export function GameApp() {
                 id={sessionView.coreId}
                 state={hud.core}
                 position={hud.position}
+              />
+            )}
+            {hud.objective && (
+              <BattlefieldObjectiveHud
+                objective={hud.objective}
+                position={hud.position}
+                contested={hud.objectiveContested}
               />
             )}
             <BreakthroughControl
@@ -758,6 +829,7 @@ export function GameApp() {
       )}
       {paused && (
         <PauseMenu
+          objective={hud.objective}
           coreId={sessionView.coreId}
           onResume={() => pauseControllerRef.current?.resume()}
         />
@@ -788,6 +860,7 @@ export function GameApp() {
       {sessionView.phase === 'reward' && !showClear && (
         <RewardPanel
           source="battle"
+          objective={hud.objective}
           input={input}
           choices={sessionView.rewardChoices}
           coreId={sessionView.coreId}
@@ -802,6 +875,7 @@ export function GameApp() {
       {sessionView.phase === 'weapon-cache' && (
         <RewardPanel
           source="weapon-cache"
+          objective={hud.objective}
           input={input}
           choices={sessionView.rewardChoices}
           coreId={sessionView.coreId}
@@ -823,6 +897,10 @@ export function GameApp() {
       )}
       {sessionView.phase === 'route' && (
         <RoutePanel
+          encounterIndex={sessionView.encounterIndex}
+          coreId={sessionView.coreId}
+          hitPoints={sessionView.vehicleHitPoints}
+          maxHitPoints={sessionView.maximumHitPoints}
           input={input}
           choices={sessionView.routeChoices}
           onChoose={chooseRoute}
@@ -929,66 +1007,6 @@ function GaragePanel({
   );
 }
 
-function RoutePanel({
-  input,
-  choices,
-  onChoose,
-}: {
-  input: InputManager;
-  choices: RouteChoice[];
-  onChoose: (id: string) => void;
-}) {
-  const chooseSelectedRoute = useCallback(
-    (index: number) => {
-      const choice = choices[index];
-      if (choice) onChoose(choice.id);
-    },
-    [choices, onChoose],
-  );
-  const navigation = useMenuNavigation({
-    input,
-    itemCount: choices.length,
-    onConfirm: chooseSelectedRoute,
-  });
-
-  return (
-    <section className="route-panel" role="dialog" aria-modal="true">
-      <header>
-        <span>進路選択</span>
-        <strong>次に進む区画を選ぼう</strong>
-        <MenuControlHint />
-      </header>
-      <div>
-        {choices.map((choice, index) => (
-          <button
-            type="button"
-            className={`route-${choice.accent}${navigation.selectedIndex === index ? ' selected' : ''}`}
-            key={choice.id}
-            aria-current={
-              navigation.selectedIndex === index ? 'true' : undefined
-            }
-            {...navigation.bindItem(index)}
-            onClick={() => {
-              navigation.select(index, false);
-              onChoose(choice.id);
-            }}
-          >
-            <i>
-              {choice.type === 'elite'
-                ? '⚠'
-                : choice.type === 'repair'
-                  ? '✚'
-                  : '✦'}
-            </i>
-            <strong>{choice.displayName}</strong>
-            <span>{choice.description}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function ResultPanel({
   input,
   view,
@@ -1039,6 +1057,12 @@ function ResultPanel({
               お宝 <b>{view.treasureCollected}</b>
             </span>
           </div>
+          {view.objectivesAttempted > 0 && (
+            <p>
+              寄り道の回収 {view.objectivesSecured} / {view.objectivesAttempted}{' '}
+              拠点
+            </p>
+          )}
           <div className="result-build" aria-label="最終ビルド">
             <span>最終装備</span>
             <CoreBuildHint id={view.coreId} />
@@ -1141,6 +1165,7 @@ function HeatMeter({
 }
 
 function RewardPanel({
+  objective,
   coreId,
   input,
   source,
@@ -1154,6 +1179,7 @@ function RewardPanel({
 }: {
   input: InputManager;
   source: 'battle' | 'weapon-cache';
+  objective?: BattlefieldObjectiveState;
   coreId?: CombatCoreId;
   choices: RewardChoice[];
   moduleIds: ModuleId[];
@@ -1235,6 +1261,7 @@ function RewardPanel({
           </strong>
           <MenuControlHint shortcuts="1〜3 即決" />
           <CoreBuildHint id={coreId} />
+          <ObjectiveSummary objective={objective} />
         </div>
         <b>
           {source === 'weapon-cache'
@@ -1478,6 +1505,12 @@ function describeCombatEvent(event: CombatEvent): string {
       return '発射！';
     case 'projectile-hit':
       return `${event.damage.toFixed(0)}ダメージ！`;
+    case 'objective-secured':
+      return event.kind === 'repair'
+        ? '整備拠点確保！ 耐久回復'
+        : '物資拠点確保！ 武器箱を開封';
+    case 'objective-lost':
+      return '回収断念！ 敵を倒して進もう';
     case 'enemy-killed':
       return '撃破！';
     case 'loot-dropped':

@@ -228,7 +228,7 @@ describe('game session', () => {
     expect(selectCombatCore(resolved, 'counter').phase).toBe('reward');
   });
 
-  it('offers route decisions and applies salvage benefits', () => {
+  it('offers route decisions and defers salvage benefits until capture', () => {
     const session = createGameSession(3);
     session.phase = 'reward';
     session.run.encounterIndex = 5;
@@ -247,11 +247,12 @@ describe('game session', () => {
     const selected = salvage ? selectRoute(routed, salvage.id) : routed;
 
     expect(routed.phase).toBe('route');
-    expect(routed.routeChoices).toHaveLength(2);
+    expect(routed.routeChoices).toHaveLength(4);
     expect(salvage).toBeDefined();
     expect(selected.phase).toBe('combat');
-    expect(selected.run.treasureCollected).toBe(2);
-    expect(selected.run.rewardRerolls).toBe(1);
+    expect(selected.run.treasureCollected).toBe(0);
+    expect(selected.run.rewardRerolls).toBe(0);
+    expect(selected.combat.objective?.kind).toBe('salvage');
   });
 
   it('spends a treasure reroll on a new deterministic reward set', () => {

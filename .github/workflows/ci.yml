@@ -30,7 +30,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Combat interaction regression tests
-        run: npm run test:e2e -- tests/e2e/pause.spec.ts tests/e2e/breakthrough.spec.ts tests/e2e/combat-core.spec.ts
+        run: npm run test:e2e -- tests/e2e/pause.spec.ts tests/e2e/breakthrough.spec.ts tests/e2e/combat-core.spec.ts tests/e2e/battlefield-objective.spec.ts
         env:
           CAPTURE_UI_REVIEW: '1'
       - name: Save interaction report and review screenshots

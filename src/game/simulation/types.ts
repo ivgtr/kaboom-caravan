@@ -9,6 +9,15 @@ import type { WeaponBehavior } from '../data/weaponDefinitions';
 import type { WeaponLevel } from '../build/weaponUpgrade';
 import type { CombatCoreId } from '../data/combatCoreDefinitions';
 
+import type { BattlefieldObjectiveKind } from '../data/routeDefinitions';
+
+export interface BattlefieldObjectiveState {
+  kind: BattlefieldObjectiveKind;
+  status: 'active' | 'secured' | 'lost';
+  progressSeconds: number;
+  remainingSeconds: number;
+}
+
 export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
 
@@ -163,6 +172,8 @@ export interface WaveState {
 }
 
 export type CombatEvent =
+  | { type: 'objective-secured'; kind: BattlefieldObjectiveKind }
+  | { type: 'objective-lost'; kind: BattlefieldObjectiveKind }
   | { type: 'core-ready'; coreId: CombatCoreId }
   | { type: 'core-triggered'; coreId: CombatCoreId; slot: WeaponSlot }
   | { type: 'breakthrough-ready' }
@@ -251,6 +262,7 @@ export interface SimulationState {
   loot: LootState[];
   treasureCollected: number;
   eliteEncounter: boolean;
+  objective?: BattlefieldObjectiveState;
   events: CombatEvent[];
 }
 

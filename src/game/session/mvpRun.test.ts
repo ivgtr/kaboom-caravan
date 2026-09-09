@@ -355,6 +355,7 @@ function simulateMvpRun(
   seed: number,
   useBreakthrough = false,
   coreId: CombatCoreId = 'counter',
+  detours = false,
 ): {
   session: GameSessionState;
   metrics: RunMetrics;
@@ -444,10 +445,15 @@ function simulateMvpRun(
       continue;
     }
     if (session.phase === 'route') {
-      const normalRoute = session.routeChoices.find(
-        ({ type }) => type === 'normal',
+      const desiredRoute = detours
+        ? session.run.encounterIndex === 6
+          ? 'salvage'
+          : 'repair'
+        : 'normal';
+      const route = session.routeChoices.find(
+        ({ type }) => type === desiredRoute,
       );
-      session = selectRoute(session, normalRoute!.id);
+      session = selectRoute(session, route!.id);
       currentEncounter = createEncounterMetrics(session);
       continue;
     }
@@ -600,6 +606,27 @@ describe('core-specific combat policies across full runs', () => {
         expect(run.coreTriggers).toBeGreaterThan(0);
         expect(run.breakthroughs).toBeGreaterThan(0);
         expect(simulateMvpRun(seed, true, coreId)).toEqual(run);
+      }
+    },
+  );
+});
+
+describe('battlefield detours across complete runs', () => {
+  it.each(COMBAT_CORE_IDS)(
+    '%s completes and deterministically replays repair / salvage / repair routes',
+    (coreId) => {
+      for (const seed of [1, 42, 2026]) {
+        const run = simulateMvpRun(seed, true, coreId, true);
+        expect(
+          run.session.phase,
+          JSON.stringify({ seed, coreId, run: run.session.run }),
+        ).toBe('victory');
+        expect(run.metrics.encountersCompleted).toBe(10);
+        expect(run.session.run.objectivesAttempted).toBe(3);
+        expect(run.session.run.objectivesSecured).toBeGreaterThan(0);
+        expect(run.coreTriggers).toBeGreaterThan(0);
+        expect(run.breakthroughs).toBeGreaterThan(0);
+        expect(simulateMvpRun(seed, true, coreId, true)).toEqual(run);
       }
     },
   );
