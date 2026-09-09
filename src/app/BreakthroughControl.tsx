@@ -38,13 +38,7 @@ export function BreakthroughControl({
     <section
       className="breakthrough-panel"
       data-state={
-        active
-          ? 'active'
-          : ready
-            ? 'ready'
-            : committed
-              ? 'spent'
-              : 'charging'
+        active ? 'active' : ready ? 'ready' : committed ? 'spent' : 'charging'
       }
       aria-label="DEATH RIDE状況"
     >
