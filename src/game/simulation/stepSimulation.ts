@@ -1,1148 +1,160 @@
-import { advanceBattlefieldObjective } from './battlefieldObjective';
-import { BATTLEFIELD_OBJECTIVES } from '../data/routeDefinitions';
-import {
-  WEAPON_DEFINITIONS,
-  type WeaponDefinition,
-} from '../data/weaponDefinitions';
-import {
-  derivePlayerStats,
-  deriveWeaponDefinition,
-} from '../build/derivedStats';
-import { runBuildTriggers } from '../build/triggers';
-import type { TriggerSignal } from '../build/types';
-import { createEnteringEnemy } from '../combat/createEnemy';
-import { stepEnemyBehaviors } from '../combat/enemyBehavior';
-import { ENEMY_DEFINITIONS } from '../data/enemyDefinitions';
-import { segmentIntersectsCircle1d } from './collision';
-import { resolveDamage } from './damage';
-import {
-  getDistanceDamageMultiplier,
-  getRewardMultiplier,
-  getRiskTier,
-} from './distance';
+import { derivePlayerStats } from '../build/derivedStats';
+import type { WeaponId } from '../data/ids';
+import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
+import { stepSimulation as stepBaseSimulation } from './stepSimulationBase';
 import type {
   CombatEvent,
-  EnemyProjectileState,
-  EnemyState,
-  LootState,
   PlayerCommand,
-  ProjectileState,
   SimulationState,
-  WeaponHeatState,
-  WeaponHeatStates,
-  WeaponSlot,
 } from './types';
-import { advanceWave, completeWaveIfCleared } from '../wave/waveSystem';
-import { getWeaponLevel } from '../build/weaponUpgrade';
-import {
-  BREAKTHROUGH,
-  prepareBreakthrough,
-  earnBreakthroughCharge,
-} from './breakthrough';
 
-import {
-  advanceCombatCore,
-  prepareCoreShot,
-  chargeCounterCore,
-} from './combatCore';
-import { CORE_RULES } from '../data/combatCoreDefinitions';
+/**
+ * REDLINE turns an empty magazine from a dead state into a dangerous comeback
+ * state. Hull integrity is fed directly into the weapon loader, and requested
+ * weapons are temporarily driven at their level-3 profile for that volley.
+ */
+export const REDLINE_RULES = {
+  hullCostPerAmmo: 8,
+  salvageAmmoPerKill: 10,
+} as const;
 
-const PLAYER_MIN_POSITION = 0;
-const PLAYER_MAX_POSITION = 80;
-const OVERHEAT_THRESHOLD = 100;
-const OVERHEAT_RECOVERY_THRESHOLD = 60;
-const FRONTLINE_PUSH_PER_KILL = 5;
-const FRONTLINE_RETREAT_PER_ENEMY_PER_SECOND = 0.5;
-const FRONTLINE_PRESSURE_RANGE = 35;
-const FRONTLINE_MAXIMUM = 80;
-const PARRY_ENERGY_COST = 20;
-const PARRY_ENERGY_RESTORE = 30;
-const PARRY_HEAT_VENT = 30;
-const PARRY_COUNTER_DAMAGE = 30;
-const PARRY_WINDOW_SECONDS = 0.42;
-const PARRY_COOLDOWN_SECONDS = 4;
-const PLAYER_ACCELERATION = 30;
-const PLAYER_BRAKE_ACCELERATION = 42;
-const PLAYER_COAST_DECELERATION = 18;
-const BOOST_SPEED_MULTIPLIER = 1.6;
-const BOOST_ENERGY_PER_SECOND = 18;
+const REDLINE_SOURCE_ID = 'redline-overdrive';
 
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function moveTowards(current: number, target: number, maximumDelta: number) {
-  if (Math.abs(target - current) <= maximumDelta) return target;
-  return current + Math.sign(target - current) * maximumDelta;
-}
-
-function createProjectiles(
+function requestedWeaponIds(
   state: SimulationState,
-  position: number,
-  definition: WeaponDefinition,
-  sequence: number,
-): ProjectileState[] {
-  const weaponLevel = getWeaponLevel(state.build, definition.id);
-  const projectileCount =
-    definition.behavior === 'scatter'
-      ? 4 + weaponLevel
-      : definition.behavior === 'mine' && weaponLevel === 3
-        ? 2
-        : definition.id === 'machine-cannon' && weaponLevel === 3
-          ? 2
-          : 1;
-  return Array.from({ length: projectileCount }, (_, index) => ({
-    id: `projectile-${sequence + index}`,
-    ownerId: state.player.id,
-    previousPosition: position,
-    position,
-    originPosition: position,
-    velocity:
-      definition.behavior === 'mine'
-        ? 0
-        : definition.projectileSpeed * (1 - index * 0.08),
-    radius:
-      definition.behavior === 'flame'
-        ? 3
-        : definition.behavior === 'mine'
-          ? 2
-          : definition.behavior === 'railgun'
-            ? 0.35
-            : 0.2,
-    damage: definition.damage,
-    maximumRange: definition.maximumRange,
-    weaponId: definition.id,
-    optimalRangeMinimum: definition.optimalRangeMinimum,
-    optimalRangeMaximum: definition.optimalRangeMaximum,
-    offRangeDamageMultiplier: definition.offRangeDamageMultiplier,
-    behavior: definition.behavior,
-    remainingHits:
-      definition.behavior === 'flame'
-        ? 6 + weaponLevel * 2
-        : definition.behavior === 'railgun'
-          ? 4 + weaponLevel * 2
-          : 1,
-    hitEnemyIds: [],
-    explosionRadius:
-      definition.behavior === 'rocket'
-        ? 9 + weaponLevel
-        : definition.behavior === 'mine'
-          ? 8 + weaponLevel
-          : 0,
-    ageSeconds: 0,
-    maximumAgeSeconds:
-      definition.behavior === 'mine'
-        ? 12
-        : definition.behavior === 'flame'
-          ? 0.65
-          : 4,
-  }));
+  command: PlayerCommand,
+): WeaponId[] {
+  const weaponIds: WeaponId[] = [];
+  if (command.firePrimary) weaponIds.push(state.build.primaryWeaponId);
+  if (command.fireSecondary) weaponIds.push(state.build.secondaryWeaponId);
+  return weaponIds;
 }
 
-const LOOT_DROP_CHANCE: Record<EnemyState['typeId'], number> = {
-  basic: 0.28,
-  rusher: 0.34,
-  heavy: 0.52,
-  artillery: 0.46,
-  bomber: 0.48,
-  'kawaii-fortress': 0,
-};
-
-const LOOT_KIND_WEIGHTS: Record<
-  EnemyState['typeId'],
-  readonly [repair: number, ammo: number]
-> = {
-  basic: [0.32, 0.6],
-  rusher: [0.42, 0.46],
-  heavy: [0.52, 0.3],
-  artillery: [0.2, 0.62],
-  bomber: [0.32, 0.43],
-  'kawaii-fortress': [0, 0],
-};
-
-function deterministicLootRoll(seed: number, enemyId: string): number {
-  let hash = seed ^ 0x811c9dc5;
-  for (const character of enemyId) {
-    hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
-  }
-  return (hash >>> 0) / 0x1_0000_0000;
-}
-
-function rollLoot(
-  enemy: EnemyState,
-  roll: number,
-): LootState['kind'] | undefined {
-  const baseChance = LOOT_DROP_CHANCE[enemy.typeId];
-  const chance = Math.min(0.9, baseChance + (enemy.elite ? 0.18 : 0));
-  if (roll >= chance) return undefined;
-  const kindRoll = roll / chance;
-  const [repairWeight, ammoWeight] = LOOT_KIND_WEIGHTS[enemy.typeId];
-  if (kindRoll < repairWeight) return 'repair';
-  if (kindRoll < repairWeight + ammoWeight) return 'ammo';
-  return 'weapon-cache';
-}
-
-function lootValue(enemy: EnemyState, kind: LootState['kind']): number {
-  if (kind === 'repair') return enemy.typeId === 'heavy' ? 24 : 16;
-  if (kind === 'ammo') return enemy.typeId === 'artillery' ? 18 : 12;
-  return 1;
-}
-
-interface ProjectileResult {
-  enemies: EnemyState[];
-  projectiles: ProjectileState[];
-  events: CombatEvent[];
-}
-
-interface EnemyProjectileResult {
-  projectiles: EnemyProjectileState[];
-  playerHitPoints: number;
-  events: CombatEvent[];
-}
-
-function moveEnemyProjectiles(
-  projectiles: EnemyProjectileState[],
-  playerPosition: number,
-  playerRadius: number,
-  playerArmor: number,
-  playerHitPoints: number,
-  parryActive: boolean,
-  deltaSeconds: number,
-): EnemyProjectileResult {
-  const remainingProjectiles: EnemyProjectileState[] = [];
-  const events: CombatEvent[] = [];
-  let hitPoints = playerHitPoints;
-
-  for (const projectile of projectiles) {
-    const movedProjectile = {
-      ...projectile,
-      previousPosition: projectile.position,
-      position: projectile.position + projectile.velocity * deltaSeconds,
-      ageSeconds: projectile.ageSeconds + deltaSeconds,
-    };
-    const hitPlayer = segmentIntersectsCircle1d(
-      movedProjectile.previousPosition,
-      movedProjectile.position,
-      playerPosition,
-      playerRadius + movedProjectile.radius,
-    );
-    if (hitPlayer) {
-      if (parryActive) {
-        events.push({
-          type: 'attack-parried',
-          sourceId: movedProjectile.ownerId,
-          attackKind: 'projectile',
-          counterDamage: PARRY_COUNTER_DAMAGE,
-        });
-        continue;
-      }
-      const damage = resolveDamage(movedProjectile.damage, playerArmor);
-      hitPoints = Math.max(0, hitPoints - damage);
-      events.push({
-        type: 'enemy-projectile-hit',
-        sourceId: movedProjectile.ownerId,
-        projectileId: movedProjectile.id,
-        visualId: movedProjectile.visualId,
-        damage,
-      });
-      events.push({
-        type: 'vehicle-hit',
-        sourceId: movedProjectile.ownerId,
-        damage,
-      });
-      continue;
-    }
-    if (movedProjectile.ageSeconds <= movedProjectile.maximumAgeSeconds) {
-      remainingProjectiles.push(movedProjectile);
-    }
-  }
-
-  return {
-    projectiles: remainingProjectiles,
-    playerHitPoints: hitPoints,
-    events,
-  };
-}
-
-function moveProjectiles(
-  projectiles: ProjectileState[],
-  enemies: EnemyState[],
-  deltaSeconds: number,
-): ProjectileResult {
-  let nextEnemies = enemies;
-  const remainingProjectiles: ProjectileState[] = [];
-  const events: CombatEvent[] = [];
-
-  for (const projectile of projectiles) {
-    const movedProjectile = {
-      ...projectile,
-      previousPosition: projectile.position,
-      position: projectile.position + projectile.velocity * deltaSeconds,
-      ageSeconds: projectile.ageSeconds + deltaSeconds,
-    };
-    const collisionTargets = nextEnemies
-      .filter(
-        (enemy) =>
-          enemy.hitPoints > 0 &&
-          !movedProjectile.hitEnemyIds.includes(enemy.id) &&
-          segmentIntersectsCircle1d(
-            movedProjectile.previousPosition,
-            movedProjectile.position,
-            enemy.position,
-            enemy.radius + movedProjectile.radius,
-          ),
-      )
-      .sort((left, right) => left.position - right.position)
-      .slice(
-        0,
-        movedProjectile.behavior === 'railgun' ||
-          movedProjectile.behavior === 'flame'
-          ? movedProjectile.remainingHits
-          : 1,
-      );
-
-    if (collisionTargets.length > 0) {
-      const target = collisionTargets[0]!;
-      const impactedEnemies =
-        movedProjectile.behavior === 'rocket' ||
-        movedProjectile.behavior === 'mine'
-          ? nextEnemies.filter(
-              (enemy) =>
-                enemy.hitPoints > 0 &&
-                Math.abs(enemy.position - target.position) <=
-                  movedProjectile.explosionRadius + enemy.radius,
-            )
-          : collisionTargets;
-
-      for (const impactedEnemy of impactedEnemies) {
-        const traveledDistance = Math.abs(
-          impactedEnemy.position - movedProjectile.originPosition,
-        );
-        const distanceMultiplier = getDistanceDamageMultiplier(
-          traveledDistance,
-          {
-            optimalMinimum: movedProjectile.optimalRangeMinimum,
-            optimalMaximum: movedProjectile.optimalRangeMaximum,
-            offRangeDamageMultiplier: movedProjectile.offRangeDamageMultiplier,
-          },
-        );
-        const damage = resolveDamage(
-          movedProjectile.damage * distanceMultiplier,
-          impactedEnemy.armor,
-        );
-        nextEnemies = nextEnemies.map((enemy) =>
-          enemy.id === impactedEnemy.id
-            ? { ...enemy, hitPoints: enemy.hitPoints - damage }
-            : enemy,
-        );
-        events.push({
-          type: 'projectile-hit',
-          projectileId: projectile.id,
-          targetId: impactedEnemy.id,
-          weaponId: projectile.weaponId,
-          damage,
-        });
-      }
-
-      const remainingHits =
-        movedProjectile.remainingHits - collisionTargets.length;
-      if (
-        remainingHits > 0 &&
-        movedProjectile.behavior !== 'rocket' &&
-        movedProjectile.behavior !== 'mine'
-      ) {
-        remainingProjectiles.push({
-          ...movedProjectile,
-          remainingHits,
-          hitEnemyIds: [
-            ...movedProjectile.hitEnemyIds,
-            ...collisionTargets.map(({ id }) => id),
-          ],
-        });
-      }
-      continue;
-    }
-
-    if (
-      Math.abs(movedProjectile.position - movedProjectile.originPosition) <=
-        movedProjectile.maximumRange &&
-      movedProjectile.ageSeconds <= movedProjectile.maximumAgeSeconds
-    ) {
-      remainingProjectiles.push(movedProjectile);
-    }
-  }
-
-  return {
-    enemies: nextEnemies,
-    projectiles: remainingProjectiles,
-    events,
-  };
-}
-
-interface FireResult {
-  projectiles: ProjectileState[];
-  ammo: number;
-  energy: number;
-  heat: number;
-  cooldown: number;
-}
-
-function tryFireWeapon(
-  state: SimulationState,
-  definition: WeaponDefinition,
-  cooldown: number,
-  ammo: number,
-  energy: number,
-  heat: number,
-  overheated: boolean,
-  sequence: number,
-): FireResult {
-  const canFire =
-    cooldown === 0 &&
-    !overheated &&
-    ammo >= definition.ammoCost &&
-    energy >= definition.energyCost;
-
-  if (!canFire) return { projectiles: [], ammo, energy, heat, cooldown };
-
-  return {
-    projectiles: createProjectiles(
-      state,
-      state.player.position + (definition.behavior === 'mine' ? 8 : 2.8),
-      definition,
-      sequence,
-    ),
-    ammo: ammo - definition.ammoCost,
-    energy: energy - definition.energyCost,
-    heat: Math.min(OVERHEAT_THRESHOLD, heat + definition.heatGenerated),
-    cooldown: definition.cooldownSeconds,
-  };
-}
-
-function coolWeaponHeat(
-  weaponHeat: WeaponHeatStates,
-  coolingPerSecond: number,
-  deltaSeconds: number,
-): WeaponHeatStates {
-  const hotSlots = (['primary', 'secondary'] as const).filter(
-    (slot) => weaponHeat[slot].heat > 0,
+function requestedAmmoCost(weaponIds: readonly WeaponId[]): number {
+  return weaponIds.reduce(
+    (sum, weaponId) => sum + WEAPON_DEFINITIONS[weaponId].ammoCost,
+    0,
   );
-  if (hotSlots.length === 0) return weaponHeat;
+}
 
-  const coolingPerSlot = (coolingPerSecond * deltaSeconds) / hotSlots.length;
+function firedAmmoCost(events: readonly CombatEvent[]): number {
+  return events.reduce(
+    (sum, event) =>
+      event.type === 'weapon-fired'
+        ? sum + WEAPON_DEFINITIONS[event.weaponId].ammoCost
+        : sum,
+    0,
+  );
+}
+
+function createRedlineState(
+  state: SimulationState,
+  command: PlayerCommand,
+  injectedAmmo: number,
+): SimulationState {
+  const weaponLevels = { ...state.build.weaponLevels };
+  for (const weaponId of requestedWeaponIds(state, command)) {
+    weaponLevels[weaponId] = 3;
+  }
   return {
-    primary: {
-      ...weaponHeat.primary,
-      heat: Math.max(0, weaponHeat.primary.heat - coolingPerSlot),
-    },
-    secondary: {
-      ...weaponHeat.secondary,
-      heat: Math.max(0, weaponHeat.secondary.heat - coolingPerSlot),
-    },
+    ...state,
+    build: { ...state.build, weaponLevels },
+    player: { ...state.player, ammo: injectedAmmo },
   };
 }
 
-function recoverWeapon(
-  slot: WeaponSlot,
-  heatState: WeaponHeatState,
-  weaponId: WeaponDefinition['id'],
-  events: CombatEvent[],
-): WeaponHeatState {
-  if (!heatState.overheated || heatState.heat > OVERHEAT_RECOVERY_THRESHOLD) {
-    return heatState;
-  }
-  events.push({ type: 'cooled', slot, weaponId });
-  return { ...heatState, overheated: false };
+function salvageDryKills(state: SimulationState): SimulationState {
+  if (state.status === 'defeat' || state.player.ammo > 0) return state;
+  const kills = state.events.filter(({ type }) => type === 'enemy-killed').length;
+  if (kills === 0) return state;
+
+  const maximumAmmo = derivePlayerStats(state.build).maximumAmmo;
+  const salvageAmmo = Math.min(
+    maximumAmmo,
+    kills * REDLINE_RULES.salvageAmmoPerKill,
+  );
+  if (salvageAmmo <= 0) return state;
+
+  return {
+    ...state,
+    player: { ...state.player, ammo: salvageAmmo },
+    events: [
+      ...state.events,
+      {
+        type: 'loot-collected',
+        lootId: `redline-salvage-${state.tick}`,
+        kind: 'ammo',
+        value: salvageAmmo,
+      },
+    ],
+  };
 }
 
-function applyShotHeat(
-  slot: WeaponSlot,
-  heatState: WeaponHeatState,
-  heat: number,
-  weaponId: WeaponDefinition['id'],
-  events: CombatEvent[],
-): WeaponHeatState {
-  if (heatState.overheated || heat < OVERHEAT_THRESHOLD) {
-    return { ...heatState, heat };
-  }
-  events.push({ type: 'overheated', slot, weaponId });
-  return { heat, overheated: true };
-}
-
+/**
+ * Preserve the established simulation and only intervene when the caravan is
+ * completely dry. A REDLINE volley may spend every hull-ammo unit except the
+ * final hit point; enemy damage can still finish the player on the same tick.
+ */
 export function stepSimulation(
   state: SimulationState,
   command: PlayerCommand,
   deltaSeconds: number,
 ): SimulationState {
-  if (state.status !== 'active') {
-    return { ...state, tick: state.tick + 1, events: [] };
+  if (state.status !== 'active' || state.player.ammo > 0) {
+    return salvageDryKills(stepBaseSimulation(state, command, deltaSeconds));
   }
 
-  const prepared = prepareBreakthrough(
-    state,
-    command.activateBreakthrough,
-    deltaSeconds,
-  );
-  state = prepared.state;
-  const events: CombatEvent[] = [...prepared.events];
-  const breakingThrough = state.breakthrough.remainingSeconds > 0;
-  const weaponDelta =
-    deltaSeconds * (breakingThrough ? BREAKTHROUGH.fireRateMultiplier : 1);
-  const playerStats = derivePlayerStats(state.build);
-  const primaryDefinition = deriveWeaponDefinition(
-    WEAPON_DEFINITIONS[state.build.primaryWeaponId],
-    state.build,
-  );
-  const secondaryDefinition = deriveWeaponDefinition(
-    WEAPON_DEFINITIONS[state.build.secondaryWeaponId],
-    state.build,
-  );
-  let energy = Math.min(playerStats.maximumEnergy, state.player.energy);
-  const boostRequested =
-    command.boost && !command.activateSkill && command.move !== 0;
-  const isBoosting = boostRequested && energy > 0;
-  if (isBoosting) {
-    energy = Math.max(0, energy - BOOST_ENERGY_PER_SECOND * deltaSeconds);
-    if (!state.player.boosting) {
-      events.push({
-        type: 'boost-started',
-        direction: command.move as -1 | 1,
-      });
-    }
-  } else if (!boostRequested) {
-    energy = Math.min(
-      playerStats.maximumEnergy,
-      energy + playerStats.energyPerSecond * deltaSeconds,
-    );
-  }
-  const targetVelocity = isBoosting
-    ? command.move * playerStats.moveSpeed * BOOST_SPEED_MULTIPLIER
-    : command.move * playerStats.moveSpeed;
-  const isReversing =
-    targetVelocity !== 0 &&
-    state.player.velocity !== 0 &&
-    Math.sign(targetVelocity) !== Math.sign(state.player.velocity);
-  const velocityChangeRate =
-    command.move === 0
-      ? PLAYER_COAST_DECELERATION
-      : isReversing
-        ? PLAYER_BRAKE_ACCELERATION
-        : PLAYER_ACCELERATION;
-  let playerVelocity = moveTowards(
-    state.player.velocity,
-    targetVelocity,
-    velocityChangeRate * deltaSeconds,
-  );
-  const playerPosition = clamp(
-    state.player.position + playerVelocity * deltaSeconds,
-    PLAYER_MIN_POSITION,
-    PLAYER_MAX_POSITION,
-  );
-  if (
-    (playerPosition === PLAYER_MIN_POSITION && playerVelocity < 0) ||
-    (playerPosition === PLAYER_MAX_POSITION && playerVelocity > 0)
-  ) {
-    playerVelocity = 0;
-  }
-  let core = advanceCombatCore(
-    state.build.coreId,
-    state.core,
-    command,
-    playerPosition,
-    playerVelocity,
-    deltaSeconds,
-  );
-  if (
-    state.build.coreId === 'siege' &&
-    core.siegeSeconds >= CORE_RULES.siege.deploySeconds &&
-    state.core.siegeSeconds < CORE_RULES.siege.deploySeconds
-  ) {
-    events.push({ type: 'core-ready', coreId: 'siege' });
-  }
-  let playerHitPoints = Math.min(
-    state.player.hitPoints,
-    playerStats.maximumHitPoints,
-  );
-  let primaryCooldown = Math.max(0, state.player.primaryCooldown - weaponDelta);
-  let secondaryCooldown = Math.max(
+  const weaponIds = requestedWeaponIds(state, command);
+  const requestedAmmo = requestedAmmoCost(weaponIds);
+  const hullAmmoBudget = Math.max(
     0,
-    state.player.secondaryCooldown - weaponDelta,
+    Math.floor((state.player.hitPoints - 1) / REDLINE_RULES.hullCostPerAmmo),
   );
-  let skillCooldown = Math.max(0, state.player.skillCooldown - deltaSeconds);
-  let parryWindowSeconds = Math.max(
+  const injectedAmmo = Math.min(requestedAmmo, hullAmmoBudget);
+
+  if (injectedAmmo <= 0) {
+    return salvageDryKills(stepBaseSimulation(state, command, deltaSeconds));
+  }
+
+  const redlineState = createRedlineState(state, command, injectedAmmo);
+  const stepped = stepBaseSimulation(redlineState, command, deltaSeconds);
+  const hullAmmoSpent = Math.min(injectedAmmo, firedAmmoCost(stepped.events));
+  const hullDamage = hullAmmoSpent * REDLINE_RULES.hullCostPerAmmo;
+
+  // Strip the temporary level-3 build and temporary ammunition back out while
+  // retaining legitimate ammo gains from pickups/build triggers during the tick.
+  const realAmmo = Math.max(
     0,
-    state.player.parryWindowSeconds - deltaSeconds,
+    stepped.player.ammo - injectedAmmo + hullAmmoSpent,
   );
-  let ammo = Math.min(state.player.ammo, playerStats.maximumAmmo);
-  const wasAnyWeaponOverheated =
-    state.player.weaponHeat.primary.overheated ||
-    state.player.weaponHeat.secondary.overheated;
-  let weaponHeat = coolWeaponHeat(
-    state.player.weaponHeat,
-    playerStats.coolingPerSecond *
-      (breakingThrough ? BREAKTHROUGH.coolingMultiplier : 1),
-    deltaSeconds,
-  );
-  let enemies = state.enemies;
-  let projectiles = state.projectiles;
-  let enemyProjectiles = state.enemyProjectiles;
-  let loot = state.loot;
-  let treasureCollected = state.treasureCollected;
-  let nextEntitySequence = state.nextEntitySequence;
-  let wave = state.wave;
+  const hitPoints = Math.max(0, stepped.player.hitPoints - hullDamage);
+  const forcedDefeat = stepped.status !== 'defeat' && hitPoints <= 0;
+  let events = stepped.events;
 
-  const remainingLoot: typeof loot = [];
-  const clearedField = enemies.length === 0 && Boolean(wave?.completed);
-  for (const item of loot) {
-    const distance = playerPosition - item.position;
-    const magnetizedPosition =
-      Math.abs(distance) <= 14 || clearedField
-        ? moveTowards(
-            item.position,
-            playerPosition,
-            (clearedField ? 64 : 34) * deltaSeconds,
-          )
-        : item.position;
-    const movedItem = {
-      ...item,
-      previousPosition: item.position,
-      position: magnetizedPosition,
-      ageSeconds: item.ageSeconds + deltaSeconds,
-    };
-    if (Math.abs(magnetizedPosition - playerPosition) <= 3.2) {
-      if (item.kind === 'repair') {
-        playerHitPoints = Math.min(
-          playerStats.maximumHitPoints,
-          playerHitPoints + item.value,
-        );
-      } else if (item.kind === 'ammo') {
-        ammo = Math.min(playerStats.maximumAmmo, ammo + item.value);
-      } else {
-        treasureCollected += item.value;
-      }
-      events.push({
-        type: 'loot-collected',
-        lootId: item.id,
-        kind: item.kind,
-        value: item.value,
-      });
-    } else {
-      remainingLoot.push(movedItem);
-    }
-  }
-  loot = remainingLoot;
-
-  if (
-    command.activateSkill &&
-    skillCooldown === 0 &&
-    energy >= PARRY_ENERGY_COST
-  ) {
-    energy -= PARRY_ENERGY_COST;
-    parryWindowSeconds = PARRY_WINDOW_SECONDS;
-    skillCooldown = PARRY_COOLDOWN_SECONDS;
-    events.push({ type: 'skill-activated', skillId: 'reactive-parry' });
-  }
-
-  if (wave) {
-    const waveResult = advanceWave(wave, deltaSeconds, nextEntitySequence);
-    wave = waveResult.wave;
-    const spawnedEnemies = state.eliteEncounter
-      ? waveResult.spawnedEnemies.map((enemy) => ({
-          ...enemy,
-          elite: true,
-          hitPoints: enemy.hitPoints * 1.45,
-          contactDamage: enemy.contactDamage * 1.2,
-          attackDamage: enemy.attackDamage * 1.2,
-          frontlinePressure: enemy.frontlinePressure * 1.25,
-        }))
-      : waveResult.spawnedEnemies;
-    enemies = [...enemies, ...spawnedEnemies];
-    nextEntitySequence = waveResult.nextEntitySequence;
-    events.push(...waveResult.events);
-  }
-
-  const behaviorResult = stepEnemyBehaviors(
-    enemies,
-    playerPosition,
-    state.player.radius,
-    playerStats.armor,
-    playerHitPoints,
-    deltaSeconds,
-  );
-  enemies = behaviorResult.enemies;
-  playerHitPoints = behaviorResult.playerHitPoints;
-  const contactHits = behaviorResult.events.filter(
-    (event): event is Extract<CombatEvent, { type: 'vehicle-hit' }> =>
-      event.type === 'vehicle-hit',
-  );
-  if (parryWindowSeconds > 0 && contactHits.length > 0) {
-    playerHitPoints = Math.min(
-      playerStats.maximumHitPoints,
-      playerHitPoints + contactHits.reduce((sum, hit) => sum + hit.damage, 0),
-    );
-    events.push(
-      ...behaviorResult.events.filter((event) => event.type !== 'vehicle-hit'),
-    );
-    for (const sourceId of new Set(
-      contactHits.map(({ sourceId }) => sourceId),
-    )) {
-      events.push({
-        type: 'attack-parried',
-        sourceId,
-        attackKind: 'contact',
-        counterDamage: PARRY_COUNTER_DAMAGE,
-      });
-    }
-  } else {
-    events.push(...behaviorResult.events);
-  }
-  for (const attack of behaviorResult.rangedAttacks) {
-    const projectile: EnemyProjectileState = {
-      id: `enemy-projectile-${nextEntitySequence}`,
-      ownerId: attack.enemyId,
-      previousPosition: attack.originPosition,
-      position: attack.originPosition,
-      velocity: -attack.projectileSpeed,
-      radius: attack.projectileRadius,
-      damage: attack.damage,
-      ageSeconds: 0,
-      maximumAgeSeconds: attack.maximumAgeSeconds,
-      visualId: attack.visualId,
-    };
-    enemyProjectiles = [...enemyProjectiles, projectile];
-    nextEntitySequence += 1;
-    events.push({
-      type: 'enemy-projectile-fired',
-      enemyId: attack.enemyId,
-      projectileId: projectile.id,
-      visualId: projectile.visualId,
-    });
-  }
-
-  weaponHeat = {
-    primary: recoverWeapon(
-      'primary',
-      weaponHeat.primary,
-      primaryDefinition.id,
-      events,
-    ),
-    secondary: recoverWeapon(
-      'secondary',
-      weaponHeat.secondary,
-      secondaryDefinition.id,
-      events,
-    ),
-  };
-
-  const fire = (
-    slot: WeaponSlot,
-    definition: WeaponDefinition,
-    cooldown: number,
-    heatState: WeaponHeatState,
-  ): FireResult => {
-    const shot = prepareCoreShot(
-      state.build.coreId,
-      core,
-      slot,
-      command.firePrimary && command.fireSecondary,
-    );
-    const result = tryFireWeapon(
-      { ...state, player: { ...state.player, position: playerPosition } },
+  if (hullDamage > 0) {
+    events = [
+      ...events,
       {
-        ...definition,
-        damage: definition.damage * shot.damageMultiplier,
-        heatGenerated: definition.heatGenerated * shot.heatMultiplier,
+        type: 'vehicle-hit',
+        sourceId: REDLINE_SOURCE_ID,
+        damage: hullDamage,
       },
-      cooldown,
-      ammo,
-      energy,
-      heatState.heat,
-      heatState.overheated,
-      nextEntitySequence,
-    );
-    if (result.projectiles.length > 0) {
-      core = shot.core;
-      if (shot.ventSlot) {
-        const ventSlot = shot.ventSlot;
-        weaponHeat = {
-          ...weaponHeat,
-          [ventSlot]: recoverWeapon(
-            ventSlot,
-            {
-              ...weaponHeat[ventSlot],
-              heat: Math.max(0, weaponHeat[ventSlot].heat - shot.ventAmount),
-            },
-            ventSlot === 'primary'
-              ? primaryDefinition.id
-              : secondaryDefinition.id,
-            events,
-          ),
-        };
-      }
-      if (state.build.coreId && shot.damageMultiplier > 1) {
-        events.push({
-          type: 'core-triggered',
-          coreId: state.build.coreId,
-          slot,
-        });
-      }
-    }
-    return result;
-  };
-
-  if (command.firePrimary) {
-    const result = fire(
-      'primary',
-      primaryDefinition,
-      primaryCooldown,
-      weaponHeat.primary,
-    );
-    ammo = result.ammo;
-    energy = result.energy;
-    weaponHeat = {
-      ...weaponHeat,
-      primary: applyShotHeat(
-        'primary',
-        weaponHeat.primary,
-        result.heat,
-        primaryDefinition.id,
-        events,
-      ),
-    };
-    primaryCooldown = result.cooldown;
-    if (result.projectiles.length > 0) {
-      const firedProjectile = result.projectiles[0]!;
-      projectiles = [...projectiles, ...result.projectiles];
-      nextEntitySequence += result.projectiles.length;
-      events.push({
-        type: 'weapon-fired',
-        projectileId: firedProjectile.id,
-        weaponId: firedProjectile.weaponId,
-      });
-    }
+    ];
+  }
+  if (forcedDefeat) {
+    events = events.filter(({ type }) => type !== 'combat-ended');
+    events.push({ type: 'combat-ended', result: 'defeat' });
   }
 
-  if (command.fireSecondary) {
-    const result = fire(
-      'secondary',
-      secondaryDefinition,
-      secondaryCooldown,
-      weaponHeat.secondary,
-    );
-    ammo = result.ammo;
-    energy = result.energy;
-    weaponHeat = {
-      ...weaponHeat,
-      secondary: applyShotHeat(
-        'secondary',
-        weaponHeat.secondary,
-        result.heat,
-        secondaryDefinition.id,
-        events,
-      ),
-    };
-    secondaryCooldown = result.cooldown;
-    if (result.projectiles.length > 0) {
-      const firedProjectile = result.projectiles[0]!;
-      projectiles = [...projectiles, ...result.projectiles];
-      nextEntitySequence += result.projectiles.length;
-      events.push({
-        type: 'weapon-fired',
-        projectileId: firedProjectile.id,
-        weaponId: firedProjectile.weaponId,
-      });
-    }
-  }
-
-  const projectileResult = moveProjectiles(projectiles, enemies, deltaSeconds);
-  enemies = projectileResult.enemies;
-  projectiles = projectileResult.projectiles;
-  events.push(...projectileResult.events);
-
-  const enemyProjectileResult = moveEnemyProjectiles(
-    enemyProjectiles,
-    playerPosition,
-    state.player.radius,
-    playerStats.armor,
-    playerHitPoints,
-    parryWindowSeconds > 0,
-    deltaSeconds,
-  );
-  enemyProjectiles = enemyProjectileResult.projectiles;
-  playerHitPoints = enemyProjectileResult.playerHitPoints;
-  events.push(...enemyProjectileResult.events);
-
-  const successfulParries = events.filter(
-    (event): event is Extract<CombatEvent, { type: 'attack-parried' }> =>
-      event.type === 'attack-parried',
-  );
-  if (successfulParries.length > 0) {
-    skillCooldown = 0;
-    parryWindowSeconds = 0;
-    energy = Math.min(
-      playerStats.maximumEnergy,
-      energy + PARRY_ENERGY_RESTORE * successfulParries.length,
-    );
-    const ventAmount = PARRY_HEAT_VENT * successfulParries.length;
-    weaponHeat = {
-      primary: recoverWeapon(
-        'primary',
-        {
-          ...weaponHeat.primary,
-          heat: Math.max(0, weaponHeat.primary.heat - ventAmount),
-        },
-        primaryDefinition.id,
-        events,
-      ),
-      secondary: recoverWeapon(
-        'secondary',
-        {
-          ...weaponHeat.secondary,
-          heat: Math.max(0, weaponHeat.secondary.heat - ventAmount),
-        },
-        secondaryDefinition.id,
-        events,
-      ),
-    };
-    const counteredSources = new Set(
-      successfulParries.map(({ sourceId }) => sourceId),
-    );
-    enemies = enemies.map((enemy) =>
-      counteredSources.has(enemy.id)
-        ? { ...enemy, hitPoints: enemy.hitPoints - PARRY_COUNTER_DAMAGE }
-        : enemy,
-    );
-  }
-
-  // Both contact and projectile parries arm the NEXT step's volley, not an
-  // already-fired shot. Multiple parries refresh one charge rather than stack.
-  const counterWasReady = core.counterSeconds > 0;
-  core = chargeCounterCore(
-    state.build.coreId,
-    core,
-    successfulParries.length > 0,
-  );
-  if (!counterWasReady && core.counterSeconds > 0)
-    events.push({ type: 'core-ready', coreId: 'counter' });
-
-  const killedEnemies = enemies.filter((enemy) => enemy.hitPoints <= 0);
-  for (const enemy of killedEnemies) {
-    events.push({
-      type: 'enemy-killed',
-      enemyId: enemy.id,
-      enemyTypeId: enemy.typeId,
-    });
-    const kind = rollLoot(enemy, deterministicLootRoll(state.seed, enemy.id));
-    if (kind) {
-      const id = `loot-${nextEntitySequence}`;
-      const value = lootValue(enemy, kind);
-      nextEntitySequence += 1;
-      loot.push({
-        id,
-        kind,
-        previousPosition: enemy.position,
-        position: enemy.position,
-        value,
-        ageSeconds: 0,
-      });
-      events.push({
-        type: 'loot-dropped',
-        lootId: id,
-        kind,
-        position: enemy.position,
-        value,
-      });
-    }
-  }
-  enemies = enemies.filter((enemy) => enemy.hitPoints > 0);
-
-  const reinforcements: EnemyState[] = [];
-  enemies = enemies.map((enemy) => {
-    if (enemy.typeId !== 'kawaii-fortress' || !enemy.bossPhase) return enemy;
-    const maximumHitPoints = ENEMY_DEFINITIONS['kawaii-fortress'].hitPoints;
-    const nextPhase: 1 | 2 | 3 =
-      enemy.hitPoints <= maximumHitPoints * 0.33
-        ? 3
-        : enemy.hitPoints <= maximumHitPoints * 0.66
-          ? 2
-          : 1;
-    if (nextPhase <= enemy.bossPhase) return enemy;
-    if (nextPhase === 2) {
-      reinforcements.push(
-        createEnteringEnemy('basic', `enemy-${nextEntitySequence}`),
-        createEnteringEnemy('rusher', `enemy-${nextEntitySequence + 1}`),
-        createEnteringEnemy('artillery', `enemy-${nextEntitySequence + 2}`),
-        createEnteringEnemy('bomber', `enemy-${nextEntitySequence + 3}`),
-      );
-      nextEntitySequence += 4;
-    }
-    events.push({
-      type: 'boss-phase-changed',
-      bossId: enemy.id,
-      phase: nextPhase as 2 | 3,
-    });
-    return { ...enemy, bossPhase: nextPhase };
-  });
-  enemies = [...enemies, ...reinforcements];
-
-  if (wave) {
-    const completion = completeWaveIfCleared(wave, enemies, enemyProjectiles);
-    wave = completion.wave;
-    if (completion.event) events.push(completion.event);
-  }
-
-  const triggerSignals: TriggerSignal[] = [];
-  for (const event of events) {
-    switch (event.type) {
-      case 'weapon-fired':
-        triggerSignals.push({
-          type: 'onFire',
-          weaponTags: WEAPON_DEFINITIONS[event.weaponId].tags,
-        });
-        break;
-      case 'projectile-hit':
-        triggerSignals.push({
-          type: 'onHit',
-          weaponTags: WEAPON_DEFINITIONS[event.weaponId].tags,
-        });
-        break;
-      case 'enemy-killed':
-        triggerSignals.push({ type: 'onKill' });
-        break;
-      case 'vehicle-hit':
-        triggerSignals.push({ type: 'onDamage' });
-        break;
-      case 'wave-started':
-        triggerSignals.push({ type: 'onWaveStart' });
-        break;
-      case 'wave-completed':
-        triggerSignals.push({ type: 'onWaveEnd' });
-        break;
-      default:
-        break;
-    }
-  }
-  if (state.player.ammo > 0 && ammo === 0) {
-    triggerSignals.push({ type: 'onAmmoEmpty' });
-  }
-  if (state.player.energy > 0 && energy === 0) {
-    triggerSignals.push({ type: 'onEnergyEmpty' });
-  }
-  if (
-    !wasAnyWeaponOverheated &&
-    events.some(({ type }) => type === 'overheated')
-  ) {
-    triggerSignals.push({ type: 'onOverheat' });
-  }
-  const triggerResult = runBuildTriggers(
-    state.build,
-    triggerSignals,
-    { ammo, energy, hitPoints: playerHitPoints },
-    {
-      ammo: playerStats.maximumAmmo,
-      energy: playerStats.maximumEnergy,
-      hitPoints: playerStats.maximumHitPoints,
-    },
-  );
-  ammo = triggerResult.resources.ammo;
-  energy = triggerResult.resources.energy;
-  playerHitPoints = triggerResult.resources.hitPoints;
-
-  const pressure = enemies
-    .filter(
-      (enemy) =>
-        enemy.position <= state.frontline.position + FRONTLINE_PRESSURE_RANGE,
-    )
-    .reduce((sum, enemy) => sum + enemy.frontlinePressure, 0);
-  const frontlinePosition = clamp(
-    state.frontline.position +
-      killedEnemies.length * FRONTLINE_PUSH_PER_KILL -
-      pressure * FRONTLINE_RETREAT_PER_ENEMY_PER_SECOND * deltaSeconds,
-    0,
-    FRONTLINE_MAXIMUM,
-  );
-  const objectiveResult = advanceBattlefieldObjective(state.objective, {
-    deltaSeconds,
-    position: playerPosition,
-    enemies,
-    defeated: playerHitPoints <= 0 || frontlinePosition <= 0,
-    battlefieldCleared:
-      enemies.length === 0 &&
-      enemyProjectiles.length === 0 &&
-      (!wave || wave.completed),
-  });
-  if (objectiveResult.event) {
-    events.push(objectiveResult.event);
-    if (objectiveResult.event.type === 'objective-secured') {
-      const reward = BATTLEFIELD_OBJECTIVES[objectiveResult.event.kind];
-      playerHitPoints = Math.min(
-        playerStats.maximumHitPoints,
-        playerHitPoints + reward.repair,
-      );
-      treasureCollected += reward.treasure;
-    }
-  }
-  const riskTier = getRiskTier(playerPosition);
-  let status: SimulationState['status'] = 'active';
-  if (playerHitPoints <= 0 || frontlinePosition <= 0) status = 'defeat';
-  else if (
-    enemies.length === 0 &&
-    projectiles.length === 0 &&
-    enemyProjectiles.length === 0 &&
-    loot.length === 0 &&
-    (!wave || wave.completed)
-  ) {
-    status = 'victory';
-  }
-  if (status !== 'active')
-    events.push({ type: 'combat-ended', result: status });
-
-  const earned = earnBreakthroughCharge(
-    state.breakthrough,
-    events,
-    playerPosition,
-  );
-  events.push(...earned.events);
-
-  return {
-    ...state,
-    tick: state.tick + 1,
-    nextEntitySequence,
-    status,
-    breakthrough: earned.breakthrough,
-    ...(objectiveResult.objective
-      ? { objective: objectiveResult.objective }
-      : {}),
-    core,
+  return salvageDryKills({
+    ...stepped,
+    build: state.build,
+    status: forcedDefeat ? 'defeat' : stepped.status,
     player: {
-      ...state.player,
-      previousPosition: state.player.position,
-      position: playerPosition,
-      velocity: playerVelocity,
-      hitPoints: playerHitPoints,
-      maxHitPoints: playerStats.maximumHitPoints,
-      armor: playerStats.armor,
-      ammo,
-      energy,
-      weaponHeat,
-      primaryCooldown,
-      secondaryCooldown,
-      skillCooldown,
-      parryWindowSeconds,
-      boosting: isBoosting,
+      ...stepped.player,
+      hitPoints,
+      ammo: realAmmo,
     },
-    frontline: {
-      position: frontlinePosition,
-      pressure,
-      riskTier,
-      rewardMultiplier: getRewardMultiplier(riskTier),
-    },
-    ...(wave ? { wave } : {}),
-    enemies,
-    projectiles,
-    enemyProjectiles,
-    loot,
-    treasureCollected,
     events,
-  };
+  });
 }
