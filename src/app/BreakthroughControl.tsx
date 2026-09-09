@@ -19,27 +19,33 @@ export function BreakthroughControl({
   onActivate,
 }: BreakthroughControlProps) {
   const active = state.remainingSeconds > 0;
-  const ready = !active && state.charge >= BREAKTHROUGH.maximumCharge;
+  const committed = Boolean(state.committed);
+  const ready =
+    !active &&
+    !committed &&
+    state.charge >= BREAKTHROUGH.maximumCharge;
   const hitCharge = getBreakthroughHitCharge(position);
   const hint = active
-    ? '連射・排熱が加速。無敵ではない！'
-    : ready
-      ? hasThreat
-        ? '敵弾一掃＋排熱。今使う？ 温存する？'
-        : 'ゲージを温存中。敵が来たら発動可能'
-      : hitCharge > 0
-        ? `命中 +${hitCharge} ／ パリィ +25 ・さらに前で加速`
-        : '25mより前で命中、またはパリィで蓄積';
+    ? '火器3.25倍速・排熱5倍。追加4体は残る。4秒で全部壊せ！'
+    : committed
+      ? `この戦闘では再発動不可。再充填した${Math.floor(state.charge)}%は次戦へ持越し`
+      : ready
+        ? hasThreat
+          ? 'ALL-IN：敵4体が即乱入。弾幕は消えない。勝てる瞬間だけ押せ'
+          : '100%を温存中。敵がいる間だけDEATH RIDE可能'
+        : hitCharge > 0
+          ? `命中 +${hitCharge} ／ パリィ +25 ・危険地帯ほど早く貯まる`
+          : '25mより前で命中、またはパリィで蓄積';
   return (
     <section
       className="breakthrough-panel"
-      data-state={active ? 'active' : ready ? 'ready' : 'charging'}
-      aria-label="突破状況"
+      data-state={active ? 'active' : ready ? 'ready' : committed ? 'spent' : 'charging'}
+      aria-label="DEATH RIDE状況"
     >
       <button
         type="button"
         className="breakthrough-button"
-        aria-label="前線突破"
+        aria-label="DEATH RIDEを発動"
         aria-describedby="breakthrough-hint"
         disabled={!ready || !hasThreat}
         onClick={onActivate}
@@ -53,7 +59,7 @@ export function BreakthroughControl({
       >
         <span className="breakthrough-title">
           <kbd>E</kbd>
-          <strong>{active ? '前線突破中！' : '前線突破'}</strong>
+          <strong>{active ? 'DEATH RIDE' : '決死突破'}</strong>
           <b>
             {active
               ? `${state.remainingSeconds.toFixed(1)}s`
@@ -61,7 +67,7 @@ export function BreakthroughControl({
           </b>
         </span>
         <progress
-          aria-label={active ? '突破の残り時間' : '突破ゲージ'}
+          aria-label={active ? 'DEATH RIDEの残り時間' : '決死突破ゲージ'}
           value={active ? state.remainingSeconds : state.charge}
           max={
             active ? BREAKTHROUGH.durationSeconds : BREAKTHROUGH.maximumCharge
@@ -69,20 +75,22 @@ export function BreakthroughControl({
         />
         <span className="breakthrough-action">
           {active
-            ? '押し込むか、立て直すか'
-            : ready
-              ? hasThreat
-                ? '発動する'
-                : '敵を待つ'
-              : `現在 ${Math.floor(position)}m ／ 前進してチャージ`}
+            ? '追加4体乱入済み｜倒し切れ'
+            : committed
+              ? 'COMMITTED｜次戦まで再使用不可'
+              : ready
+                ? hasThreat
+                  ? 'ALL-IN：敵4体を追加して発動'
+                  : '敵を待つ'
+                : `現在 ${Math.floor(position)}m ／ 前で戦ってチャージ`}
         </span>
       </button>
       <small id="breakthrough-hint">{hint}</small>
       <span className="breakthrough-announcement" role="status">
         {active
-          ? '前線突破を発動しました'
+          ? 'DEATH RIDE発動。追加敵を4体確認'
           : ready
-            ? '前線突破が使用可能です'
+            ? 'DEATH RIDEが使用可能です'
             : ''}
       </span>
     </section>
