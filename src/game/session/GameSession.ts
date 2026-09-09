@@ -1,4 +1,4 @@
-import { createEnteringEnemy } from '../combat/createEnemy';
+import { createEnemy, createEnteringEnemy } from '../combat/createEnemy';
 import { createBattlefieldObjective } from '../simulation/battlefieldObjective';
 import { MODULE_SLOT_COUNT } from '../build/build';
 import { derivePlayerStats } from '../build/derivedStats';
@@ -35,6 +35,11 @@ import {
 } from '../data/routeDefinitions';
 
 import { isCombatCoreId } from '../data/combatCoreDefinitions';
+import {
+  addWantedLevel,
+  wantedPursuit,
+  wantedRewardRisk,
+} from './wantedPressure';
 
 export type SessionPhase =
   | 'garage'
@@ -68,6 +73,7 @@ export interface RunState {
   breakthroughCharge: number;
   objectivesAttempted: number;
   objectivesSecured: number;
+  wantedLevel: number;
 }
 
 export interface GameSessionState {
@@ -80,6 +86,14 @@ export interface GameSessionState {
 
 function combatSeed(seed: number, encounterIndex: number): number {
   return (seed + Math.imul(encounterIndex + 1, 0x85ebca6b)) >>> 0;
+}
+
+function rewardRiskMultiplier(run: RunState, frontlineRisk: number): number {
+  return (
+    frontlineRisk +
+    (run.currentRoute === 'elite' ? 0.7 : 0) +
+    wantedRewardRisk(run.wantedLevel)
+  );
 }
 
 function createCombat(
@@ -109,6 +123,15 @@ function createCombat(
       (type, index) => createEnteringEnemy(type, `route-guard-${index}`),
     );
   }
+
+  const pursuers = wantedPursuit(run.wantedLevel).map((type, index) =>
+    createEnemy(
+      type,
+      `wanted-pursuer-${run.encounterIndex}-${index}`,
+      Math.max(68, 108 - index * 10),
+    ),
+  );
+  combat.enemies = [...combat.enemies, ...pursuers];
   return combat;
 }
 
@@ -143,6 +166,7 @@ function createRun(seed: number, loadoutId: LoadoutId): RunState {
     breakthroughCharge: 0,
     objectivesAttempted: 0,
     objectivesSecured: 0,
+    wantedLevel: 0,
   };
 }
 
@@ -231,8 +255,9 @@ export function stepGameSession(
         run.encounterIndex,
         combat.tick,
         run.build,
-        combat.frontline.rewardMultiplier,
+        rewardRiskMultiplier(run, combat.frontline.rewardMultiplier),
         run.weaponCacheSequence,
+        run.wantedLevel,
       ),
     };
   }
@@ -282,10 +307,10 @@ export function stepGameSession(
       session.run.seed,
       session.run.encounterIndex,
       session.run.build,
-      combat.frontline.rewardMultiplier +
-        (session.run.currentRoute === 'elite' ? 0.7 : 0),
+      rewardRiskMultiplier(timedRun, combat.frontline.rewardMultiplier),
       combat.treasureCollected,
       timedRun.rewardRerollIndex,
+      timedRun.wantedLevel,
     ),
   };
 }
@@ -365,6 +390,7 @@ export function selectWeaponCacheReward(
     build,
     pendingWeaponCaches,
     weaponCacheSequence: session.run.weaponCacheSequence + 1,
+    wantedLevel: addWantedLevel(session.run.wantedLevel, reward.rarity),
   };
   const combat = {
     ...session.combat,
@@ -381,8 +407,9 @@ export function selectWeaponCacheReward(
         run.encounterIndex,
         combat.tick,
         build,
-        combat.frontline.rewardMultiplier,
+        rewardRiskMultiplier(run, combat.frontline.rewardMultiplier),
         run.weaponCacheSequence,
+        run.wantedLevel,
       ),
     };
   }
@@ -411,10 +438,13 @@ export function rerollRewards(session: GameSessionState): GameSessionState {
       session.run.seed,
       session.run.encounterIndex,
       session.run.build,
-      session.combat.frontline.rewardMultiplier +
-        (session.run.currentRoute === 'elite' ? 0.7 : 0),
+      rewardRiskMultiplier(
+        session.run,
+        session.combat.frontline.rewardMultiplier,
+      ),
       session.run.lastEncounterTreasure,
       rewardRerollIndex,
+      session.run.wantedLevel,
     ),
   };
 }
@@ -446,6 +476,7 @@ export function selectReward(
       (reward.rarity === 'epic' ? 10 : reward.rarity === 'rare' ? 5 : 0),
     rewardRerolls:
       session.run.rewardRerolls + (reward.rarity === 'epic' ? 1 : 0),
+    wantedLevel: addWantedLevel(session.run.wantedLevel, reward.rarity),
   };
   if (ROUTE_SELECTION_ENCOUNTERS.has(run.encounterIndex)) {
     return {
