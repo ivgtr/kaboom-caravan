@@ -119,7 +119,7 @@ describe('breakthrough charge', () => {
     ).toBe(34);
   });
 
-  it('clamps at 100 and emits ready exactly once', () => {
+  it('clamps at 100 and emits ready exactly once before the encounter commitment', () => {
     const result = earnBreakthroughCharge(
       { ...empty, charge: 98 },
       [parry, hit],
@@ -130,10 +130,18 @@ describe('breakthrough charge', () => {
     expect(
       earnBreakthroughCharge(result.breakthrough, [parry], 70).events,
     ).toEqual([]);
+
+    const banked = earnBreakthroughCharge(
+      { ...empty, charge: 98, committed: true },
+      [parry],
+      70,
+    );
+    expect(banked.breakthrough.charge).toBe(100);
+    expect(banked.events).toEqual([]);
   });
 
   it('does not recharge during the burst, even from parries', () => {
-    const active = { ...empty, remainingSeconds: 1 };
+    const active = { ...empty, remainingSeconds: 1, committed: true };
     expect(
       earnBreakthroughCharge(active, [hit, parry], 70).breakthrough,
     ).toEqual(active);
@@ -155,8 +163,8 @@ describe('breakthrough charge', () => {
   });
 });
 
-describe('breakthrough combat integration', () => {
-  it('requires full charge, an inactive burst and a live threat', () => {
+describe('DEATH RIDE combat integration', () => {
+  it('requires full charge, one unused commitment and a live threat', () => {
     const state = readyCombat();
     expect(canActivateBreakthrough(state)).toBe(true);
     state.breakthrough.charge = 99;
@@ -165,6 +173,9 @@ describe('breakthrough combat integration', () => {
     state.breakthrough.remainingSeconds = 0.1;
     expect(canActivateBreakthrough(state)).toBe(false);
     state.breakthrough.remainingSeconds = 0;
+    state.breakthrough.committed = true;
+    expect(canActivateBreakthrough(state)).toBe(false);
+    state.breakthrough.committed = false;
     state.enemies = [];
     expect(canActivateBreakthrough(state)).toBe(false);
     expect(
@@ -176,7 +187,7 @@ describe('breakthrough combat integration', () => {
     expect(canActivateBreakthrough(state)).toBe(false);
   });
 
-  it('clears incoming bullets before collision without granting parry rewards or free resources', () => {
+  it('keeps incoming bullets and resources while clearing only weapon lockout', () => {
     const initial = readyCombat();
     initial.player.hitPoints = 72;
     initial.player.energy = 50;
@@ -187,29 +198,31 @@ describe('breakthrough combat integration', () => {
     initial.player.weaponHeat.primary = { heat: 100, overheated: true };
     initial.player.weaponHeat.secondary = { heat: 90, overheated: true };
     initial.enemyProjectiles = [incoming(), incoming('second')];
-    const result = stepSimulation(initial, activate, SIMULATION_STEP_SECONDS);
-    expect(result.enemyProjectiles).toHaveLength(0);
+    const result = prepareBreakthrough(
+      initial,
+      true,
+      SIMULATION_STEP_SECONDS,
+    ).state;
+    expect(result.enemyProjectiles).toHaveLength(2);
     expect(result.player.hitPoints).toBe(72);
     expect(result.player.ammo).toBe(17);
-    expect(result.player.energy).toBeCloseTo(50 + 10 / 60);
-    expect(result.player.skillCooldown).toBeCloseTo(3 - 1 / 60);
+    expect(result.player.energy).toBe(50);
+    expect(result.player.skillCooldown).toBe(3);
     expect(result.player.primaryCooldown).toBe(0);
     expect(result.player.secondaryCooldown).toBe(0);
     expect(result.player.weaponHeat).toEqual({
       primary: { heat: 0, overheated: false },
       secondary: { heat: 0, overheated: false },
     });
-    expect(result.breakthrough.charge).toBe(0);
-    expect(result.breakthrough.remainingSeconds).toBe(4);
-    expect(
-      result.events.filter(({ type }) => type === 'breakthrough-activated'),
-    ).toHaveLength(1);
-    expect(result.events.some(({ type }) => type === 'attack-parried')).toBe(
-      false,
-    );
+    expect(result.breakthrough).toEqual({
+      charge: 0,
+      remainingSeconds: BREAKTHROUGH.durationSeconds,
+      hitChargeCooldown: 0,
+      committed: true,
+    });
   });
 
-  it('pushes enemies, interrupts windups, limits boss knockback and restores the frontline', () => {
+  it('opens a firing lane but injects a deterministic four-enemy countercharge', () => {
     const initial = readyCombat();
     initial.frontline.position = 78;
     initial.enemies = [
@@ -218,27 +231,39 @@ describe('breakthrough combat integration', () => {
       createEnemy('heavy', 'edge', 119),
     ];
     initial.enemies[0]!.attackWindupRemaining = 0.01;
-    const result = prepareBreakthrough(
+    const prepared = prepareBreakthrough(
       initial,
       true,
       SIMULATION_STEP_SECONDS,
-    ).state;
-    expect(result.enemies.map(({ position }) => position)).toEqual([
-      44, 89, 120,
+    );
+    const result = prepared.state;
+    expect(result.enemies.slice(0, 3).map(({ position }) => position)).toEqual([
+      40, 88, 120,
     ]);
-    expect(
-      result.enemies.every(
-        (enemy) =>
-          enemy.attackWindupRemaining === undefined &&
-          enemy.contactCooldown >= 0.65,
-      ),
-    ).toBe(true);
-    expect(result.frontline.position).toBe(80);
+    expect(result.enemies[0]!.attackWindupRemaining).toBe(0.01);
+    expect(result.frontline.position).toBe(78);
+    expect(result.enemies.slice(3).map(({ typeId }) => typeId)).toEqual([
+      'rusher',
+      'bomber',
+      'basic',
+      'artillery',
+    ]);
+    expect(result.enemies.slice(3).map(({ position }) => position)).toEqual([
+      30, 38, 46, 54,
+    ]);
+    expect(result.enemies.slice(3).map(({ id }) => id)).toEqual([
+      'death-ride-0-1',
+      'death-ride-0-2',
+      'death-ride-0-3',
+      'death-ride-0-4',
+    ]);
+    expect(prepared.events).toEqual([{ type: 'breakthrough-activated' }]);
   });
 
-  it('accelerates only weapon cooldowns and cooling while keeping ammunition costs', () => {
+  it('accelerates weapon cooldowns and cooling aggressively while keeping ammunition costs', () => {
     const initial = createSimulation();
     initial.breakthrough.remainingSeconds = 2;
+    initial.breakthrough.committed = true;
     initial.player.primaryCooldown = 1;
     initial.player.skillCooldown = 1;
     initial.player.weaponHeat.primary.heat = 80;
@@ -249,10 +274,11 @@ describe('breakthrough combat integration', () => {
       0.1,
     );
     expect(1 - burst.player.primaryCooldown).toBeCloseTo(
-      (1 - normal.player.primaryCooldown) * 1.75,
+      (1 - normal.player.primaryCooldown) * BREAKTHROUGH.fireRateMultiplier,
     );
     expect(80 - burst.player.weaponHeat.primary.heat).toBeCloseTo(
-      (80 - normal.player.weaponHeat.primary.heat) * 2.5,
+      (80 - normal.player.weaponHeat.primary.heat) *
+        BREAKTHROUGH.coolingMultiplier,
     );
     expect(burst.player.skillCooldown).toBe(normal.player.skillCooldown);
     const fired = stepSimulation(
@@ -264,21 +290,51 @@ describe('breakthrough combat integration', () => {
     expect(fired.player.energy).toBe(98);
   });
 
-  it('is not invincibility and does not continuously erase bullets', () => {
-    const initial = createSimulation();
-    initial.breakthrough.remainingSeconds = 2;
+  it('is not invincibility and activation no longer erases an incoming shot', () => {
+    const initial = readyCombat();
     initial.enemyProjectiles = [incoming()];
-    const result = stepSimulation(initial, IDLE_COMMAND, 1 / 60);
+    const result = stepSimulation(initial, activate, 1 / 60);
     expect(result.player.hitPoints).toBeLessThan(100);
     expect(result.events.some(({ type }) => type === 'vehicle-hit')).toBe(true);
+    expect(result.breakthrough.committed).toBe(true);
   });
 
-  it('expires on simulation time and does not automatically reactivate', () => {
-    let state = stepSimulation(readyCombat(), activate, 1 / 60);
-    for (let tick = 0; tick < 241; tick++)
-      state = stepSimulation(state, IDLE_COMMAND, 1 / 60);
+  it('allows only one activation per encounter even after banking another 100%', () => {
+    const activated = prepareBreakthrough(
+      readyCombat(),
+      true,
+      SIMULATION_STEP_SECONDS,
+    ).state;
+    const spent = {
+      ...activated,
+      breakthrough: {
+        ...activated.breakthrough,
+        remainingSeconds: 0,
+        charge: 100,
+      },
+    };
+    expect(canActivateBreakthrough(spent)).toBe(false);
+    const retried = prepareBreakthrough(
+      spent,
+      true,
+      SIMULATION_STEP_SECONDS,
+    ).state;
+    expect(retried.enemies).toHaveLength(spent.enemies.length);
+    expect(retried.breakthrough.charge).toBe(100);
+  });
+
+  it('expires on simulation time without clearing the encounter commitment', () => {
+    let state = prepareBreakthrough(
+      readyCombat(),
+      true,
+      SIMULATION_STEP_SECONDS,
+    ).state;
+    for (let tick = 0; tick < 241; tick++) {
+      state = prepareBreakthrough(state, false, 1 / 60).state;
+    }
     expect(state.breakthrough.remainingSeconds).toBe(0);
     expect(state.breakthrough.charge).toBe(0);
+    expect(state.breakthrough.committed).toBe(true);
   });
 
   it.each(['victory', 'defeat'] as const)(
