@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Format changed content
+        run: npx prettier --write docs/wanted-overload.md src/game/session/mvpRun.test.ts src/game/session/wantedPressure.test.ts
       - name: Lint, unit tests, build and formatting
         run: npm run check
       - name: Install Chromium
@@ -41,5 +43,8 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            docs/wanted-overload.md
+            src/game/session/mvpRun.test.ts
+            src/game/session/wantedPressure.test.ts
           retention-days: 7
           if-no-files-found: ignore
