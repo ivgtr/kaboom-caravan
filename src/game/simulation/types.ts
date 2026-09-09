@@ -85,6 +85,8 @@ export interface EnemyState {
   bossPhase?: 1 | 2 | 3;
   elite?: boolean;
   attackWindupRemaining?: number;
+  breakStage?: number;
+  breakRemainingSeconds?: number;
 }
 
 export type EnemyProjectileVisualId = 'spore' | 'boss-core' | 'boss-burst';
