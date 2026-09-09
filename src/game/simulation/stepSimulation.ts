@@ -203,6 +203,12 @@ export function stepSimulation(
   command: PlayerCommand,
   deltaSeconds: number,
 ): SimulationState {
+  // Session/unit-test fixtures sometimes enter this function already resolved.
+  // Preserve that explicit terminal state; the BREAKOUT rule only replaces a
+  // victory that emerges from an ACTIVE encounter via the old full-clear rule.
+  if (state.status !== 'active') {
+    return stepRedlineSimulation(state, command, deltaSeconds);
+  }
   return enforceBreakoutResolution(
     stepRedlineSimulation(state, command, deltaSeconds),
   );
