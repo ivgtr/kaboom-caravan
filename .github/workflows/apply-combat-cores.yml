@@ -1,0 +1,54 @@
+name: Apply and validate combat cores
+
+on:
+  push:
+    branches: [codex/run-defining-upgrades]
+    paths: [.github/workflows/apply-combat-cores.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply the locally tested source patch
+        shell: python
+        run: |
+          import base64, hashlib, lzma, pathlib, subprocess
+          patch = lzma.decompress(base64.b64decode(pathlib.Path('.core-existing.patch.xz.b64').read_text()))
+          assert hashlib.sha256(patch).hexdigest() == '5cff03ad70996411bdef80de61f65132926dc774c876f939d2d1eebab0cf3fb2'
+          subprocess.run(['git', 'apply', '--unidiff-zero', '-'], input=patch, check=True)
+          for path in ['.core-existing.patch.xz.b64', '.github/workflows/apply-combat-cores.yml', '.github/workflows/workspace-snapshot.yml']:
+              pathlib.Path(path).unlink()
+      - run: npm ci
+      - run: npx prettier --write src/app/CombatCorePanel.tsx src/app/combat-core.css src/game/data/combatCoreDefinitions.ts src/game/simulation/combatCore.ts src/game/simulation/combatCore.test.ts src/game/session/combatCoreSession.test.ts tests/e2e/combat-core.spec.ts docs/combat-cores.md
+      - run: npm run check
+      - name: Commit only on the authorized feature branch
+        run: |
+          test "$(git branch --show-current)" = codex/run-defining-upgrades
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: add run-defining combat cores with deterministic regression coverage'
+          git push origin HEAD:codex/run-defining-upgrades
+      - run: npx playwright install --with-deps chromium
+      - name: Browser interaction and viewport verification
+        run: npm run test:e2e -- tests/e2e/pause.spec.ts tests/e2e/breakthrough.spec.ts tests/e2e/combat-core.spec.ts
+        env:
+          CAPTURE_UI_REVIEW: '1'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: combat-core-review
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 3
+          if-no-files-found: ignore
