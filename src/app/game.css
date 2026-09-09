@@ -9,7 +9,7 @@
   position: absolute;
   top: calc(100% + 2px);
   left: 50%;
-  content: 'SHIFT+射撃→REDLINE';
+  content: 'BOOST+射撃→REDLINE';
   padding: 1px 4px;
   border-radius: 999px;
   background: rgb(38 50 73 / 82%);
