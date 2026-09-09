@@ -115,20 +115,24 @@ test.describe('touch landscape 844x390', () => {
       page.getByRole('dialog', { name: '横向きでプレイ' }),
     ).not.toBeVisible();
 
-    const viewportFit = await page.locator('.immersive-shell').evaluate((shell) => {
-      const rect = shell.getBoundingClientRect();
-      return {
-        height: rect.height,
-        width: rect.width,
-        touchAction: getComputedStyle(shell).touchAction,
-        visualHeight: window.visualViewport?.height ?? innerHeight,
-        visualWidth: window.visualViewport?.width ?? innerWidth,
-      };
-    });
-    expect(Math.abs(viewportFit.height - viewportFit.visualHeight)).toBeLessThan(
+    const viewportFit = await page
+      .locator('.immersive-shell')
+      .evaluate((shell) => {
+        const rect = shell.getBoundingClientRect();
+        return {
+          height: rect.height,
+          width: rect.width,
+          touchAction: getComputedStyle(shell).touchAction,
+          visualHeight: window.visualViewport?.height ?? innerHeight,
+          visualWidth: window.visualViewport?.width ?? innerWidth,
+        };
+      });
+    expect(
+      Math.abs(viewportFit.height - viewportFit.visualHeight),
+    ).toBeLessThan(2);
+    expect(Math.abs(viewportFit.width - viewportFit.visualWidth)).toBeLessThan(
       2,
     );
-    expect(Math.abs(viewportFit.width - viewportFit.visualWidth)).toBeLessThan(2);
     expect(viewportFit.touchAction).toBe('none');
 
     const contextMenuPrevented = await page
@@ -155,9 +159,7 @@ test.describe('touch landscape 844x390', () => {
       });
     expect(dragPrevented).toBe(true);
 
-    await page
-      .getByRole('button', { name: '一時停止と操作ガイド' })
-      .tap();
+    await page.getByRole('button', { name: '一時停止と操作ガイド' }).tap();
     const dialog = page.getByRole('dialog', { name: '一時停止中' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: '戦闘を再開' }).tap();
