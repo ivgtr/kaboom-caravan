@@ -32,6 +32,9 @@ function prepareEnemyForStep(
   source: EnemyState,
   deltaSeconds: number,
 ): PreparedEnemy {
+  const definition = ENEMY_DEFINITIONS[source.typeId];
+  const normalFrontlinePressure =
+    definition.frontlinePressure * (source.elite === true ? 1.25 : 1);
   const activeBreakSeconds = source.breakRemainingSeconds ?? 0;
   if (activeBreakSeconds > 0) {
     return {
@@ -39,6 +42,7 @@ function prepareEnemyForStep(
         ...source,
         previousPosition: source.position,
         contactCooldown: Math.max(0, source.contactCooldown - deltaSeconds),
+        frontlinePressure: normalFrontlinePressure * 0.2,
         attackWindupRemaining: undefined,
         breakRemainingSeconds: Math.max(0, activeBreakSeconds - deltaSeconds),
       },
@@ -46,7 +50,6 @@ function prepareEnemyForStep(
     };
   }
 
-  const definition = ENEMY_DEFINITIONS[source.typeId];
   const maximumHitPoints =
     definition.hitPoints * (source.elite === true ? 1.45 : 1);
   const hitPointRatio = Math.max(0, source.hitPoints) / maximumHitPoints;
@@ -67,6 +70,7 @@ function prepareEnemyForStep(
     return {
       enemy: {
         ...source,
+        frontlinePressure: normalFrontlinePressure,
         breakStage: currentStage,
         breakRemainingSeconds: 0,
       },
@@ -88,6 +92,7 @@ function prepareEnemyForStep(
         source.armor - definition.breakArmorDamage * crossedStages,
       ),
       contactCooldown: Math.max(source.contactCooldown, 0.35),
+      frontlinePressure: normalFrontlinePressure * 0.2,
       attackWindupRemaining: undefined,
       breakStage: nextStage,
       breakRemainingSeconds:
