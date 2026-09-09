@@ -47,7 +47,14 @@ export function wantedPursuit(level: number): readonly EnemyTypeId[] {
   return PURSUIT_BY_LEVEL[clampWantedLevel(level)]!;
 }
 
-export function wantedRewardWarning(rarity: WantedRarity): string {
-  const gain = wantedGainForRarity(rarity);
-  return `追跡熱 +${gain}：次戦の追撃部隊が強化される`;
+export function wantedRewardWarning(
+  rarity: WantedRarity,
+  currentLevel = 0,
+): string {
+  const current = clampWantedLevel(currentLevel);
+  const next = addWantedLevel(current, rarity);
+  if (current >= MAX_WANTED_LEVEL) {
+    return `追跡熱 MAX ${MAX_WANTED_LEVEL}/${MAX_WANTED_LEVEL}：最凶の追撃が継続`;
+  }
+  return `追跡熱 ${current}→${next}/${MAX_WANTED_LEVEL}：次戦の追撃部隊が強化`;
 }
