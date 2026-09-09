@@ -85,8 +85,7 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     encounterTicks: [447, 516, 620, 468, 443, 521, 909, 1088, 1002, 661],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 120, 125, 125, 125],
     forwardDistances: [
-      69.845, 70, 57.6, 65.095, 68.013, 65.595, 52.632, 69.495, 66.095,
-      62.573,
+      69.845, 70, 57.6, 65.095, 68.013, 65.595, 52.632, 69.495, 66.095, 62.573,
     ],
     primaryShots: 166,
     secondaryShots: 42,
@@ -128,8 +127,7 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     encounterTicks: [447, 525, 885, 471, 551, 476, 517, 488, 556, 669],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 92, 100, 92, 125],
     forwardDistances: [
-      69.845, 70, 66.993, 62.703, 69.3, 64.1, 69.407, 65.9, 66.095,
-      62.573,
+      69.845, 70, 66.993, 62.703, 69.3, 64.1, 69.407, 65.9, 66.095, 62.573,
     ],
     primaryShots: 138,
     secondaryShots: 48,
@@ -169,8 +167,7 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
     encounterTicks: [447, 521, 412, 466, 467, 520, 592, 490, 588, 564],
     endingHitPoints: [100, 100, 100, 100, 100, 91, 100, 100, 100, 79],
     forwardDistances: [
-      69.845, 70, 68.2, 70, 59.158, 65.595, 62.193, 65.542, 63.137,
-      62.295,
+      69.845, 70, 68.2, 70, 59.158, 65.595, 62.193, 65.542, 63.137, 62.295,
     ],
     primaryShots: 127,
     secondaryShots: 48,
