@@ -1,3 +1,5 @@
+import { createEnteringEnemy } from '../combat/createEnemy';
+import { createBattlefieldObjective } from '../simulation/battlefieldObjective';
 import { MODULE_SLOT_COUNT } from '../build/build';
 import { derivePlayerStats } from '../build/derivedStats';
 import type { ModuleId, WeaponId } from '../data/ids';
@@ -26,6 +28,7 @@ import {
   type LoadoutId,
 } from '../data/loadoutDefinitions';
 import {
+  BATTLEFIELD_OBJECTIVES,
   createRouteChoices,
   type RouteChoice,
   type RouteType,
@@ -63,6 +66,8 @@ export interface RunState {
   parries: number;
   damageDealt: number;
   breakthroughCharge: number;
+  objectivesAttempted: number;
+  objectivesSecured: number;
 }
 
 export interface GameSessionState {
@@ -97,6 +102,13 @@ function createCombat(
   combat.player.energy = stats.maximumEnergy;
   combat.eliteEncounter = run.currentRoute === 'elite';
   combat.breakthrough.charge = run.breakthroughCharge;
+  const objective = createBattlefieldObjective(run.currentRoute);
+  if (objective) {
+    combat.objective = objective;
+    combat.enemies = BATTLEFIELD_OBJECTIVES[objective.kind].guards.map(
+      (type, index) => createEnteringEnemy(type, `route-guard-${index}`),
+    );
+  }
   return combat;
 }
 
@@ -129,6 +141,8 @@ function createRun(seed: number, loadoutId: LoadoutId): RunState {
     parries: 0,
     damageDealt: 0,
     breakthroughCharge: 0,
+    objectivesAttempted: 0,
+    objectivesSecured: 0,
   };
 }
 
@@ -174,6 +188,9 @@ export function stepGameSession(
   const progressedRun: RunState = {
     ...session.run,
     breakthroughCharge: combat.breakthrough.charge,
+    objectivesSecured:
+      session.run.objectivesSecured +
+      combat.events.filter(({ type }) => type === 'objective-secured').length,
     enemiesDefeated:
       session.run.enemiesDefeated +
       combat.events.filter(({ type }) => type === 'enemy-killed').length,
@@ -194,7 +211,9 @@ export function stepGameSession(
       ),
   };
   const collectedWeaponCaches = combat.events.filter(
-    (event) => event.type === 'loot-collected' && event.kind === 'weapon-cache',
+    (event) =>
+      (event.type === 'loot-collected' && event.kind === 'weapon-cache') ||
+      (event.type === 'objective-secured' && event.kind === 'salvage'),
   ).length;
   if (combat.status !== 'defeat' && collectedWeaponCaches > 0) {
     const run = {
@@ -392,7 +411,8 @@ export function rerollRewards(session: GameSessionState): GameSessionState {
       session.run.seed,
       session.run.encounterIndex,
       session.run.build,
-      session.combat.frontline.rewardMultiplier,
+      session.combat.frontline.rewardMultiplier +
+        (session.run.currentRoute === 'elite' ? 0.7 : 0),
       session.run.lastEncounterTreasure,
       rewardRerollIndex,
     ),
@@ -454,15 +474,10 @@ export function selectRoute(
   if (!route) throw new Error(`Route not found: ${routeId}`);
   const run: RunState = {
     ...session.run,
-    currentRoute: route.type === 'elite' ? 'elite' : 'normal',
-    vehicleHitPoints:
-      route.type === 'repair'
-        ? session.run.vehicleHitPoints + 30
-        : session.run.vehicleHitPoints,
-    treasureCollected:
-      session.run.treasureCollected + (route.type === 'salvage' ? 2 : 0),
-    rewardRerolls:
-      session.run.rewardRerolls + (route.type === 'salvage' ? 1 : 0),
+    currentRoute: route.type,
+    objectivesAttempted:
+      session.run.objectivesAttempted +
+      (route.type === 'repair' || route.type === 'salvage' ? 1 : 0),
   };
   return {
     phase: 'combat',

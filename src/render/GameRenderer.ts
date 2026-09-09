@@ -1,3 +1,4 @@
+import { drawBattlefieldObjectiveField } from './battlefieldObjectiveField';
 import { drawBreakthroughField } from './breakthroughField';
 import type { EnemyTypeId, ModuleId, WeaponId } from '../game/data/ids';
 import {
@@ -271,6 +272,12 @@ export class GameRenderer {
       (position) => this.worldToScreen(position),
       this.groundY,
       this.reducedMotion,
+    );
+    drawBattlefieldObjectiveField(
+      context,
+      state,
+      (position) => this.worldToScreen(position),
+      this.groundY,
     );
     this.drawExhaustPuffs();
 

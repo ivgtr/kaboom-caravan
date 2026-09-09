@@ -1,3 +1,5 @@
+import { advanceBattlefieldObjective } from './battlefieldObjective';
+import { BATTLEFIELD_OBJECTIVES } from '../data/routeDefinitions';
 import {
   WEAPON_DEFINITIONS,
   type WeaponDefinition,
@@ -1059,6 +1061,27 @@ export function stepSimulation(
     0,
     FRONTLINE_MAXIMUM,
   );
+  const objectiveResult = advanceBattlefieldObjective(state.objective, {
+    deltaSeconds,
+    position: playerPosition,
+    enemies,
+    defeated: playerHitPoints <= 0 || frontlinePosition <= 0,
+    battlefieldCleared:
+      enemies.length === 0 &&
+      enemyProjectiles.length === 0 &&
+      (!wave || wave.completed),
+  });
+  if (objectiveResult.event) {
+    events.push(objectiveResult.event);
+    if (objectiveResult.event.type === 'objective-secured') {
+      const reward = BATTLEFIELD_OBJECTIVES[objectiveResult.event.kind];
+      playerHitPoints = Math.min(
+        playerStats.maximumHitPoints,
+        playerHitPoints + reward.repair,
+      );
+      treasureCollected += reward.treasure;
+    }
+  }
   const riskTier = getRiskTier(playerPosition);
   let status: SimulationState['status'] = 'active';
   if (playerHitPoints <= 0 || frontlinePosition <= 0) status = 'defeat';
@@ -1087,6 +1110,9 @@ export function stepSimulation(
     nextEntitySequence,
     status,
     breakthrough: earned.breakthrough,
+    ...(objectiveResult.objective
+      ? { objective: objectiveResult.objective }
+      : {}),
     core,
     player: {
       ...state.player,

@@ -1,3 +1,8 @@
+import {
+  BATTLEFIELD_OBJECTIVES,
+  objectiveInstructions,
+} from '../game/data/routeDefinitions';
+import type { BattlefieldObjectiveState } from '../game/simulation/types';
 import { useEffect, useRef } from 'react';
 import './pause.css';
 import {
@@ -7,9 +12,11 @@ import {
 
 export function PauseMenu({
   onResume,
+  objective,
   coreId,
 }: {
   onResume: () => void;
+  objective?: BattlefieldObjectiveState;
   coreId?: CombatCoreId;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -100,6 +107,16 @@ export function PauseMenu({
           タブやウィンドウを離れると自動で一時停止します。
         </p>
       </section>
+      {objective && (
+        <section className="pause-objective" aria-label="寄り道の回収ルール">
+          <h2>{BATTLEFIELD_OBJECTIVES[objective.kind].displayName}</h2>
+          <p>{objectiveInstructions(objective.kind)}</p>
+          <p>
+            移動・射撃は自由。退いても進捗は残ります。期限内に全敵・敵弾を排除しても回収できます。失敗しても通常戦闘は続きます。停止中・武器箱選択中は期限も停止します。
+          </p>
+          <p>回収報酬：{BATTLEFIELD_OBJECTIVES[objective.kind].reward}</p>
+        </section>
+      )}
       {coreId && (
         <section className="pause-core" aria-label="改造コアの使い方">
           <h2>{COMBAT_CORE_DEFINITIONS[coreId].displayName}</h2>
