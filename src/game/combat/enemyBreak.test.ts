@@ -4,9 +4,9 @@ import { createEnemy } from './createEnemy';
 import { stepEnemyBehaviors } from './enemyBehavior';
 
 describe('enemy break combat', () => {
-  it('recoils and interrupts an enemy when damage crosses its break threshold', () => {
+  it('stops an enemy and suppresses its pressure when damage crosses a break threshold', () => {
     const basic = createEnemy('basic', 'basic-break', 50);
-    basic.hitPoints = 16;
+    basic.hitPoints = 18;
 
     const broken = stepEnemyBehaviors(
       [basic],
@@ -18,10 +18,10 @@ describe('enemy break combat', () => {
     );
     const enemy = broken.enemies[0]!;
 
-    expect(enemy.position).toBeCloseTo(53.2);
+    expect(enemy.position).toBe(50);
     expect(enemy.breakStage).toBe(1);
-    expect(enemy.breakRemainingSeconds).toBeCloseTo(0.52);
-    expect(enemy.attackWindupRemaining).toBeUndefined();
+    expect(enemy.breakRemainingSeconds).toBeCloseTo(0.45);
+    expect(enemy.frontlinePressure).toBeCloseTo(0.2);
     expect(broken.events).toHaveLength(0);
 
     const staggered = stepEnemyBehaviors(
@@ -33,8 +33,8 @@ describe('enemy break combat', () => {
       0.2,
     );
 
-    expect(staggered.enemies[0]!.position).toBeCloseTo(53.2);
-    expect(staggered.enemies[0]!.breakRemainingSeconds).toBeCloseTo(0.32);
+    expect(staggered.enemies[0]!.position).toBe(50);
+    expect(staggered.enemies[0]!.breakRemainingSeconds).toBeCloseTo(0.25);
     expect(staggered.events).toHaveLength(0);
   });
 
@@ -53,7 +53,7 @@ describe('enemy break combat', () => {
 
     expect(firstBreak.breakStage).toBe(1);
     expect(firstBreak.armor).toBe(2);
-    expect(firstBreak.position).toBeCloseTo(52.8);
+    expect(firstBreak.position).toBe(50);
 
     const readyForSecondBreak = {
       ...firstBreak,
@@ -71,11 +71,11 @@ describe('enemy break combat', () => {
 
     expect(secondBreak.breakStage).toBe(2);
     expect(secondBreak.armor).toBe(1);
-    expect(secondBreak.position - firstBreak.position).toBeCloseTo(3.22);
-    expect(secondBreak.breakRemainingSeconds).toBeCloseTo(0.84);
+    expect(secondBreak.position).toBe(50);
+    expect(secondBreak.breakRemainingSeconds).toBeCloseTo(0.78);
   });
 
-  it('cancels a ranged attack windup when artillery is broken', () => {
+  it('pauses a ranged windup during break instead of deleting the parry opportunity', () => {
     const artillery = createEnemy('artillery', 'artillery-break', 50);
     const windingUp = stepEnemyBehaviors(
       [artillery],
@@ -85,10 +85,10 @@ describe('enemy break combat', () => {
       100,
       SIMULATION_STEP_SECONDS,
     ).enemies[0]!;
-    expect(windingUp.attackWindupRemaining).toBeDefined();
+    const windupSeconds = windingUp.attackWindupRemaining!;
 
     const broken = stepEnemyBehaviors(
-      [{ ...windingUp, hitPoints: 26 }],
+      [{ ...windingUp, hitPoints: 27 }],
       10,
       2.5,
       1,
@@ -97,8 +97,17 @@ describe('enemy break combat', () => {
     );
 
     expect(broken.enemies[0]!.breakStage).toBe(1);
-    expect(broken.enemies[0]!.attackWindupRemaining).toBeUndefined();
+    expect(broken.enemies[0]!.attackWindupRemaining).toBe(windupSeconds);
     expect(broken.rangedAttacks).toHaveLength(0);
-    expect(broken.events).toHaveLength(0);
+
+    const paused = stepEnemyBehaviors(
+      broken.enemies,
+      10,
+      2.5,
+      1,
+      100,
+      0.2,
+    );
+    expect(paused.enemies[0]!.attackWindupRemaining).toBe(windupSeconds);
   });
 });
