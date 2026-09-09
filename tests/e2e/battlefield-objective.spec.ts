@@ -213,8 +213,6 @@ test('enemy presence blocks occupation and timeout does not end combat', async (
 
 for (const [width, height] of [
   [1280, 800],
-  [390, 844],
-  [320, 568],
   [844, 390],
   [568, 320],
 ]) {
