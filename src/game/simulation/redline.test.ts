@@ -18,34 +18,39 @@ describe('REDLINE blood-ammo loop', () => {
     expect(result.player.hitPoints).toBe(100);
     expect(result.player.ammo).toBe(0);
     expect(result.projectiles).toHaveLength(0);
-    expect(result.events.some(({ type }) => type === 'weapon-fired')).toBe(false);
+    expect(result.events.some(({ type }) => type === 'weapon-fired')).toBe(
+      false,
+    );
   });
 
-  it('converts hull integrity into a level-3 emergency volley when deliberately overridden', () => {
-    const initial = createSimulation();
-    initial.player.ammo = 0;
+  it(
+    'converts hull integrity into a level-3 emergency volley when deliberately overridden',
+    () => {
+      const initial = createSimulation();
+      initial.player.ammo = 0;
 
-    const result = stepSimulation(
-      initial,
-      { ...IDLE_COMMAND, boost: true, firePrimary: true },
-      SIMULATION_STEP_SECONDS,
-    );
+      const result = stepSimulation(
+        initial,
+        { ...IDLE_COMMAND, boost: true, firePrimary: true },
+        SIMULATION_STEP_SECONDS,
+      );
 
-    expect(result.player.hitPoints).toBe(
-      100 - REDLINE_RULES.hullCostPerAmmo,
-    );
-    expect(result.player.ammo).toBe(0);
-    expect(result.projectiles).toHaveLength(2);
-    for (const projectile of result.projectiles) {
-      expect(projectile.damage).toBeCloseTo(13.8);
-    }
-    expect(result.build.weaponLevels['machine-cannon']).toBe(1);
-    expect(result.events).toContainEqual({
-      type: 'vehicle-hit',
-      sourceId: 'redline-overdrive',
-      damage: REDLINE_RULES.hullCostPerAmmo,
-    });
-  });
+      expect(result.player.hitPoints).toBe(
+        100 - REDLINE_RULES.hullCostPerAmmo,
+      );
+      expect(result.player.ammo).toBe(0);
+      expect(result.projectiles).toHaveLength(2);
+      for (const projectile of result.projectiles) {
+        expect(projectile.damage).toBeCloseTo(13.8);
+      }
+      expect(result.build.weaponLevels['machine-cannon']).toBe(1);
+      expect(result.events).toContainEqual({
+        type: 'vehicle-hit',
+        sourceId: 'redline-overdrive',
+        damage: REDLINE_RULES.hullCostPerAmmo,
+      });
+    },
+  );
 
   it('salvages ammunition from a kill landed while the caravan is dry', () => {
     const initial = createSimulation();
@@ -92,6 +97,8 @@ describe('REDLINE blood-ammo loop', () => {
     expect(result.player.hitPoints).toBe(REDLINE_RULES.hullCostPerAmmo);
     expect(result.player.ammo).toBe(0);
     expect(result.projectiles).toHaveLength(0);
-    expect(result.events.some(({ type }) => type === 'weapon-fired')).toBe(false);
+    expect(result.events.some(({ type }) => type === 'weapon-fired')).toBe(
+      false,
+    );
   });
 });

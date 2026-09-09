@@ -101,11 +101,7 @@ export function stepSimulation(
   command: PlayerCommand,
   deltaSeconds: number,
 ): SimulationState {
-  if (
-    state.status !== 'active' ||
-    state.player.ammo > 0 ||
-    !command.boost
-  ) {
+  if (state.status !== 'active' || state.player.ammo > 0 || !command.boost) {
     return salvageDryKills(stepBaseSimulation(state, command, deltaSeconds));
   }
 
