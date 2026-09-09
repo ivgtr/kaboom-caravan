@@ -90,9 +90,9 @@ export function PauseMenu({
             </dd>
           </div>
           <div>
-            <dt>急加速</dt>
+            <dt>急加速 / RAM</dt>
             <dd>
-              <kbd>左SHIFT</kbd>
+              <kbd>左SHIFT</kbd> + 前進
             </dd>
           </div>
           <div>
@@ -109,6 +109,7 @@ export function PauseMenu({
           </div>
         </dl>
         <p className="pause-touch-hint">
+          前進しながら急加速し、十分な速度で敵へ接触するとRAM。弱い敵を倒し切れば速度と耐久を失わず轢き抜けますが、倒し切れない相手へ突っ込むと車体ダメージを受けて大きく弾かれます。弾薬0でRAM撃破できればREDLINEと同じ緊急弾薬を回収できます。
           25mより前での命中やパリィで決死突破ゲージを蓄積。満タンでEを押すと敵4体を自分で追加し、4秒だけ火器3.25倍速・排熱5倍のDEATH
           RIDEへ入ります。
           敵弾も攻撃予兆も消えず、追加敵を倒し切れなければそのまま残ります。1戦1回だけ使用でき、使用後に再充填したゲージは次戦へ持ち越せます。

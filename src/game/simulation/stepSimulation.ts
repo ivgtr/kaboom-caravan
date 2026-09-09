@@ -1,6 +1,7 @@
 import { derivePlayerStats } from '../build/derivedStats';
 import type { WeaponId } from '../data/ids';
 import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
+import { resolveDamage } from './damage';
 import { stepSimulation as stepBaseSimulation } from './stepSimulationBase';
 import type { CombatEvent, PlayerCommand, SimulationState } from './types';
 
@@ -14,7 +15,33 @@ export const REDLINE_RULES = {
   salvageAmmoPerKill: 10,
 } as const;
 
+/**
+ * RAM makes forward boost a second offensive verb instead of pure mobility.
+ * Fragile enemies can be driven through at speed; anything that survives the
+ * impact throws the caravan backwards and charges the hull for the mistake.
+ */
+export const RAM_RULES = {
+  minimumVelocity: 8,
+  contactSlack: 0.75,
+  baseDamage: 28,
+  velocityDamageMultiplier: 2,
+  reboundPushDistance: 8,
+  reboundVelocityMultiplier: 0.55,
+  minimumReboundVelocity: 6,
+  stunSeconds: 0.65,
+  crashContactDamageMultiplier: 0.75,
+  crashRadiusDamageMultiplier: 2,
+  minimumCrashDamage: 10,
+} as const;
+
 const REDLINE_SOURCE_ID = 'redline-overdrive';
+const RAM_CRASH_SOURCE_PREFIX = 'ram-crash';
+
+interface RamPreparation {
+  state: SimulationState;
+  crashDamage: number;
+  targetId?: string;
+}
 
 function requestedWeaponIds(
   state: SimulationState,
@@ -88,13 +115,120 @@ function salvageDryKills(state: SimulationState): SimulationState {
   };
 }
 
+function crashDamageForTarget(
+  target: SimulationState['enemies'][number],
+): number {
+  return Math.max(
+    RAM_RULES.minimumCrashDamage,
+    Math.round(
+      target.contactDamage * RAM_RULES.crashContactDamageMultiplier +
+        target.radius * RAM_RULES.crashRadiusDamageMultiplier,
+    ),
+  );
+}
+
+function prepareRamImpact(
+  state: SimulationState,
+  command: PlayerCommand,
+): RamPreparation {
+  const wantsForwardRam =
+    state.status === 'active' &&
+    command.boost &&
+    command.move === 1 &&
+    !command.activateSkill &&
+    state.player.energy > 0 &&
+    state.player.velocity >= RAM_RULES.minimumVelocity;
+  if (!wantsForwardRam) return { state, crashDamage: 0 };
+
+  const target = [...state.enemies]
+    .filter(
+      (enemy) =>
+        enemy.hitPoints > 0 &&
+        enemy.position >= state.player.position &&
+        enemy.position - state.player.position <=
+          state.player.radius + enemy.radius + RAM_RULES.contactSlack,
+    )
+    .sort((left, right) => left.position - right.position)[0];
+  if (!target) return { state, crashDamage: 0 };
+
+  const impactDamage = resolveDamage(
+    RAM_RULES.baseDamage +
+      state.player.velocity * RAM_RULES.velocityDamageMultiplier,
+    target.armor,
+  );
+  const lethal = target.hitPoints <= impactDamage;
+  const impactedTarget = lethal
+    ? { ...target, hitPoints: target.hitPoints - impactDamage }
+    : {
+        ...target,
+        previousPosition: target.position,
+        position: target.position + RAM_RULES.reboundPushDistance,
+        hitPoints: target.hitPoints - impactDamage,
+        contactCooldown: Math.max(
+          target.contactCooldown,
+          RAM_RULES.stunSeconds,
+        ),
+        attackWindupRemaining: undefined,
+        breakRemainingSeconds: Math.max(
+          target.breakRemainingSeconds ?? 0,
+          RAM_RULES.stunSeconds,
+        ),
+      };
+
+  return {
+    state: {
+      ...state,
+      player: lethal
+        ? state.player
+        : {
+            ...state.player,
+            velocity: -Math.max(
+              RAM_RULES.minimumReboundVelocity,
+              state.player.velocity * RAM_RULES.reboundVelocityMultiplier,
+            ),
+          },
+      enemies: state.enemies.map((enemy) =>
+        enemy.id === target.id ? impactedTarget : enemy,
+      ),
+    },
+    crashDamage: lethal ? 0 : crashDamageForTarget(target),
+    targetId: target.id,
+  };
+}
+
+function applyHullDamage(
+  state: SimulationState,
+  damage: number,
+  sourceId: string,
+): SimulationState {
+  if (damage <= 0) return state;
+  const hitPoints = Math.max(0, state.player.hitPoints - damage);
+  const forcedDefeat = state.status !== 'defeat' && hitPoints <= 0;
+  let events: CombatEvent[] = [
+    ...state.events,
+    { type: 'vehicle-hit', sourceId, damage },
+  ];
+
+  if (forcedDefeat) {
+    events = events.filter(({ type }) => type !== 'combat-ended');
+    events.push({ type: 'combat-ended', result: 'defeat' });
+  }
+
+  return {
+    ...state,
+    status: forcedDefeat ? 'defeat' : state.status,
+    player: { ...state.player, hitPoints },
+    events,
+  };
+}
+
 /**
  * Preserve the established simulation and only intervene on the deliberate
  * BOOST + FIRE override while the caravan is completely dry. A REDLINE volley
  * may spend every hull-ammo unit except the final hit point; enemy damage can
  * still finish the player on the same tick.
  */
-export function stepSimulation(
+function stepRedlineSimulation(
   state: SimulationState,
   command: PlayerCommand,
   deltaSeconds: number,
@@ -126,34 +260,30 @@ export function stepSimulation(
     0,
     stepped.player.ammo - injectedAmmo + hullAmmoSpent,
   );
-  const hitPoints = Math.max(0, stepped.player.hitPoints - hullDamage);
-  const forcedDefeat = stepped.status !== 'defeat' && hitPoints <= 0;
-  let events = stepped.events;
-
-  if (hullDamage > 0) {
-    events = [
-      ...events,
-      {
-        type: 'vehicle-hit',
-        sourceId: REDLINE_SOURCE_ID,
-        damage: hullDamage,
-      },
-    ];
-  }
-  if (forcedDefeat) {
-    events = events.filter(({ type }) => type !== 'combat-ended');
-    events.push({ type: 'combat-ended', result: 'defeat' });
-  }
-
-  return salvageDryKills({
+  const restored = {
     ...stepped,
     build: state.build,
-    status: forcedDefeat ? 'defeat' : stepped.status,
     player: {
       ...stepped.player,
-      hitPoints,
       ammo: realAmmo,
     },
-    events,
-  });
+  };
+  return salvageDryKills(
+    applyHullDamage(restored, hullDamage, REDLINE_SOURCE_ID),
+  );
+}
+
+export function stepSimulation(
+  state: SimulationState,
+  command: PlayerCommand,
+  deltaSeconds: number,
+): SimulationState {
+  const ram = prepareRamImpact(state, command);
+  const stepped = stepRedlineSimulation(ram.state, command, deltaSeconds);
+  if (ram.crashDamage <= 0 || !ram.targetId) return stepped;
+  return applyHullDamage(
+    stepped,
+    ram.crashDamage,
+    `${RAM_CRASH_SOURCE_PREFIX}-${ram.targetId}`,
+  );
 }

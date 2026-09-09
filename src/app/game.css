@@ -21,3 +21,26 @@
   white-space: nowrap;
   transform: translateX(-50%);
 }
+
+/* Forward boost is also a weapon. Keep the hint attached to the existing
+   control so touch and keyboard players discover RAM without another button. */
+.move.boost {
+  overflow: visible;
+}
+.move.boost::after {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  content: '前進+BOOST→RAM';
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgb(38 50 73 / 86%);
+  color: #fff0a8;
+  font-size: 7px;
+  font-weight: 1000;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
