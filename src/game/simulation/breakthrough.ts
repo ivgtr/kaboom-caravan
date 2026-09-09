@@ -1,14 +1,26 @@
+import { createEnemy } from '../combat/createEnemy';
+import type { EnemyTypeId } from '../data/ids';
 import { getRiskTier } from './distance';
-import type { BreakthroughState, CombatEvent, SimulationState } from './types';
+import type {
+  BreakthroughState,
+  CombatEvent,
+  EnemyState,
+  SimulationState,
+} from './types';
 
 export const BREAKTHROUGH = {
   maximumCharge: 100,
   durationSeconds: 4,
   hitIntervalSeconds: 0.75,
   parryCharge: 25,
-  fireRateMultiplier: 1.75,
-  coolingMultiplier: 2.5,
-  frontlineRecovery: 8,
+  // DEATH RIDE is intentionally extreme: the player gets a short weapons spike
+  // in exchange for immediately adding another attack beat to the battlefield.
+  fireRateMultiplier: 3.25,
+  coolingMultiplier: 5,
+  displacement: 10,
+  bossDisplacement: 3,
+  counterchargeTypes: ['rusher', 'bomber', 'basic', 'artillery'] as const,
+  counterchargeOffsets: [20, 28, 36, 44] as const,
 } as const;
 
 /** Position is evaluated at impact: advancing must expose the caravan. */
@@ -36,13 +48,48 @@ export function canActivateBreakthrough(state: SimulationState): boolean {
   return (
     state.status === 'active' &&
     state.player.hitPoints > 0 &&
+    !state.breakthrough.committed &&
     state.breakthrough.charge >= BREAKTHROUGH.maximumCharge &&
     state.breakthrough.remainingSeconds === 0 &&
     hasBreakthroughThreat(state)
   );
 }
 
-/** Run before combat resolution so a deliberate activation can stop an attack. */
+function applyEliteEncounter(enemy: EnemyState, elite: boolean): EnemyState {
+  if (!elite) return enemy;
+  return {
+    ...enemy,
+    elite: true,
+    hitPoints: enemy.hitPoints * 1.45,
+    contactDamage: enemy.contactDamage * 1.2,
+    attackDamage: enemy.attackDamage * 1.2,
+    frontlinePressure: enemy.frontlinePressure * 1.25,
+  };
+}
+
+function createCountercharge(state: SimulationState): EnemyState[] {
+  return BREAKTHROUGH.counterchargeTypes.map((typeId, index) => {
+    const offset = BREAKTHROUGH.counterchargeOffsets[index]!;
+    const position = Math.min(118, state.player.position + offset);
+    const enemy = createEnemy(
+      typeId as EnemyTypeId,
+      `death-ride-${state.tick}-${index + 1}`,
+      position,
+    );
+    return applyEliteEncounter(enemy, state.eliteEncounter);
+  });
+}
+
+/**
+ * DEATH RIDE replaces the old safe panic button.
+ *
+ * Activation still gives a tiny instant displacement so an objective can be
+ * cracked open, but it no longer deletes incoming shots, interrupts windups or
+ * repairs the frontline. Instead it injects a four-enemy countercharge close to
+ * the caravan. The player receives an extreme four-second fire/cooling window
+ * and has to cash that advantage in immediately. Any survivors stay on the
+ * field after the burst, so a bad activation makes the battle permanently worse.
+ */
 export function prepareBreakthrough(
   state: SimulationState,
   requested: boolean,
@@ -62,6 +109,8 @@ export function prepareBreakthrough(
   if (!requested || !canActivateBreakthrough(state)) {
     return { state: { ...state, breakthrough }, events: [] };
   }
+
+  const countercharge = createCountercharge(state);
   return {
     state: {
       ...state,
@@ -69,6 +118,7 @@ export function prepareBreakthrough(
         charge: 0,
         remainingSeconds: BREAKTHROUGH.durationSeconds,
         hitChargeCooldown: 0,
+        committed: true,
       },
       player: {
         ...state.player,
@@ -79,20 +129,21 @@ export function prepareBreakthrough(
         primaryCooldown: 0,
         secondaryCooldown: 0,
       },
-      frontline: {
-        ...state.frontline,
-        position: Math.min(
-          80,
-          state.frontline.position + BREAKTHROUGH.frontlineRecovery,
-        ),
-      },
-      enemyProjectiles: [],
-      enemies: state.enemies.map((enemy) => ({
-        ...enemy,
-        position: Math.min(120, enemy.position + (enemy.bossPhase ? 4 : 14)),
-        attackWindupRemaining: undefined,
-        contactCooldown: Math.max(enemy.contactCooldown, 0.65),
-      })),
+      // Existing enemies are shoved just enough to create a firing lane. Unlike
+      // the old breakthrough, their attacks are NOT cancelled and bullets stay.
+      enemies: [
+        ...state.enemies.map((enemy) => ({
+          ...enemy,
+          position: Math.min(
+            120,
+            enemy.position +
+              (enemy.bossPhase
+                ? BREAKTHROUGH.bossDisplacement
+                : BREAKTHROUGH.displacement),
+          ),
+        })),
+        ...countercharge,
+      ],
     },
     events: [{ type: 'breakthrough-activated' }],
   };
@@ -126,6 +177,7 @@ export function earnBreakthroughCharge(
         : state.hitChargeCooldown,
     },
     events:
+      !state.committed &&
       state.charge < BREAKTHROUGH.maximumCharge &&
       charge === BREAKTHROUGH.maximumCharge
         ? [{ type: 'breakthrough-ready' }]
