@@ -15,6 +15,9 @@ export interface EnemyDefinition {
   attackWindupSeconds: number;
   attackCooldownSeconds: number;
   frontlinePressure: number;
+  breakThresholds: readonly number[];
+  breakDurationSeconds: number;
+  breakArmorDamage: number;
   assetId: string;
 }
 
@@ -35,6 +38,9 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.18,
       attackCooldownSeconds: 1,
       frontlinePressure: 1,
+      breakThresholds: [0.45],
+      breakDurationSeconds: 0.45,
+      breakArmorDamage: 0,
       assetId: 'enm_basic',
     },
     rusher: {
@@ -52,6 +58,9 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.12,
       attackCooldownSeconds: 0.8,
       frontlinePressure: 1.4,
+      breakThresholds: [0.5],
+      breakDurationSeconds: 0.4,
+      breakArmorDamage: 0,
       assetId: 'enm_rusher',
     },
     heavy: {
@@ -59,8 +68,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       displayName: 'ガレキガメ',
       description: '旧文明の小さな護符を滑らかな甲羅へ宿す、高耐久Monster。',
       behaviorId: 'heavyAdvance',
-      hitPoints: 110,
-      armor: 4,
+      hitPoints: 100,
+      armor: 3,
       speed: 4,
       radius: 2.1,
       contactDamage: 16,
@@ -69,6 +78,9 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.28,
       attackCooldownSeconds: 1.3,
       frontlinePressure: 1.8,
+      breakThresholds: [0.65, 0.3],
+      breakDurationSeconds: 0.65,
+      breakArmorDamage: 1,
       assetId: 'enm_heavy',
     },
     artillery: {
@@ -86,6 +98,9 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.42,
       attackCooldownSeconds: 2.4,
       frontlinePressure: 1.2,
+      breakThresholds: [0.5],
+      breakDurationSeconds: 0.55,
+      breakArmorDamage: 1,
       assetId: 'enm_artillery',
     },
     bomber: {
@@ -103,6 +118,9 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.24,
       attackCooldownSeconds: 99,
       frontlinePressure: 1.5,
+      breakThresholds: [0.45],
+      breakDurationSeconds: 0.35,
+      breakArmorDamage: 0,
       assetId: 'enm_bomber',
     },
     'kawaii-fortress': {
@@ -111,7 +129,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       description:
         '古代Coreを宿し、胞子砲撃・眷属召喚・突進を行う巨大Guardian。',
       behaviorId: 'bossFortress',
-      hitPoints: 440,
+      hitPoints: 400,
       armor: 3,
       speed: 2.5,
       radius: 5,
@@ -121,6 +139,9 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyTypeId, EnemyDefinition>> =
       attackWindupSeconds: 0.55,
       attackCooldownSeconds: 2.8,
       frontlinePressure: 4,
+      breakThresholds: [0.62, 0.3],
+      breakDurationSeconds: 0.55,
+      breakArmorDamage: 1,
       assetId: 'boss_kawaii_fortress',
     },
   };

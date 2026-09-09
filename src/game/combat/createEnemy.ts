@@ -27,6 +27,8 @@ export function createEnemy(
     attackWindupSeconds: definition.attackWindupSeconds,
     attackCooldownSeconds: definition.attackCooldownSeconds,
     frontlinePressure: definition.frontlinePressure,
+    breakStage: 0,
+    breakRemainingSeconds: 0,
     ...(typeId === 'kawaii-fortress' ? { bossPhase: 1 as const } : {}),
   };
 }
