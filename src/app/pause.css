@@ -173,6 +173,26 @@
   font-size: 12px;
   font-weight: 700;
 }
+.pause-install-hint {
+  display: grid;
+  gap: 3px;
+  margin-top: 20px;
+  padding: 9px 11px;
+  border: 2px solid #263249;
+  background: #fff0b8;
+  color: #263249;
+}
+.pause-install-hint b {
+  color: #a83348;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+.pause-install-hint span {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.5;
+}
 .pause-resume,
 .pause-fullscreen {
   width: 100%;
@@ -202,7 +222,8 @@
   margin-top: 20px;
   background: #ffd05a;
 }
-.pause-fullscreen + .pause-resume {
+.pause-fullscreen + .pause-resume,
+.pause-install-hint + .pause-resume {
   margin-top: 8px;
 }
 .pause-toggle:focus-visible,
@@ -229,7 +250,7 @@
   }
   .pause-menu section {
     grid-column: 2;
-    grid-row: 1 / 4;
+    grid-row: 1 / 5;
   }
   .pause-menu h2 {
     margin-top: 0;
@@ -238,11 +259,13 @@
     padding: 5px;
   }
   .pause-resume,
-  .pause-fullscreen {
+  .pause-fullscreen,
+  .pause-install-hint {
     grid-column: 1;
     margin-top: 0;
   }
-  .pause-fullscreen + .pause-resume {
+  .pause-fullscreen + .pause-resume,
+  .pause-install-hint + .pause-resume {
     margin-top: 0;
   }
 }
