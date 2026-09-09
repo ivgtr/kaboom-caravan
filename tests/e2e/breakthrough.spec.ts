@@ -4,13 +4,13 @@ test('normal runs start empty and cannot charge by waiting or pressing E', async
   page,
 }) => {
   await page.goto('/?debug');
-  const meter = page.getByRole('progressbar', { name: '突破ゲージ' });
+  const meter = page.getByRole('progressbar', { name: '決死突破ゲージ' });
   await expect(meter).toHaveAttribute('value', '0');
   await page.keyboard.press('KeyE');
   await page.waitForTimeout(300);
   await expect(meter).toHaveAttribute('value', '0');
   await expect(
-    page.getByRole('button', { name: '前線突破', exact: true }),
+    page.getByRole('button', { name: 'DEATH RIDEを発動', exact: true }),
   ).toBeDisabled();
 });
 
@@ -18,7 +18,7 @@ test('earns charge from a real hit and requires a fresh E press, not a held key'
   page,
 }) => {
   await page.goto('/?debug&breakthroughPreview=charging');
-  const panel = page.getByRole('region', { name: '突破状況' });
+  const panel = page.getByRole('region', { name: 'DEATH RIDE状況' });
   await expect(panel).toHaveAttribute('data-state', 'charging');
   await page.keyboard.down('KeyE');
   await page.waitForTimeout(100);
@@ -37,16 +37,16 @@ test('vents overheat and freezes the burst clock during pause and blur', async (
 }) => {
   await page.goto('/?debug&breakthroughPreview=ready');
   const primary = page.getByRole('button', { name: '主武器', exact: true });
-  const panel = page.getByRole('region', { name: '突破状況' });
+  const panel = page.getByRole('region', { name: 'DEATH RIDE状況' });
   await expect(primary).toHaveClass(/overheat/);
   await page.keyboard.press('KeyE');
   await expect(panel).toHaveAttribute('data-state', 'active');
   await expect(primary).not.toHaveClass(/overheat/);
   await page.keyboard.press('Escape');
   const dialog = page.getByRole('dialog', { name: '一時停止中' });
-  await expect(dialog).toContainText('前線突破');
+  await expect(dialog).toContainText('DEATH RIDE');
   const remaining = page.getByRole('progressbar', {
-    name: '突破の残り時間',
+    name: 'DEATH RIDEの残り時間',
     includeHidden: true,
   });
   const value = await remaining.getAttribute('value');
@@ -61,7 +61,7 @@ test('vents overheat and freezes the burst clock during pause and blur', async (
   await page.waitForTimeout(200);
   expect(await remaining.getAttribute('value')).toBe(blurred);
   await dialog.getByRole('button', { name: '戦闘を再開' }).click();
-  await expect(panel).toHaveAttribute('data-state', 'charging', {
+  await expect(panel).toHaveAttribute('data-state', 'spent', {
     timeout: 7000,
   });
 });
@@ -71,7 +71,10 @@ for (const key of ['Space', 'Enter']) {
     page,
   }) => {
     await page.goto('/?debug&breakthroughPreview=ready');
-    const button = page.getByRole('button', { name: '前線突破', exact: true });
+    const button = page.getByRole('button', {
+      name: 'DEATH RIDEを発動',
+      exact: true,
+    });
     const ammo = await page.locator('.ammo').textContent();
     await button.focus();
     await page.keyboard.press(key);
@@ -95,7 +98,7 @@ for (const viewport of [
     }) => {
       await page.goto('/?debug&breakthroughPreview=ready');
       const button = page.getByRole('button', {
-        name: '前線突破',
+        name: 'DEATH RIDEを発動',
         exact: true,
       });
       await expect(button).toBeEnabled();
