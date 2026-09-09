@@ -254,6 +254,7 @@ function combatCommand(session: GameSessionState): PlayerCommand {
     activateSkill:
       (parryThreat || contactThreat) && session.combat.player.energy >= 20,
     boost: false,
+    activateBreakthrough: false,
   };
 }
 
@@ -315,22 +316,33 @@ function finalizeEncounter(metrics: EncounterMetrics): EncounterMetrics {
   };
 }
 
-function simulateMvpRun(seed: number): {
+function simulateMvpRun(
+  seed: number,
+  useBreakthrough = false,
+): {
   session: GameSessionState;
   metrics: RunMetrics;
+  breakthroughs: number;
 } {
   let session = createGameSession(seed);
   const encounters: EncounterMetrics[] = [];
   const rewardsSelected: RewardSelectionMetric[] = [];
   let currentEncounter = createEncounterMetrics(session);
   const maximumSteps = 60 * 60 * 20;
+  let breakthroughs = 0;
 
   for (let step = 0; step < maximumSteps; step += 1) {
     if (session.phase === 'combat') {
       const previousSession = session;
       session = stepGameSession(
         session,
-        combatCommand(session),
+        {
+          ...combatCommand(session),
+          activateBreakthrough:
+            useBreakthrough &&
+            session.combat.breakthrough.charge === 100 &&
+            session.combat.enemies.length > 0,
+        },
         SIMULATION_STEP_SECONDS,
       );
       currentEncounter.elapsedTicks += 1;
@@ -348,6 +360,7 @@ function simulateMvpRun(seed: number): {
         session.combat.player.position,
       );
       for (const event of session.combat.events) {
+        if (event.type === 'breakthrough-activated') breakthroughs += 1;
         if (event.type === 'weapon-fired') {
           if (event.weaponId === previousSession.run.build.primaryWeaponId) {
             currentEncounter.primaryShots += 1;
@@ -446,7 +459,7 @@ function simulateMvpRun(seed: number): {
     finalBuild: structuredClone(session.run.build),
   };
 
-  return { session, metrics };
+  return { session, metrics, breakthroughs };
 }
 
 describe('fixed-seed MVP run', () => {
@@ -501,4 +514,19 @@ describe('fixed-seed MVP run', () => {
       expect(replay.session.run).toEqual(session.run);
     });
   }
+});
+
+describe('fixed-seed runs with frontline breakthrough', () => {
+  it.each([1, 42, 2026])(
+    'completes and replays all ten encounters with earned activations for seed %s',
+    (seed) => {
+      const run = simulateMvpRun(seed, true);
+      expect(run.session.phase).toBe('victory');
+      expect(run.metrics.encountersCompleted).toBe(10);
+      expect(run.breakthroughs).toBeGreaterThan(0);
+      expect(run.session.combat.breakthrough.charge).toBeGreaterThanOrEqual(0);
+      expect(run.session.combat.breakthrough.charge).toBeLessThanOrEqual(100);
+      expect(simulateMvpRun(seed, true)).toEqual(run);
+    },
+  );
 });

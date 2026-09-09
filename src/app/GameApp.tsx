@@ -10,6 +10,10 @@ import {
 } from 'react';
 import { CombatPauseController } from '../input/CombatPauseController';
 import { PauseMenu } from './PauseMenu';
+import { BreakthroughControl } from './BreakthroughControl';
+import { hasBreakthroughThreat } from '../game/simulation/breakthrough';
+import { createEnemy } from '../game/combat/createEnemy';
+import type { BreakthroughState } from '../game/simulation/types';
 import { FixedStepLoop } from '../game/simulation/FixedStepLoop';
 import { MODULE_SLOT_COUNT } from '../game/build/build';
 import { MVP_ENCOUNTERS } from '../game/data/runDefinitions';
@@ -78,6 +82,8 @@ const REWARD_RARITY_LABELS = {
 } as const;
 
 interface HudSnapshot {
+  breakthrough: BreakthroughState;
+  breakthroughThreat: boolean;
   tick: number;
   position: number;
   hitPoints: number;
@@ -129,6 +135,8 @@ function formatTimeScore(ticks: number): string {
 
 function toHudSnapshot(state: SimulationState): HudSnapshot {
   return {
+    breakthrough: state.breakthrough,
+    breakthroughThreat: hasBreakthroughThreat(state),
     tick: state.tick,
     position: state.player.position,
     hitPoints: state.player.hitPoints,
@@ -182,6 +190,19 @@ function createInitialGameSession(): GameSessionState {
       ? createGameSession(1)
       : createGarageSession(1);
   const rewardPreview = parameters.get('rewardPreview');
+  if (parameters.has('debug') && parameters.has('breakthroughPreview')) {
+    const charge =
+      parameters.get('breakthroughPreview') === 'charging' ? 94 : 100;
+    session.combat.breakthrough.charge = charge;
+    session.run.breakthroughCharge = charge;
+    session.combat.player.position = 40;
+    session.combat.player.previousPosition = 40;
+    if (charge === 100) {
+      session.combat.player.weaponHeat.primary = { heat: 90, overheated: true };
+    }
+    session.combat.enemies = [createEnemy('heavy', 'preview-heavy', 62)];
+    return session;
+  }
   if (parameters.has('debug') && parameters.has('weaponCachePreview')) {
     session.phase = 'weapon-cache';
     session.rewardChoices = generateWeaponCacheChoices(
@@ -336,6 +357,11 @@ export function GameApp() {
           lastHandledEvents = session.combat.events;
           audio.handleEvents(session.combat.events);
           const feedbackEvent =
+            session.combat.events.find(
+              ({ type }) =>
+                type === 'breakthrough-activated' ||
+                type === 'breakthrough-ready',
+            ) ??
             session.combat.events.find(
               ({ type }) => type === 'attack-parried',
             ) ??
@@ -543,6 +569,12 @@ export function GameApp() {
             <p className="combat-feedback" aria-live="polite">
               {feedback}
             </p>
+            <BreakthroughControl
+              state={hud.breakthrough}
+              position={hud.position}
+              hasThreat={hud.breakthroughThreat}
+              onActivate={() => input.requestBreakthrough()}
+            />
             <section className="movement-controls" aria-label="移動操作">
               <ControlButton
                 label="前進"
@@ -1343,6 +1375,10 @@ function GameIcon({ name }: { name: string }) {
 
 function describeCombatEvent(event: CombatEvent): string {
   switch (event.type) {
+    case 'breakthrough-ready':
+      return '突破準備完了！ Eで発動';
+    case 'breakthrough-activated':
+      return '前線突破！ 4秒間の反撃チャンス';
     case 'weapon-fired':
       return '発射！';
     case 'projectile-hit':

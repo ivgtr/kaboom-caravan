@@ -163,6 +163,7 @@ describe('CombatPauseController', () => {
         fireSecondary: false,
         activateSkill: false,
         boost: false,
+        activateBreakthrough: false,
       });
       press('Space');
       expect(input.readCommand().firePrimary).toBe(true);

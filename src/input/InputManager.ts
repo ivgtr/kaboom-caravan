@@ -34,6 +34,7 @@ export class InputManager {
   private readonly virtual = new Set<VirtualControl>();
   private readonly menuListeners = new Set<MenuActionListener>();
   private context: InputContext = 'menu';
+  private breakthroughPending = false;
 
   constructor(private readonly target: Window = window) {}
 
@@ -68,6 +69,7 @@ export class InputManager {
   readonly reset = (): void => {
     this.pressed.clear();
     this.virtual.clear();
+    this.breakthroughPending = false;
   };
 
   setVirtualControl(control: VirtualControl, active: boolean): void {
@@ -76,6 +78,10 @@ export class InputManager {
     } else {
       this.virtual.delete(control);
     }
+  }
+
+  requestBreakthrough(): void {
+    if (this.context === 'combat') this.breakthroughPending = true;
   }
 
   subscribeToMenu(listener: MenuActionListener): () => void {
@@ -106,7 +112,9 @@ export class InputManager {
       fireSecondary: this.pressed.has('KeyC') || this.virtual.has('secondary'),
       activateSkill: this.pressed.has('KeyF') || this.virtual.has('parry'),
       boost: this.pressed.has('ShiftLeft') || this.virtual.has('boost'),
+      activateBreakthrough: this.breakthroughPending,
     };
+    this.breakthroughPending = false;
     return command;
   }
 
@@ -114,6 +122,19 @@ export class InputManager {
     if (this.context === 'menu') {
       this.handleMenuKeyDown(event);
       return;
+    }
+    if (event.code === 'KeyE') {
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.isComposing ||
+        isTextEntry(event)
+      )
+        return;
+      event.preventDefault();
+      if (!event.repeat && !this.pressed.has(event.code))
+        this.requestBreakthrough();
     }
     if (event.repeat && !this.pressed.has(event.code)) return;
     if (
@@ -158,6 +179,7 @@ const IDLE_COMMAND: PlayerCommand = {
   fireSecondary: false,
   activateSkill: false,
   boost: false,
+  activateBreakthrough: false,
 };
 
 function isTextEntry(event: KeyboardEvent): boolean {

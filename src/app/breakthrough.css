@@ -1,0 +1,130 @@
+.breakthrough-panel {
+  position: absolute;
+  z-index: 4;
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+  left: 50%;
+  width: 232px;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #263249;
+}
+.breakthrough-button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-height: 76px;
+  padding: 9px 12px;
+  border: 3px solid #263249;
+  border-radius: 15px;
+  box-shadow: 0 4px 0 #263249;
+  background: #fff4d9;
+  color: #263249;
+  cursor: pointer;
+}
+.breakthrough-button:disabled {
+  cursor: default;
+}
+.breakthrough-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.breakthrough-title kbd {
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+.breakthrough-title strong {
+  flex: 1;
+  font-size: 15px;
+}
+.breakthrough-title b {
+  min-width: 36px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.breakthrough-button progress {
+  display: block;
+  width: 100%;
+  height: 9px;
+  accent-color: #087b6f;
+}
+.breakthrough-action {
+  font-size: 10px;
+  font-weight: 800;
+}
+.breakthrough-panel > small {
+  display: block;
+  margin-top: 7px;
+  padding: 3px 5px;
+  border-radius: 7px;
+  background: rgb(255 244 219 / 94%);
+  font-size: 9px;
+  font-weight: 800;
+}
+.breakthrough-panel[data-state='ready'] .breakthrough-button {
+  background: #ffdc72;
+}
+.breakthrough-panel[data-state='active'] .breakthrough-button {
+  background: #66dec8;
+}
+.breakthrough-button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+.breakthrough-button:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #263249;
+}
+.breakthrough-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .breakthrough-panel {
+    width: 208px;
+    top: 54px;
+    bottom: auto;
+  }
+  .breakthrough-button {
+    min-height: 65px;
+    padding: 7px 10px;
+  }
+  .breakthrough-panel > small {
+    font-size: 8px;
+  }
+}
+@media (max-width: 680px) and (orientation: landscape) {
+  .breakthrough-panel {
+    width: 192px;
+  }
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  .breakthrough-panel {
+    bottom: max(222px, calc(env(safe-area-inset-bottom) + 214px));
+    width: min(248px, calc(100% - 32px));
+  }
+}
+@media (max-height: 360px) and (orientation: landscape) {
+  .breakthrough-button {
+    min-height: 48px;
+    padding: 5px 10px;
+    gap: 3px;
+  }
+  .breakthrough-title strong {
+    font-size: 13px;
+  }
+  .breakthrough-button progress {
+    height: 6px;
+  }
+  .breakthrough-action {
+    display: none;
+  }
+  .breakthrough-panel > small {
+    margin-top: 5px;
+  }
+}

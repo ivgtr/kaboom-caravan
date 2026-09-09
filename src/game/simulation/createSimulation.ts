@@ -42,6 +42,7 @@ export function createSimulation(seed = 1): SimulationState {
       riskTier: 'safe',
       rewardMultiplier: 1,
     },
+    breakthrough: { charge: 0, remainingSeconds: 0, hitChargeCooldown: 0 },
     enemies: [
       createEnemy('basic', 'enemy-1', 55),
       createEnemy('basic', 'enemy-2', 72),

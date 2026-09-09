@@ -1,3 +1,4 @@
+import { drawBreakthroughField } from './breakthroughField';
 import type { EnemyTypeId, ModuleId, WeaponId } from '../game/data/ids';
 import {
   createPresentationSnapshot,
@@ -264,6 +265,13 @@ export class GameRenderer {
     context.save();
     context.translate(cameraOffset.x, cameraOffset.y);
     this.drawEnvironment();
+    drawBreakthroughField(
+      this.context,
+      state,
+      (position) => this.worldToScreen(position),
+      this.groundY,
+      this.reducedMotion,
+    );
     this.drawExhaustPuffs();
 
     for (const item of state.loot) {

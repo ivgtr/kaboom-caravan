@@ -32,6 +32,11 @@ import type {
 } from './types';
 import { advanceWave, completeWaveIfCleared } from '../wave/waveSystem';
 import { getWeaponLevel } from '../build/weaponUpgrade';
+import {
+  BREAKTHROUGH,
+  prepareBreakthrough,
+  earnBreakthroughCharge,
+} from './breakthrough';
 
 const PLAYER_MIN_POSITION = 0;
 const PLAYER_MAX_POSITION = 80;
@@ -464,7 +469,16 @@ export function stepSimulation(
     return { ...state, tick: state.tick + 1, events: [] };
   }
 
-  const events: CombatEvent[] = [];
+  const prepared = prepareBreakthrough(
+    state,
+    command.activateBreakthrough,
+    deltaSeconds,
+  );
+  state = prepared.state;
+  const events: CombatEvent[] = [...prepared.events];
+  const breakingThrough = state.breakthrough.remainingSeconds > 0;
+  const weaponDelta =
+    deltaSeconds * (breakingThrough ? BREAKTHROUGH.fireRateMultiplier : 1);
   const playerStats = derivePlayerStats(state.build);
   const primaryDefinition = deriveWeaponDefinition(
     WEAPON_DEFINITIONS[state.build.primaryWeaponId],
@@ -525,13 +539,10 @@ export function stepSimulation(
     state.player.hitPoints,
     playerStats.maximumHitPoints,
   );
-  let primaryCooldown = Math.max(
-    0,
-    state.player.primaryCooldown - deltaSeconds,
-  );
+  let primaryCooldown = Math.max(0, state.player.primaryCooldown - weaponDelta);
   let secondaryCooldown = Math.max(
     0,
-    state.player.secondaryCooldown - deltaSeconds,
+    state.player.secondaryCooldown - weaponDelta,
   );
   let skillCooldown = Math.max(0, state.player.skillCooldown - deltaSeconds);
   let parryWindowSeconds = Math.max(
@@ -544,7 +555,8 @@ export function stepSimulation(
     state.player.weaponHeat.secondary.overheated;
   let weaponHeat = coolWeaponHeat(
     state.player.weaponHeat,
-    playerStats.coolingPerSecond,
+    playerStats.coolingPerSecond *
+      (breakingThrough ? BREAKTHROUGH.coolingMultiplier : 1),
     deltaSeconds,
   );
   let enemies = state.enemies;
@@ -986,11 +998,19 @@ export function stepSimulation(
   if (status !== 'active')
     events.push({ type: 'combat-ended', result: status });
 
+  const earned = earnBreakthroughCharge(
+    state.breakthrough,
+    events,
+    playerPosition,
+  );
+  events.push(...earned.events);
+
   return {
     ...state,
     tick: state.tick + 1,
     nextEntitySequence,
     status,
+    breakthrough: earned.breakthrough,
     player: {
       ...state.player,
       previousPosition: state.player.position,
