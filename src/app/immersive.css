@@ -31,7 +31,12 @@ body,
 }
 
 .immersive-shell .combat-stage {
-  width: min(100%, calc(var(--app-viewport-height, 100dvh) * 2));
+  width: min(
+    100%,
+    calc(
+      var(--app-viewport-height, 100dvh) + var(--app-viewport-height, 100dvh)
+    )
+  );
 }
 
 .immersive-shell img,
