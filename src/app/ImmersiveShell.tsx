@@ -27,21 +27,23 @@ function minimumPositive(...values: Array<number | undefined>): number {
 function readVisibleViewport(): VisibleViewport {
   const viewport = window.visualViewport;
   const root = document.documentElement;
+  const offsetTop = Math.max(0, viewport?.offsetTop ?? 0);
+  const offsetLeft = Math.max(0, viewport?.offsetLeft ?? 0);
   const width = minimumPositive(
     viewport?.width,
-    window.innerWidth,
-    root.clientWidth,
+    window.innerWidth - offsetLeft,
+    root.clientWidth - offsetLeft,
   );
   const height = minimumPositive(
     viewport?.height,
-    window.innerHeight,
-    root.clientHeight,
+    window.innerHeight - offsetTop,
+    root.clientHeight - offsetTop,
   );
   return {
     width: width || window.innerWidth,
     height: height || window.innerHeight,
-    offsetTop: Math.max(0, viewport?.offsetTop ?? 0),
-    offsetLeft: Math.max(0, viewport?.offsetLeft ?? 0),
+    offsetTop,
+    offsetLeft,
   };
 }
 
