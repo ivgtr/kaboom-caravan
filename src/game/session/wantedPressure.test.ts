@@ -77,7 +77,11 @@ describe('wanted pressure', () => {
       },
     ];
 
-    const next = selectWeaponCacheReward(session, 'weapon:railgun', 'secondary');
+    const next = selectWeaponCacheReward(
+      session,
+      'weapon:railgun',
+      'secondary',
+    );
 
     expect(next.run.wantedLevel).toBe(2);
     expect(next.phase).toBe('combat');
