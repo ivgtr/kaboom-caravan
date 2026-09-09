@@ -24,10 +24,10 @@ WANTED OVERLOAD はこの向きを反転させる。
 追跡熱は 0〜6。
 
 | 取得した戦利品 | 追跡熱 |
-| --- | ---: |
-| 標準 | +1 |
-| 希少 | +2 |
-| 特級 | +3 |
+| -------------- | -----: |
+| 標準           |     +1 |
+| 希少           |     +2 |
+| 特級           |     +3 |
 
 通常の戦闘報酬だけでなく、戦場の武器箱から持ち出した武器も加算対象になる。
 6を超えた分は切り捨てる。
@@ -38,15 +38,15 @@ WANTED OVERLOAD はこの向きを反転させる。
 
 次戦開始時、通常 Wave や寄り道拠点の守備隊とは別枠で以下を配置する。
 
-| 追跡熱 | 追加される敵 |
-| ---: | --- |
-| 0 | なし |
-| 1 | Rusher |
-| 2 | Rusher + Basic |
-| 3 | Rusher + Bomber |
-| 4 | Rusher + Bomber + Basic |
-| 5 | Rusher + Bomber + Artillery |
-| 6 | Rusher + Bomber + Artillery + Heavy |
+| 追跡熱 | 追加される敵                        |
+| -----: | ----------------------------------- |
+|      0 | なし                                |
+|      1 | Rusher                              |
+|      2 | Rusher + Basic                      |
+|      3 | Rusher + Bomber                     |
+|      4 | Rusher + Bomber + Basic             |
+|      5 | Rusher + Bomber + Artillery         |
+|      6 | Rusher + Bomber + Artillery + Heavy |
 
 追撃隊は Wave の後半に足すのではなく、戦闘開始時点ですでに 68〜108m に侵入している。
 高追跡熱では「準備してから通常 Wave を処理する」余白そのものを壊す。
