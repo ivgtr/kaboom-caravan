@@ -1,6 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 
+async function waitForCombatInput(page: Page) {
+  // Initial HUD markup can render before the effect connects keyboard input.
+  await expect
+    .poll(async () =>
+      Number(
+        (await page.locator('.debug-panel').textContent())?.match(
+          /^tick (\d+)/,
+        )?.[1],
+      ),
+    )
+    .toBeGreaterThan(0);
+}
+
 async function enterZone(page: Page) {
+  await waitForCombatInput(page);
   await page.keyboard.down('KeyD');
   await expect
     .poll(async () =>
@@ -171,6 +185,7 @@ test('enemy presence blocks occupation and timeout does not end combat', async (
 }) => {
   await page.goto('/?debug&objectivePreview=contested');
   await expect(page.locator('.objective-hud')).toContainText('敵が範囲内');
+  await waitForCombatInput(page);
   await page.keyboard.down('KeyD');
   await expect
     .poll(async () =>

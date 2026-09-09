@@ -169,3 +169,11 @@
     grid-row: auto;
   }
 }
+@media (orientation: landscape) and (max-height: 360px) {
+  .objective-hud {
+    top: 122px;
+    left: 8px;
+    right: auto;
+    width: 160px;
+  }
+}
