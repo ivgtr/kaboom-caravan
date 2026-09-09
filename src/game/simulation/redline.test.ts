@@ -34,7 +34,7 @@ describe('REDLINE blood-ammo loop', () => {
     initial.player.ammo = 0;
     initial.enemies = [
       {
-        ...createEnemy('bomber', 'redline-target', 15),
+        ...createEnemy('bomber', 'redline-target', 14.8),
         speed: 0,
       },
     ];
