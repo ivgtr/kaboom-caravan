@@ -20,8 +20,8 @@ export const BATTLEFIELD_OBJECTIVES: Readonly<
 > = {
   breakout: {
     displayName: '封鎖線突破',
-    position: 68,
-    radius: 6,
+    position: 71,
+    radius: 9,
     holdSeconds: 2.5,
     deadlineSeconds: 24,
     repair: 0,
