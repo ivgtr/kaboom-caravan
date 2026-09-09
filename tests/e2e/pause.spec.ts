@@ -71,31 +71,96 @@ test('Escape still cancels weapon slot selection', async ({ page }) => {
   await expect(pauseDialog).not.toBeVisible();
 });
 
-for (const viewport of [
-  { width: 390, height: 844 },
-  { width: 844, height: 390 },
-]) {
-  test.describe(`touch ${viewport.width}x${viewport.height}`, () => {
-    test.use({ viewport, hasTouch: true });
+test.describe('touch portrait 390x844', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-    test('fits the viewport and supports touch resume', async ({ page }) => {
-      await page.goto('/?debug');
-      await page.getByRole('button', { name: '一時停止と操作ガイド' }).tap();
-      const dialog = page.getByRole('dialog', { name: '一時停止中' });
-      await expect(dialog).toBeVisible();
-      const layoutFits = await dialog.evaluate((element) => {
-        const rect = element.getBoundingClientRect();
-        return (
-          rect.left >= 0 &&
-          rect.right <= innerWidth &&
-          rect.top >= 0 &&
-          rect.bottom <= innerHeight &&
-          element.scrollWidth <= element.clientWidth
-        );
-      });
-      expect(layoutFits).toBe(true);
-      await dialog.getByRole('button', { name: '戦闘を再開' }).tap();
-      await expect(dialog).not.toBeVisible();
+  test('blocks portrait combat and requires resume after rotation', async ({
+    page,
+  }) => {
+    await page.goto('/?debug');
+    const orientationGuard = page.getByRole('dialog', {
+      name: '横向きでプレイ',
     });
+    const pauseDialog = page.getByRole('dialog', { name: '一時停止中' });
+    const hud = page.locator('.debug-panel');
+
+    await expect(orientationGuard).toBeVisible();
+    await expect(pauseDialog).not.toBeVisible();
+    await page.waitForTimeout(80);
+    const blockedTick = await hud.textContent();
+    await page.waitForTimeout(350);
+    expect(await hud.textContent()).toBe(blockedTick);
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(orientationGuard).not.toBeVisible();
+    await expect(pauseDialog).toBeVisible();
+    const pausedTick = await hud.textContent();
+    await page.waitForTimeout(300);
+    expect(await hud.textContent()).toBe(pausedTick);
+
+    await pauseDialog.getByRole('button', { name: '戦闘を再開' }).tap();
+    await expect(pauseDialog).not.toBeVisible();
+    await expect(hud).not.toHaveText(pausedTick ?? '');
   });
-}
+});
+
+test.describe('touch landscape 844x390', () => {
+  test.use({ viewport: { width: 844, height: 390 }, hasTouch: true });
+
+  test('tracks the visible viewport and suppresses native game gestures', async ({
+    page,
+  }) => {
+    await page.goto('/?debug');
+    await expect(
+      page.getByRole('dialog', { name: '横向きでプレイ' }),
+    ).not.toBeVisible();
+
+    const viewportFit = await page.locator('.immersive-shell').evaluate((shell) => {
+      const rect = shell.getBoundingClientRect();
+      return {
+        height: rect.height,
+        width: rect.width,
+        touchAction: getComputedStyle(shell).touchAction,
+        visualHeight: window.visualViewport?.height ?? innerHeight,
+        visualWidth: window.visualViewport?.width ?? innerWidth,
+      };
+    });
+    expect(Math.abs(viewportFit.height - viewportFit.visualHeight)).toBeLessThan(
+      2,
+    );
+    expect(Math.abs(viewportFit.width - viewportFit.visualWidth)).toBeLessThan(2);
+    expect(viewportFit.touchAction).toBe('none');
+
+    const contextMenuPrevented = await page
+      .locator('.combat-stage canvas')
+      .evaluate((element) => {
+        const event = new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+        });
+        element.dispatchEvent(event);
+        return event.defaultPrevented;
+      });
+    expect(contextMenuPrevented).toBe(true);
+
+    const dragPrevented = await page
+      .locator('.game-shell')
+      .evaluate((element) => {
+        const event = new Event('dragstart', {
+          bubbles: true,
+          cancelable: true,
+        });
+        element.dispatchEvent(event);
+        return event.defaultPrevented;
+      });
+    expect(dragPrevented).toBe(true);
+
+    await page
+      .getByRole('button', { name: '一時停止と操作ガイド' })
+      .tap();
+    const dialog = page.getByRole('dialog', { name: '一時停止中' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: '戦闘を再開' }).tap();
+    await expect(dialog).not.toBeVisible();
+  });
+});
