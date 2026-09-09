@@ -21,9 +21,7 @@ export function BreakthroughControl({
   const active = state.remainingSeconds > 0;
   const committed = Boolean(state.committed);
   const ready =
-    !active &&
-    !committed &&
-    state.charge >= BREAKTHROUGH.maximumCharge;
+    !active && !committed && state.charge >= BREAKTHROUGH.maximumCharge;
   const hitCharge = getBreakthroughHitCharge(position);
   const hint = active
     ? '火器3.25倍速・排熱5倍。追加4体は残る。4秒で全部壊せ！'
@@ -39,7 +37,15 @@ export function BreakthroughControl({
   return (
     <section
       className="breakthrough-panel"
-      data-state={active ? 'active' : ready ? 'ready' : committed ? 'spent' : 'charging'}
+      data-state={
+        active
+          ? 'active'
+          : ready
+            ? 'ready'
+            : committed
+              ? 'spent'
+              : 'charging'
+      }
       aria-label="DEATH RIDE状況"
     >
       <button
