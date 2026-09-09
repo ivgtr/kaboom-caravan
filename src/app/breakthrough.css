@@ -116,12 +116,27 @@
   box-shadow: 0 0 7px #ffd05a;
 }
 .breakthrough-panel[data-state='active'] .breakthrough-button {
-  filter: drop-shadow(0 6px 3px rgb(25 35 53 / 38%))
-    drop-shadow(0 0 10px rgb(102 222 200 / 82%));
+  animation: death-ride-panel-pulse 180ms steps(2, end) infinite;
+  filter: drop-shadow(0 6px 3px rgb(25 35 53 / 48%))
+    drop-shadow(0 0 14px rgb(255 91 65 / 90%));
 }
 .breakthrough-panel[data-state='active'] .breakthrough-button::after {
-  background: #66dec8;
-  box-shadow: 0 0 8px #66dec8;
+  background: #ff5b41;
+  box-shadow: 0 0 11px #ff5b41;
+}
+.breakthrough-panel[data-state='active'] .breakthrough-title strong,
+.breakthrough-panel[data-state='active'] .breakthrough-title b {
+  color: #b82f25;
+}
+.breakthrough-panel[data-state='active'] progress::-webkit-progress-value {
+  background: #ff5b41;
+}
+.breakthrough-panel[data-state='spent'] .breakthrough-button {
+  filter: grayscale(0.45) drop-shadow(0 4px 2px rgb(25 35 53 / 30%));
+  opacity: 0.78;
+}
+.breakthrough-panel[data-state='spent'] .breakthrough-button::after {
+  background: #6e7480;
 }
 .breakthrough-button:focus-visible {
   outline: 3px solid #fff;
@@ -138,6 +153,54 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* The combat itself should visibly enter another gear without touching the
+   renderer. :has() lets the existing breakthrough state drive a brief global
+   danger treatment while preserving the canvas and input layout. */
+.game-shell:has(.breakthrough-panel[data-state='active']) .combat-stage {
+  animation: death-ride-stage-pulse 240ms steps(2, end) infinite;
+  filter: saturate(1.28) contrast(1.08) brightness(1.03);
+}
+.game-shell:has(.breakthrough-panel[data-state='active'])::after {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  border: 5px solid rgb(255 91 65 / 68%);
+  box-shadow:
+    inset 0 0 38px rgb(255 65 43 / 35%),
+    inset 0 0 90px rgb(255 188 56 / 16%);
+  pointer-events: none;
+  content: '';
+  animation: death-ride-warning 320ms steps(2, end) infinite;
+}
+
+@keyframes death-ride-panel-pulse {
+  50% {
+    transform: translateY(-1px) scale(1.015);
+  }
+}
+
+@keyframes death-ride-stage-pulse {
+  50% {
+    filter: saturate(1.45) contrast(1.12) brightness(1.06);
+  }
+}
+
+@keyframes death-ride-warning {
+  50% {
+    border-width: 9px;
+    opacity: 0.68;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breakthrough-panel[data-state='active'] .breakthrough-button,
+  .game-shell:has(.breakthrough-panel[data-state='active']) .combat-stage,
+  .game-shell:has(.breakthrough-panel[data-state='active'])::after {
+    animation: none;
+  }
+}
+
 @media (max-height: 520px) and (orientation: landscape) {
   .breakthrough-panel {
     width: 208px;
