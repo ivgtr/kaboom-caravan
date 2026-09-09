@@ -134,8 +134,9 @@ export function PauseMenu({
         </section>
       )}
       {viewport.coarsePointer &&
-        viewport.fullscreenAvailable &&
-        !viewport.fullscreen && (
+        !viewport.fullscreen &&
+        !viewport.standalone &&
+        (viewport.fullscreenAvailable ? (
           <button
             type="button"
             className="pause-fullscreen"
@@ -143,7 +144,15 @@ export function PauseMenu({
           >
             URLバーを隠して全画面表示
           </button>
-        )}
+        ) : (
+          <div className="pause-install-hint">
+            <b>URLバーなしで遊ぶ</b>
+            <span>
+              このブラウザでは全画面化を強制できません。共有メニュー →
+              「ホーム画面に追加」から起動してください。
+            </span>
+          </div>
+        ))}
       <button type="button" className="pause-resume" onClick={onResume}>
         戦闘を再開
       </button>
