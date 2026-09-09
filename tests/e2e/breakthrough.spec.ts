@@ -109,7 +109,9 @@ for (const viewport of [
       const overlaps = await button.evaluate((element) => {
         const a = element.getBoundingClientRect();
         return [
-          ...document.querySelectorAll('.control-button, .pause-toggle'),
+          ...document.querySelectorAll(
+            '.control-button, .pause-toggle, .compact-hud, .run-hud, .enemy-chip, .treasure-chip',
+          ),
         ].some((other) => {
           const b = other.getBoundingClientRect();
           return (
@@ -119,6 +121,14 @@ for (const viewport of [
         });
       });
       expect(overlaps).toBe(false);
+      if (viewport.width > viewport.height && viewport.height <= 520) {
+        const panel = await page.locator('.breakthrough-panel').boundingBox();
+        const field = await page.locator('.combat-stage').boundingBox();
+        // Keep the short-landscape panel in the sky, not over the vehicle.
+        expect(panel!.y + panel!.height).toBeLessThanOrEqual(
+          field!.y + field!.height * 0.45,
+        );
+      }
       if (process.env.CAPTURE_UI_REVIEW)
         await page.screenshot({
           path: `test-results/breakthrough-ready-${viewport.width}x${viewport.height}.png`,

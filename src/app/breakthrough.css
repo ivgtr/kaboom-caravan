@@ -87,7 +87,8 @@
 @media (max-height: 520px) and (orientation: landscape) {
   .breakthrough-panel {
     width: 208px;
-    bottom: 67px;
+    top: 54px;
+    bottom: auto;
   }
   .breakthrough-button {
     min-height: 65px;
@@ -99,8 +100,6 @@
 }
 @media (max-width: 680px) and (orientation: landscape) {
   .breakthrough-panel {
-    top: 61px;
-    bottom: auto;
     width: 192px;
   }
 }
@@ -108,5 +107,24 @@
   .breakthrough-panel {
     bottom: max(222px, calc(env(safe-area-inset-bottom) + 214px));
     width: min(248px, calc(100% - 32px));
+  }
+}
+@media (max-height: 360px) and (orientation: landscape) {
+  .breakthrough-button {
+    min-height: 48px;
+    padding: 5px 10px;
+    gap: 3px;
+  }
+  .breakthrough-title strong {
+    font-size: 13px;
+  }
+  .breakthrough-button progress {
+    height: 6px;
+  }
+  .breakthrough-action {
+    display: none;
+  }
+  .breakthrough-panel > small {
+    margin-top: 5px;
   }
 }
