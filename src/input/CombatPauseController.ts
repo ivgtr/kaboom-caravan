@@ -1,3 +1,5 @@
+export const COMBAT_PAUSE_REQUEST_EVENT = 'kaboom:pause-request';
+
 interface CombatPauseOptions {
   canPause: () => boolean;
   onPause: () => void;
@@ -19,6 +21,7 @@ export class CombatPauseController {
     this.connected = true;
     this.target.addEventListener('keydown', this.onKeyDown, true);
     this.target.addEventListener('blur', this.pause);
+    this.target.addEventListener(COMBAT_PAUSE_REQUEST_EVENT, this.pause);
     this.target.document.addEventListener(
       'visibilitychange',
       this.onVisibilityChange,
@@ -30,6 +33,7 @@ export class CombatPauseController {
     this.connected = false;
     this.target.removeEventListener('keydown', this.onKeyDown, true);
     this.target.removeEventListener('blur', this.pause);
+    this.target.removeEventListener(COMBAT_PAUSE_REQUEST_EVENT, this.pause);
     this.target.document.removeEventListener(
       'visibilitychange',
       this.onVisibilityChange,

@@ -1,0 +1,295 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.immersive-shell {
+  position: fixed;
+  z-index: 0;
+  top: var(--app-viewport-top, 0px);
+  left: var(--app-viewport-left, 0px);
+  isolation: isolate;
+  width: var(--app-viewport-width, 100vw);
+  height: var(--app-viewport-height, 100dvh);
+  overflow: hidden;
+  background: #202b42;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.immersive-game-layer,
+.immersive-game-layer > .game-shell {
+  width: 100%;
+  height: 100%;
+}
+
+.immersive-shell .combat-stage {
+  width: min(
+    100%,
+    calc(
+      var(--app-viewport-height, 100dvh) + var(--app-viewport-height, 100dvh)
+    )
+  );
+}
+
+.immersive-shell img,
+.immersive-shell canvas {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.immersive-shell.is-viewport-blocked .immersive-game-layer {
+  pointer-events: none;
+  filter: brightness(0.42) saturate(0.72) blur(1.5px);
+}
+
+.immersive-orientation-guard {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 50% 40%, rgb(98 218 197 / 19%), transparent 42%),
+    repeating-linear-gradient(
+      0deg,
+      rgb(255 255 255 / 2%) 0,
+      rgb(255 255 255 / 2%) 1px,
+      transparent 1px,
+      transparent 5px
+    ),
+    rgb(8 25 31 / 92%);
+  color: #fff4d9;
+}
+
+.immersive-orientation-panel {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(520px, 100%);
+  padding: clamp(22px, 6vw, 38px);
+  border: 3px solid #263249;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 8%), transparent 36%), #314f55;
+  clip-path: polygon(
+    18px 0,
+    calc(100% - 18px) 0,
+    100% 18px,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    18px 100%,
+    0 calc(100% - 18px),
+    0 18px
+  );
+  box-shadow:
+    inset 0 0 0 2px rgb(255 244 217 / 8%),
+    0 8px 0 #172832,
+    0 20px 36px rgb(0 0 0 / 42%);
+  text-align: center;
+}
+
+.immersive-orientation-panel::before,
+.immersive-orientation-panel::after {
+  position: absolute;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #172832;
+  border-radius: 50%;
+  background: #ffd05a;
+  box-shadow: 0 0 7px rgb(255 208 90 / 62%);
+  content: '';
+}
+
+.immersive-orientation-panel::before {
+  left: 14px;
+}
+
+.immersive-orientation-panel::after {
+  right: 14px;
+}
+
+.immersive-orientation-eyebrow {
+  padding: 3px 10px;
+  border: 2px solid #172832;
+  background: #ff716e;
+  color: #172832;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.18em;
+}
+
+.immersive-rotate-device {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 68px;
+  margin: 6px 0 10px;
+  border: 4px solid #fff4d9;
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 2px rgb(23 40 50 / 44%);
+  transform: rotate(90deg);
+  animation: immersive-device-turn 2.2s ease-in-out infinite;
+}
+
+.immersive-rotate-device::after {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffd05a;
+  content: '';
+  transform: translateX(-50%);
+}
+
+.immersive-rotate-device i {
+  position: absolute;
+  top: -14px;
+  right: -20px;
+  width: 18px;
+  height: 18px;
+  border-top: 3px solid #62dac5;
+  border-right: 3px solid #62dac5;
+  border-radius: 0 14px 0 0;
+}
+
+.immersive-rotate-device i::after {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 7px;
+  height: 7px;
+  border-top: 3px solid #62dac5;
+  border-right: 3px solid #62dac5;
+  content: '';
+  transform: rotate(45deg);
+}
+
+.immersive-orientation-panel strong {
+  color: #ffd05a;
+  font-size: clamp(24px, 7vw, 38px);
+  line-height: 1.05;
+}
+
+.immersive-orientation-panel p {
+  max-width: 440px;
+  margin: 0;
+  color: #fff4d9;
+  font-size: clamp(12px, 3.4vw, 15px);
+  font-weight: 800;
+  line-height: 1.65;
+}
+
+.immersive-orientation-panel small {
+  max-width: 440px;
+  color: #b9dcd8;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.immersive-fullscreen {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 18px;
+  border: 3px solid #172832;
+  border-radius: 0;
+  background: #62dac5;
+  clip-path: polygon(
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% 100%,
+    0 100%,
+    0 8px
+  );
+  color: #172832;
+  box-shadow: 0 4px 0 #172832;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.immersive-fullscreen:focus-visible {
+  outline: 3px solid #fff4d9;
+  outline-offset: 4px;
+}
+
+.immersive-fullscreen:active {
+  box-shadow: 0 1px 0 #172832;
+  transform: translateY(3px);
+}
+
+.pause-menu {
+  max-height: calc(var(--app-viewport-height, 100dvh) - 24px);
+}
+
+@keyframes immersive-device-turn {
+  0%,
+  20% {
+    transform: rotate(0deg);
+  }
+  60%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .immersive-rotate-device {
+    animation: none;
+    transform: rotate(90deg);
+  }
+}
+
+@media (max-height: 520px) {
+  .immersive-orientation-panel {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 22px;
+    row-gap: 6px;
+    padding: 18px 30px;
+    text-align: left;
+  }
+
+  .immersive-orientation-eyebrow,
+  .immersive-orientation-panel strong,
+  .immersive-orientation-panel p,
+  .immersive-orientation-panel small,
+  .immersive-fullscreen {
+    grid-column: 2;
+  }
+
+  .immersive-rotate-device {
+    grid-column: 1;
+    grid-row: 1 / 6;
+    margin: 0;
+  }
+
+  .immersive-orientation-panel strong,
+  .immersive-orientation-panel p,
+  .immersive-orientation-panel small {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .immersive-fullscreen {
+    justify-self: start;
+  }
+}
