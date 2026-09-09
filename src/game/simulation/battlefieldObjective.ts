@@ -22,6 +22,15 @@ export function createBattlefieldObjective(
   };
 }
 
+export function createBreakoutObjective(): BattlefieldObjectiveState {
+  return {
+    kind: 'breakout',
+    status: 'active',
+    progressSeconds: 0,
+    remainingSeconds: BATTLEFIELD_OBJECTIVES.breakout.deadlineSeconds,
+  };
+}
+
 export function isObjectiveContested(
   objective: BattlefieldObjectiveState,
   enemies: readonly EnemyState[],
@@ -39,8 +48,19 @@ export function isInsideObjective(
   position: number,
 ): boolean {
   const definition = BATTLEFIELD_OBJECTIVES[objective.kind];
-  // The caravan's center, not its sprite or collider, must enter the marked zone.
   return Math.abs(position - definition.position) <= definition.radius;
+}
+
+function lostEvent(objective: BattlefieldObjectiveState): CombatEvent {
+  return objective.kind === 'breakout'
+    ? { type: 'breakout-failed' }
+    : { type: 'objective-lost', kind: objective.kind };
+}
+
+function securedEvent(objective: BattlefieldObjectiveState): CombatEvent {
+  return objective.kind === 'breakout'
+    ? { type: 'breakout-completed' }
+    : { type: 'objective-secured', kind: objective.kind };
 }
 
 export function advanceBattlefieldObjective(
@@ -57,7 +77,7 @@ export function advanceBattlefieldObjective(
   if (context.defeated) {
     return {
       objective: { ...objective, status: 'lost' },
-      event: { type: 'objective-lost', kind: objective.kind },
+      event: lostEvent(objective),
     };
   }
   const dt = context.deltaSeconds;
@@ -72,12 +92,15 @@ export function advanceBattlefieldObjective(
     objective.progressSeconds + (capturing ? availableSeconds : 0),
   );
   const remainingSeconds = Math.max(0, objective.remainingSeconds - dt);
-  // Clearing the entire scheduled wave and all hostile shots secures the site
-  // without making the player wait beside an empty battlefield. A late clear
-  // cannot recover an already-expired cache. Exact-deadline completion wins.
+
+  // Detour sites can still resolve when the battlefield is fully clear. BREAKOUT
+  // deliberately cannot: killing everything is no longer a substitute for
+  // physically driving through the blockade.
   const secured =
     progressSeconds + EPSILON >= definition.holdSeconds ||
-    (context.battlefieldCleared && dt <= objective.remainingSeconds + EPSILON);
+    (objective.kind !== 'breakout' &&
+      context.battlefieldCleared &&
+      dt <= objective.remainingSeconds + EPSILON);
   if (secured) {
     return {
       objective: {
@@ -86,7 +109,7 @@ export function advanceBattlefieldObjective(
         progressSeconds: definition.holdSeconds,
         remainingSeconds,
       },
-      event: { type: 'objective-secured', kind: objective.kind },
+      event: securedEvent(objective),
     };
   }
   if (remainingSeconds <= EPSILON) {
@@ -97,7 +120,7 @@ export function advanceBattlefieldObjective(
         progressSeconds,
         remainingSeconds: 0,
       },
-      event: { type: 'objective-lost', kind: objective.kind },
+      event: lostEvent(objective),
     };
   }
   return { objective: { ...objective, progressSeconds, remainingSeconds } };
@@ -108,6 +131,16 @@ export function getObjectiveStatus(
   position: number,
   contested: boolean,
 ): string {
+  if (objective.kind === 'breakout') {
+    if (objective.status === 'secured') return '突破成功・離脱！';
+    if (objective.status === 'lost') return '封鎖された・遠征失敗';
+    if (contested) return '出口を塞がれている！ 排除して前へ';
+    if (isInsideObjective(objective, position)) return '突破中・この位置を維持！';
+    return position < BATTLEFIELD_OBJECTIVES.breakout.position
+      ? '敵を全滅させなくていい。出口へ前進 →'
+      : '← 封鎖線へ戻れ';
+  }
+
   if (objective.status === 'secured') return '回収成功';
   if (objective.status === 'lost') return '回収断念・敵を倒して進もう';
   if (contested) return '敵が範囲内！ 排除して確保';

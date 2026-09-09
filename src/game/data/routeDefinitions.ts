@@ -1,7 +1,7 @@
 import type { EnemyTypeId } from './ids';
 
 export type RouteType = 'normal' | 'elite' | 'repair' | 'salvage';
-export type BattlefieldObjectiveKind = 'repair' | 'salvage';
+export type BattlefieldObjectiveKind = 'breakout' | 'repair' | 'salvage';
 
 export interface BattlefieldObjectiveDefinition {
   displayName: string;
@@ -18,6 +18,17 @@ export interface BattlefieldObjectiveDefinition {
 export const BATTLEFIELD_OBJECTIVES: Readonly<
   Record<BattlefieldObjectiveKind, BattlefieldObjectiveDefinition>
 > = {
+  breakout: {
+    displayName: '封鎖線突破',
+    position: 68,
+    radius: 6,
+    holdSeconds: 2.5,
+    deadlineSeconds: 24,
+    repair: 0,
+    treasure: 0,
+    guards: [],
+    reward: '敵を残していても次の区間へ離脱',
+  },
   repair: {
     displayName: '整備拠点',
     position: 45,
@@ -54,6 +65,9 @@ export interface RouteChoice {
 
 export function objectiveInstructions(kind: BattlefieldObjectiveKind): string {
   const objective = BATTLEFIELD_OBJECTIVES[kind];
+  if (kind === 'breakout') {
+    return `${objective.deadlineSeconds}秒以内に${objective.position - objective.radius}〜${objective.position + objective.radius}mの封鎖線へ突入し、${objective.holdSeconds}秒こじ開ける。敵の全滅は不要。`;
+  }
   return `${objective.deadlineSeconds}秒以内に${objective.position - objective.radius}〜${objective.position + objective.radius}mを累計${objective.holdSeconds}秒確保。範囲内に敵がいる間は進まない。`;
 }
 
@@ -61,16 +75,16 @@ export function createRouteChoices(encounterIndex: number): RouteChoice[] {
   const choices: Omit<RouteChoice, 'id'>[] = [
     {
       type: 'normal',
-      displayName: '街道を進む',
-      description: '寄り道をせず、通常の敵部隊を突破する。',
-      risk: '追加の敵・回収期限なし',
+      displayName: '街道を突っ切る',
+      description: '敵を全滅させず、封鎖線を時間内にこじ開けて離脱する。',
+      risk: '後ろで撃ち続けても勝てない。前へ出る必要がある',
       reward: '通常の戦利品',
       accent: 'cyan',
     },
     {
       type: 'elite',
-      displayName: '強敵の待ち伏せ',
-      description: '強化された敵部隊に挑み、戦利品の品質を狙う。',
+      displayName: '強敵の封鎖線',
+      description: '強化された敵の間を突破し、戦利品の品質を狙う。',
       risk: '敵の耐久1.45倍・攻撃1.2倍・前線圧力1.25倍',
       reward: '補給品のドロップ率と戦利品の品質が上昇',
       accent: 'coral',
