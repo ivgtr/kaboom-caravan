@@ -1,3 +1,4 @@
+import { ENEMY_DEFINITIONS } from '../data/enemyDefinitions';
 import { resolveDamage } from '../simulation/damage';
 import type {
   CombatEvent,
@@ -22,6 +23,80 @@ export interface EnemyRangedAttack {
   visualId: EnemyProjectileVisualId;
 }
 
+interface PreparedEnemy {
+  enemy: EnemyState;
+  interrupted: boolean;
+}
+
+function prepareEnemyForStep(
+  source: EnemyState,
+  deltaSeconds: number,
+): PreparedEnemy {
+  const activeBreakSeconds = source.breakRemainingSeconds ?? 0;
+  if (activeBreakSeconds > 0) {
+    return {
+      enemy: {
+        ...source,
+        previousPosition: source.position,
+        contactCooldown: Math.max(0, source.contactCooldown - deltaSeconds),
+        attackWindupRemaining: undefined,
+        breakRemainingSeconds: Math.max(0, activeBreakSeconds - deltaSeconds),
+      },
+      interrupted: true,
+    };
+  }
+
+  const definition = ENEMY_DEFINITIONS[source.typeId];
+  const maximumHitPoints =
+    definition.hitPoints * (source.elite === true ? 1.45 : 1);
+  const hitPointRatio = Math.max(0, source.hitPoints) / maximumHitPoints;
+  const currentStage = source.breakStage ?? 0;
+  let nextStage = currentStage;
+
+  for (
+    let thresholdIndex = currentStage;
+    thresholdIndex < definition.breakThresholds.length;
+    thresholdIndex += 1
+  ) {
+    if (hitPointRatio <= definition.breakThresholds[thresholdIndex]!) {
+      nextStage = thresholdIndex + 1;
+    }
+  }
+
+  if (nextStage === currentStage) {
+    return {
+      enemy: {
+        ...source,
+        breakStage: currentStage,
+        breakRemainingSeconds: 0,
+      },
+      interrupted: false,
+    };
+  }
+
+  const crossedStages = nextStage - currentStage;
+  const recoilMultiplier = 1 + Math.max(0, nextStage - 1) * 0.15;
+  const durationMultiplier = nextStage > 1 ? 1.2 : 1;
+  return {
+    enemy: {
+      ...source,
+      previousPosition: source.position,
+      position:
+        source.position + definition.breakRecoilDistance * recoilMultiplier,
+      armor: Math.max(
+        0,
+        source.armor - definition.breakArmorDamage * crossedStages,
+      ),
+      contactCooldown: Math.max(source.contactCooldown, 0.35),
+      attackWindupRemaining: undefined,
+      breakStage: nextStage,
+      breakRemainingSeconds:
+        definition.breakDurationSeconds * durationMultiplier,
+    },
+    interrupted: true,
+  };
+}
+
 export function stepEnemyBehaviors(
   enemies: readonly EnemyState[],
   playerPosition: number,
@@ -35,7 +110,14 @@ export function stepEnemyBehaviors(
   const rangedAttacks: EnemyRangedAttack[] = [];
   let hitPoints = playerHitPoints;
 
-  for (const enemy of enemies) {
+  for (const sourceEnemy of enemies) {
+    const prepared = prepareEnemyForStep(sourceEnemy, deltaSeconds);
+    const enemy = prepared.enemy;
+    if (prepared.interrupted) {
+      nextEnemies.push(enemy);
+      continue;
+    }
+
     const minimumPosition = playerPosition + playerRadius + enemy.radius;
     const attackCooldown = Math.max(0, enemy.contactCooldown - deltaSeconds);
     const distance = enemy.position - playerPosition;
