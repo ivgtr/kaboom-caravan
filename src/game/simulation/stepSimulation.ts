@@ -2,11 +2,7 @@ import { derivePlayerStats } from '../build/derivedStats';
 import type { WeaponId } from '../data/ids';
 import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
 import { stepSimulation as stepBaseSimulation } from './stepSimulationBase';
-import type {
-  CombatEvent,
-  PlayerCommand,
-  SimulationState,
-} from './types';
+import type { CombatEvent, PlayerCommand, SimulationState } from './types';
 
 /**
  * REDLINE turns an empty magazine from a dead state into a dangerous comeback
@@ -65,7 +61,9 @@ function createRedlineState(
 
 function salvageDryKills(state: SimulationState): SimulationState {
   if (state.status === 'defeat' || state.player.ammo > 0) return state;
-  const kills = state.events.filter(({ type }) => type === 'enemy-killed').length;
+  const kills = state.events.filter(
+    ({ type }) => type === 'enemy-killed',
+  ).length;
   if (kills === 0) return state;
 
   const maximumAmmo = derivePlayerStats(state.build).maximumAmmo;
