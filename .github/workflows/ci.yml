@@ -25,6 +25,11 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Show required formatting diff
+        run: |
+          npx prettier --write src/game/combat/enemyBreak.test.ts src/game/session/mvpRun.test.ts
+          git diff -- src/game/combat/enemyBreak.test.ts src/game/session/mvpRun.test.ts
+          exit 1
       - name: Lint, unit tests, build and formatting
         run: npm run check
       - name: Install Chromium
