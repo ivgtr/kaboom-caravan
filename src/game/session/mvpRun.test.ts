@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COMBAT_CORE_IDS,
+  type CombatCoreId,
+} from '../data/combatCoreDefinitions';
+import {
   SIMULATION_STEP_SECONDS,
   type PlayerCommand,
 } from '../simulation/types';
@@ -9,6 +13,7 @@ import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
 import {
   createGameSession,
   selectRoute,
+  selectCombatCore,
   selectReward,
   selectWeaponCacheReward,
   stepGameSession,
@@ -72,18 +77,20 @@ interface ExpectedRunBaseline {
   finalBuild: BuildState;
 }
 
+// Counter core chosen after Battle 1, using the same baseline combat/reward policy.
+// These fixed values include its damage and subsequent loot effects.
 const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
-  1: {
-    elapsedTicks: 10139,
-    encounterTicks: [509, 519, 536, 558, 656, 537, 1287, 2217, 2470, 850],
+  '1': {
+    elapsedTicks: 7606,
+    encounterTicks: [509, 519, 536, 558, 640, 586, 466, 685, 2467, 640],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
-      70, 70, 62.323, 65.08, 70, 68.942, 70, 76.4, 70.012, 62.6,
+      70, 70, 62.323, 65.08, 70, 68.378, 64.343, 68.243, 68.335, 62.6,
     ],
-    primaryShots: 255,
-    secondaryShots: 119,
-    enemyProjectiles: [20, 0, 20],
-    attacksParried: 30,
+    primaryShots: 182,
+    secondaryShots: 45,
+    enemyProjectiles: [12, 0, 12],
+    attacksParried: 16,
     rewardIds: [
       'module:magnetic-armor',
       'weapon:rocket-launcher',
@@ -91,34 +98,35 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
       'module:armor',
       'module:radar',
       'module:ammo-box',
-      'module:heat-recycler',
-      'module:generator',
-      'weapon:rocket-launcher',
+      'module:magnetic-armor',
+      'weapon:scatter-cannon',
+      'module:capacitor',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
-      secondaryWeaponId: 'rocket-launcher',
+      secondaryWeaponId: 'railgun',
       weaponLevels: {
         'machine-cannon': 1,
-        'scatter-cannon': 1,
-        'rocket-launcher': 1,
-        flamethrower: 1,
-        railgun: 3,
+        'scatter-cannon': 2,
+        'rocket-launcher': 2,
+        railgun: 2,
+        'mine-launcher': 1,
       },
-      moduleIds: ['radar', 'ammo-box', 'heat-recycler', 'generator'],
+      moduleIds: ['radar', 'ammo-box', 'magnetic-armor', 'capacitor'],
+      coreId: 'counter',
     },
   },
-  42: {
-    elapsedTicks: 5858,
-    encounterTicks: [509, 519, 663, 506, 491, 553, 490, 559, 625, 943],
+  '42': {
+    elapsedTicks: 6145,
+    encounterTicks: [509, 519, 663, 506, 491, 553, 490, 559, 623, 1232],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 125, 125, 125],
     forwardDistances: [
-      70, 70, 70, 66.2, 69.193, 66.54, 61.75, 69.6, 62.812, 62.6,
+      70, 70, 70, 66.2, 69.193, 66.54, 61.75, 69.6, 63.232, 70,
     ],
-    primaryShots: 163,
+    primaryShots: 167,
     secondaryShots: 41,
-    enemyProjectiles: [11, 1, 10],
-    attacksParried: 10,
+    enemyProjectiles: [15, 0, 15],
+    attacksParried: 15,
     rewardIds: [
       'module:explosive-magazine',
       'module:magnetic-armor',
@@ -128,29 +136,36 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
       'module:cooling-fan',
       'module:shield-generator',
       'module:capacitor',
-      'module:ammo-box',
+      'weapon:scatter-cannon',
     ],
     finalBuild: {
       primaryWeaponId: 'machine-cannon',
-      secondaryWeaponId: 'railgun',
+      secondaryWeaponId: 'scatter-cannon',
       weaponLevels: {
         'machine-cannon': 1,
         'scatter-cannon': 1,
         'rocket-launcher': 2,
-        railgun: 2,
+        railgun: 1,
+        flamethrower: 2,
       },
-      moduleIds: ['cooling-fan', 'shield-generator', 'capacitor', 'ammo-box'],
+      moduleIds: [
+        'heat-recycler',
+        'cooling-fan',
+        'shield-generator',
+        'capacitor',
+      ],
+      coreId: 'counter',
     },
   },
-  2026: {
-    elapsedTicks: 5445,
-    encounterTicks: [509, 519, 495, 506, 491, 553, 671, 541, 576, 584],
+  '2026': {
+    elapsedTicks: 5417,
+    encounterTicks: [509, 519, 495, 506, 491, 553, 640, 544, 576, 584],
     endingHitPoints: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     forwardDistances: [
-      70, 70, 70, 66.2, 69.193, 66.54, 70.375, 69.825, 69.655, 62.6,
+      70, 70, 70, 66.2, 69.193, 66.54, 71.653, 69.825, 69.655, 62.6,
     ],
-    primaryShots: 137,
-    secondaryShots: 44,
+    primaryShots: 133,
+    secondaryShots: 42,
     enemyProjectiles: [10, 0, 10],
     attacksParried: 10,
     rewardIds: [
@@ -180,6 +195,7 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
         'heat-recycler',
         'magnetic-armor',
       ],
+      coreId: 'counter',
     },
   },
 };
@@ -238,7 +254,7 @@ function combatCommand(session: GameSessionState): PlayerCommand {
     session.combat.player.energy >= weapon.energyCost &&
     !session.combat.player.weaponHeat[slot].overheated &&
     session.combat.player.weaponHeat[slot].heat + weapon.heatGenerated < 100;
-  return {
+  const command: PlayerCommand = {
     move:
       parryThreat || contactThreat
         ? 0
@@ -256,6 +272,25 @@ function combatCommand(session: GameSessionState): PlayerCommand {
     boost: false,
     activateBreakthrough: false,
   };
+  if (session.run.build.coreId === 'relay') {
+    const preferSecondary = session.combat.core.relaySlot === 'primary';
+    const secondaryReady =
+      command.fireSecondary &&
+      session.combat.player.secondaryCooldown <= SIMULATION_STEP_SECONDS;
+    command.fireSecondary = preferSecondary && secondaryReady;
+    command.firePrimary = command.firePrimary && !command.fireSecondary;
+  }
+  if (
+    session.run.build.coreId === 'siege' &&
+    session.combat.player.position >= 25 &&
+    hasTarget &&
+    session.combat.player.ammo >= 3 &&
+    distance <=
+      Math.min(primary.optimalRangeMaximum, secondary.optimalRangeMaximum)
+  ) {
+    command.move = 0;
+  }
+  return command;
 }
 
 function chooseReward(session: GameSessionState) {
@@ -319,10 +354,12 @@ function finalizeEncounter(metrics: EncounterMetrics): EncounterMetrics {
 function simulateMvpRun(
   seed: number,
   useBreakthrough = false,
+  coreId: CombatCoreId = 'counter',
 ): {
   session: GameSessionState;
   metrics: RunMetrics;
   breakthroughs: number;
+  coreTriggers: number;
 } {
   let session = createGameSession(seed);
   const encounters: EncounterMetrics[] = [];
@@ -330,8 +367,13 @@ function simulateMvpRun(
   let currentEncounter = createEncounterMetrics(session);
   const maximumSteps = 60 * 60 * 20;
   let breakthroughs = 0;
+  let coreTriggers = 0;
 
   for (let step = 0; step < maximumSteps; step += 1) {
+    if (session.phase === 'core-choice') {
+      session = selectCombatCore(session, coreId);
+      continue;
+    }
     if (session.phase === 'combat') {
       const previousSession = session;
       session = stepGameSession(
@@ -360,6 +402,7 @@ function simulateMvpRun(
         session.combat.player.position,
       );
       for (const event of session.combat.events) {
+        if (event.type === 'core-triggered') coreTriggers += 1;
         if (event.type === 'breakthrough-activated') breakthroughs += 1;
         if (event.type === 'weapon-fired') {
           if (event.weaponId === previousSession.run.build.primaryWeaponId) {
@@ -459,7 +502,7 @@ function simulateMvpRun(
     finalBuild: structuredClone(session.run.build),
   };
 
-  return { session, metrics, breakthroughs };
+  return { session, metrics, breakthroughs, coreTriggers };
 }
 
 describe('fixed-seed MVP run', () => {
@@ -473,7 +516,13 @@ describe('fixed-seed MVP run', () => {
         }
       ).process?.env?.REPORT_BALANCE;
       if (reportBalance === '1') {
-        console.info(JSON.stringify({ seed, ...metrics }));
+        console.info(
+          JSON.stringify({
+            seed,
+            baseline: toRunBaseline(metrics),
+            ...metrics,
+          }),
+        );
       }
 
       expect(
@@ -527,6 +576,31 @@ describe('fixed-seed runs with frontline breakthrough', () => {
       expect(run.session.combat.breakthrough.charge).toBeGreaterThanOrEqual(0);
       expect(run.session.combat.breakthrough.charge).toBeLessThanOrEqual(100);
       expect(simulateMvpRun(seed, true)).toEqual(run);
+    },
+  );
+});
+
+describe('core-specific combat policies across full runs', () => {
+  it.each(COMBAT_CORE_IDS)(
+    '%s supports a deterministic ten-battle run with real core activations',
+    (coreId) => {
+      for (const seed of [1, 42, 2026]) {
+        const run = simulateMvpRun(seed, true, coreId);
+        expect(
+          run.session.phase,
+          JSON.stringify({
+            coreId,
+            seed,
+            encounter: run.session.run.encounterIndex,
+          }),
+        ).toBe('victory');
+        expect(run.metrics.encountersCompleted).toBe(10);
+        expect(run.metrics.rewardsSelected).toHaveLength(9);
+        expect(run.session.run.build.coreId).toBe(coreId);
+        expect(run.coreTriggers).toBeGreaterThan(0);
+        expect(run.breakthroughs).toBeGreaterThan(0);
+        expect(simulateMvpRun(seed, true, coreId)).toEqual(run);
+      }
     },
   );
 });

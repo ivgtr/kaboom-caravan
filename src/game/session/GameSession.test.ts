@@ -8,6 +8,7 @@ import {
   rerollRewards,
   restartGameSession,
   selectRoute,
+  selectCombatCore,
   selectReward,
   selectWeaponCacheReward,
   startGameSession,
@@ -15,7 +16,7 @@ import {
 } from './GameSession';
 
 function completeCurrentCombat(session: ReturnType<typeof createGameSession>) {
-  return stepGameSession(
+  const resolved = stepGameSession(
     {
       ...session,
       combat: {
@@ -27,6 +28,9 @@ function completeCurrentCombat(session: ReturnType<typeof createGameSession>) {
     IDLE_COMMAND,
     SIMULATION_STEP_SECONDS,
   );
+  return resolved.phase === 'core-choice'
+    ? selectCombatCore(resolved, 'counter')
+    : resolved;
 }
 
 describe('reward generation', () => {
@@ -220,7 +224,8 @@ describe('game session', () => {
     expect(paused.phase).toBe('weapon-cache');
     expect(paused.combat.status).toBe('victory');
     expect(equipped.phase).toBe('combat');
-    expect(resolved.phase).toBe('reward');
+    expect(resolved.phase).toBe('core-choice');
+    expect(selectCombatCore(resolved, 'counter').phase).toBe('reward');
   });
 
   it('offers route decisions and applies salvage benefits', () => {

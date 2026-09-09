@@ -7,6 +7,7 @@ import type {
 } from '../data/ids';
 import type { WeaponBehavior } from '../data/weaponDefinitions';
 import type { WeaponLevel } from '../build/weaponUpgrade';
+import type { CombatCoreId } from '../data/combatCoreDefinitions';
 
 export const SIMULATION_HZ = 60;
 export const SIMULATION_STEP_SECONDS = 1 / SIMULATION_HZ;
@@ -114,6 +115,13 @@ export interface ProjectileState {
   maximumAgeSeconds: number;
 }
 
+export interface CombatCoreState {
+  relaySlot: WeaponSlot | null;
+  relaySeconds: number;
+  siegeSeconds: number;
+  counterSeconds: number;
+}
+
 export interface BreakthroughState {
   charge: number;
   remainingSeconds: number;
@@ -128,6 +136,7 @@ export interface FrontlineState {
 }
 
 export interface BuildState {
+  coreId?: CombatCoreId;
   primaryWeaponId: WeaponId;
   secondaryWeaponId: WeaponId;
   weaponLevels: Partial<Record<WeaponId, WeaponLevel>>;
@@ -154,6 +163,8 @@ export interface WaveState {
 }
 
 export type CombatEvent =
+  | { type: 'core-ready'; coreId: CombatCoreId }
+  | { type: 'core-triggered'; coreId: CombatCoreId; slot: WeaponSlot }
   | { type: 'breakthrough-ready' }
   | { type: 'breakthrough-activated' }
   | {
@@ -232,6 +243,7 @@ export interface SimulationState {
   player: PlayerState;
   frontline: FrontlineState;
   breakthrough: BreakthroughState;
+  core: CombatCoreState;
   wave?: WaveState;
   enemies: EnemyState[];
   projectiles: ProjectileState[];

@@ -31,10 +31,13 @@ import {
   type RouteType,
 } from '../data/routeDefinitions';
 
+import { isCombatCoreId } from '../data/combatCoreDefinitions';
+
 export type SessionPhase =
   | 'garage'
   | 'combat'
   | 'weapon-cache'
+  | 'core-choice'
   | 'reward'
   | 'route'
   | 'victory'
@@ -250,7 +253,10 @@ export function stepGameSession(
 
   return {
     ...session,
-    phase: 'reward',
+    phase:
+      session.run.encounterIndex === 0 && !session.run.build.coreId
+        ? 'core-choice'
+        : 'reward',
     combat,
     run: timedRun,
     rewardChoices: generateRewardChoices(
@@ -262,6 +268,23 @@ export function stepGameSession(
       combat.treasureCollected,
       timedRun.rewardRerollIndex,
     ),
+  };
+}
+
+/** A once-per-run choice; normal rewards and their seeded rolls are retained. */
+export function selectCombatCore(
+  session: GameSessionState,
+  coreId: string,
+): GameSessionState {
+  if (session.phase !== 'core-choice') return session;
+  if (!isCombatCoreId(coreId))
+    throw new Error(`Combat core not found: ${coreId}`);
+  const build: BuildState = { ...session.run.build, coreId };
+  return {
+    ...session,
+    phase: 'reward',
+    run: { ...session.run, build },
+    combat: { ...session.combat, build: structuredClone(build), events: [] },
   };
 }
 

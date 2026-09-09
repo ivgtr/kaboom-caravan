@@ -4,6 +4,7 @@ import {
   restartGameSession,
   selectReward,
   selectRoute,
+  selectCombatCore,
   stepGameSession,
 } from './GameSession';
 import { IDLE_COMMAND } from '../simulation/types';
@@ -18,7 +19,10 @@ describe('banked breakthrough charge', () => {
       hitChargeCooldown: 0.5,
     };
     session.combat.status = 'victory';
-    return stepGameSession(session, IDLE_COMMAND, 1 / 60);
+    const state = stepGameSession(session, IDLE_COMMAND, 1 / 60);
+    return state.phase === 'core-choice'
+      ? selectCombatCore(state, 'counter')
+      : state;
   }
 
   it('carries earned charge through rewards, but not the hit cooldown', () => {
@@ -49,7 +53,10 @@ describe('banked breakthrough charge', () => {
       hitChargeCooldown: 0,
     };
     session.combat.status = 'victory';
-    const reward = stepGameSession(session, IDLE_COMMAND, 1 / 60);
+    const reward = selectCombatCore(
+      stepGameSession(session, IDLE_COMMAND, 1 / 60),
+      'counter',
+    );
     const next = selectReward(reward, reward.rewardChoices[0]!.id);
     expect(next.combat.breakthrough).toEqual({
       charge: 0,
@@ -58,21 +65,24 @@ describe('banked breakthrough charge', () => {
     });
   });
 
-  it.each(['weapon-cache', 'reward', 'route', 'garage'] as const)(
-    'freezes the effect during %s',
-    (phase) => {
-      const session = createGameSession();
-      session.phase = phase;
-      session.combat.breakthrough.remainingSeconds = 3;
-      expect(
-        stepGameSession(
-          session,
-          { ...IDLE_COMMAND, activateBreakthrough: true },
-          30,
-        ),
-      ).toBe(session);
-    },
-  );
+  it.each([
+    'core-choice',
+    'weapon-cache',
+    'reward',
+    'route',
+    'garage',
+  ] as const)('freezes the effect during %s', (phase) => {
+    const session = createGameSession();
+    session.phase = phase;
+    session.combat.breakthrough.remainingSeconds = 3;
+    expect(
+      stepGameSession(
+        session,
+        { ...IDLE_COMMAND, activateBreakthrough: true },
+        30,
+      ),
+    ).toBe(session);
+  });
 
   it('resets charge on a new run rather than persisting a free special', () => {
     const session = clear();

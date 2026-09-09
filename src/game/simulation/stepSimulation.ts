@@ -38,6 +38,13 @@ import {
   earnBreakthroughCharge,
 } from './breakthrough';
 
+import {
+  advanceCombatCore,
+  prepareCoreShot,
+  chargeCounterCore,
+} from './combatCore';
+import { CORE_RULES } from '../data/combatCoreDefinitions';
+
 const PLAYER_MIN_POSITION = 0;
 const PLAYER_MAX_POSITION = 80;
 const OVERHEAT_THRESHOLD = 100;
@@ -535,6 +542,21 @@ export function stepSimulation(
   ) {
     playerVelocity = 0;
   }
+  let core = advanceCombatCore(
+    state.build.coreId,
+    state.core,
+    command,
+    playerPosition,
+    playerVelocity,
+    deltaSeconds,
+  );
+  if (
+    state.build.coreId === 'siege' &&
+    core.siegeSeconds >= CORE_RULES.siege.deploySeconds &&
+    state.core.siegeSeconds < CORE_RULES.siege.deploySeconds
+  ) {
+    events.push({ type: 'core-ready', coreId: 'siege' });
+  }
   let playerHitPoints = Math.min(
     state.player.hitPoints,
     playerStats.maximumHitPoints,
@@ -711,16 +733,24 @@ export function stepSimulation(
   };
 
   const fire = (
+    slot: WeaponSlot,
     definition: WeaponDefinition,
     cooldown: number,
     heatState: WeaponHeatState,
-  ): FireResult =>
-    tryFireWeapon(
+  ): FireResult => {
+    const shot = prepareCoreShot(
+      state.build.coreId,
+      core,
+      slot,
+      command.firePrimary && command.fireSecondary,
+    );
+    const result = tryFireWeapon(
+      { ...state, player: { ...state.player, position: playerPosition } },
       {
-        ...state,
-        player: { ...state.player, position: playerPosition },
+        ...definition,
+        damage: definition.damage * shot.damageMultiplier,
+        heatGenerated: definition.heatGenerated * shot.heatMultiplier,
       },
-      definition,
       cooldown,
       ammo,
       energy,
@@ -728,9 +758,43 @@ export function stepSimulation(
       heatState.overheated,
       nextEntitySequence,
     );
+    if (result.projectiles.length > 0) {
+      core = shot.core;
+      if (shot.ventSlot) {
+        const ventSlot = shot.ventSlot;
+        weaponHeat = {
+          ...weaponHeat,
+          [ventSlot]: recoverWeapon(
+            ventSlot,
+            {
+              ...weaponHeat[ventSlot],
+              heat: Math.max(0, weaponHeat[ventSlot].heat - shot.ventAmount),
+            },
+            ventSlot === 'primary'
+              ? primaryDefinition.id
+              : secondaryDefinition.id,
+            events,
+          ),
+        };
+      }
+      if (state.build.coreId && shot.damageMultiplier > 1) {
+        events.push({
+          type: 'core-triggered',
+          coreId: state.build.coreId,
+          slot,
+        });
+      }
+    }
+    return result;
+  };
 
   if (command.firePrimary) {
-    const result = fire(primaryDefinition, primaryCooldown, weaponHeat.primary);
+    const result = fire(
+      'primary',
+      primaryDefinition,
+      primaryCooldown,
+      weaponHeat.primary,
+    );
     ammo = result.ammo;
     energy = result.energy;
     weaponHeat = {
@@ -758,6 +822,7 @@ export function stepSimulation(
 
   if (command.fireSecondary) {
     const result = fire(
+      'secondary',
       secondaryDefinition,
       secondaryCooldown,
       weaponHeat.secondary,
@@ -846,6 +911,17 @@ export function stepSimulation(
         : enemy,
     );
   }
+
+  // Both contact and projectile parries arm the NEXT step's volley, not an
+  // already-fired shot. Multiple parries refresh one charge rather than stack.
+  const counterWasReady = core.counterSeconds > 0;
+  core = chargeCounterCore(
+    state.build.coreId,
+    core,
+    successfulParries.length > 0,
+  );
+  if (!counterWasReady && core.counterSeconds > 0)
+    events.push({ type: 'core-ready', coreId: 'counter' });
 
   const killedEnemies = enemies.filter((enemy) => enemy.hitPoints <= 0);
   for (const enemy of killedEnemies) {
@@ -1011,6 +1087,7 @@ export function stepSimulation(
     nextEntitySequence,
     status,
     breakthrough: earned.breakthrough,
+    core,
     player: {
       ...state.player,
       previousPosition: state.player.position,

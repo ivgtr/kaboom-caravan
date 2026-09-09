@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_CORE_IDS } from '../data/combatCoreDefinitions';
-import { generateRewardChoices, generateWeaponCacheChoices } from '../reward/rewardSystem';
+import {
+  generateRewardChoices,
+  generateWeaponCacheChoices,
+} from '../reward/rewardSystem';
 import { createCombatCoreState } from '../simulation/combatCore';
 import { IDLE_COMMAND } from '../simulation/types';
-import { createGameSession, restartGameSession, rerollRewards, selectCombatCore, selectReward, selectRoute, selectWeaponCacheReward, stepGameSession } from './GameSession';
+import {
+  createGameSession,
+  restartGameSession,
+  rerollRewards,
+  selectCombatCore,
+  selectReward,
+  selectRoute,
+  selectWeaponCacheReward,
+  stepGameSession,
+} from './GameSession';
 function firstClear(seed = 42) {
   const state = createGameSession(seed);
   state.combat.tick = 500;
@@ -19,7 +31,16 @@ describe('run-defining core choice', () => {
     expect(state.phase).toBe('core-choice');
     expect(state.run.build.coreId).toBeUndefined();
     expect(state.run.encounterIndex).toBe(0);
-    expect(state.rewardChoices).toEqual(generateRewardChoices(42, 0, state.run.build, state.combat.frontline.rewardMultiplier, 4, 0));
+    expect(state.rewardChoices).toEqual(
+      generateRewardChoices(
+        42,
+        0,
+        state.run.build,
+        state.combat.frontline.rewardMultiplier,
+        4,
+        0,
+      ),
+    );
     expect(state.run.elapsedCombatTicks).toBe(501);
     expect(state.run.treasureCollected).toBe(4);
     expect(state.run.vehicleHitPoints).toBe(60);
@@ -27,25 +48,31 @@ describe('run-defining core choice', () => {
     expect(selectReward(state, state.rewardChoices[0]!.id)).toBe(state);
     expect(rerollRewards(state)).toBe(state);
   });
-  it.each(COMBAT_CORE_IDS)('selecting %s preserves rewards, seed, resources and all four module slots', (id) => {
-    const state = firstClear();
-    state.run.build.moduleIds = ['armor', 'radar', 'ammo-box', 'generator'];
-    const previous = structuredClone(state);
-    const reward = selectCombatCore(state, id);
-    expect(state).toEqual(previous);
-    expect(reward.phase).toBe('reward');
-    expect(reward.rewardChoices).toBe(state.rewardChoices);
-    expect(reward.run).toEqual({ ...state.run, build: { ...state.run.build, coreId: id } });
-    expect(reward.combat.build).toEqual(reward.run.build);
-    const next = selectReward(reward, reward.rewardChoices[0]!.id);
-    expect(next.phase).toBe('combat');
-    expect(next.run.encounterIndex).toBe(1);
-    expect(next.run.build.coreId).toBe(id);
-    expect(next.combat.build.coreId).toBe(id);
-    expect(next.combat.core).toEqual(createCombatCoreState());
-    expect(next.combat.breakthrough.charge).toBe(82);
-    expect(selectCombatCore(next, 'relay')).toBe(next);
-  });
+  it.each(COMBAT_CORE_IDS)(
+    'selecting %s preserves rewards, seed, resources and all four module slots',
+    (id) => {
+      const state = firstClear();
+      state.run.build.moduleIds = ['armor', 'radar', 'ammo-box', 'generator'];
+      const previous = structuredClone(state);
+      const reward = selectCombatCore(state, id);
+      expect(state).toEqual(previous);
+      expect(reward.phase).toBe('reward');
+      expect(reward.rewardChoices).toBe(state.rewardChoices);
+      expect(reward.run).toEqual({
+        ...state.run,
+        build: { ...state.run.build, coreId: id },
+      });
+      expect(reward.combat.build).toEqual(reward.run.build);
+      const next = selectReward(reward, reward.rewardChoices[0]!.id);
+      expect(next.phase).toBe('combat');
+      expect(next.run.encounterIndex).toBe(1);
+      expect(next.run.build.coreId).toBe(id);
+      expect(next.combat.build.coreId).toBe(id);
+      expect(next.combat.core).toEqual(createCombatCoreState());
+      expect(next.combat.breakthrough.charge).toBe(82);
+      expect(selectCombatCore(next, 'relay')).toBe(next);
+    },
+  );
   it('rejects forged core IDs and ignores selection outside the choice phase', () => {
     expect(() => selectCombatCore(firstClear(), 'invalid')).toThrow();
     const state = createGameSession();
@@ -64,18 +91,37 @@ describe('run-defining core choice', () => {
     state.combat.status = 'defeat';
     expect(stepGameSession(state, IDLE_COMMAND, 1 / 60).phase).toBe('defeat');
   });
-  it.each(['core-choice', 'reward', 'weapon-cache', 'route', 'garage'] as const)('freezes all core timers and ignores firing in %s', (phase) => {
+  it.each([
+    'core-choice',
+    'reward',
+    'weapon-cache',
+    'route',
+    'garage',
+  ] as const)('freezes all core timers and ignores firing in %s', (phase) => {
     const state = createGameSession();
     state.phase = phase;
-    state.combat.core = { relaySlot: 'primary', relaySeconds: 2, siegeSeconds: 1, counterSeconds: 3 };
-    expect(stepGameSession(state, { ...IDLE_COMMAND, firePrimary: true }, 30)).toBe(state);
+    state.combat.core = {
+      relaySlot: 'primary',
+      relaySeconds: 2,
+      siegeSeconds: 1,
+      counterSeconds: 3,
+    };
+    expect(
+      stepGameSession(state, { ...IDLE_COMMAND, firePrimary: true }, 30),
+    ).toBe(state);
   });
   it('keeps transient opportunities across a mid-combat weapon cache, but not the next battle/route', () => {
     let state = selectCombatCore(firstClear(), 'counter');
     state = selectReward(state, state.rewardChoices[0]!.id);
     state.phase = 'weapon-cache';
     state.run.pendingWeaponCaches = 1;
-    state.rewardChoices = generateWeaponCacheChoices(42, 1, 4, state.run.build, 1);
+    state.rewardChoices = generateWeaponCacheChoices(
+      42,
+      1,
+      4,
+      state.run.build,
+      1,
+    );
     state.combat.core.counterSeconds = 2;
     const resumed = selectWeaponCacheReward(state, state.rewardChoices[0]!.id);
     expect(resumed.combat.core.counterSeconds).toBe(2);
