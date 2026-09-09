@@ -1,6 +1,7 @@
 import type { ModuleId, WeaponId } from '../data/ids';
 import { MODULE_DEFINITIONS } from '../data/moduleDefinitions';
 import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
+import { wantedRewardWarning } from '../session/wantedPressure';
 import { createSeededRandom, type RandomSource } from '../simulation/random';
 import type { BuildState } from '../simulation/types';
 import {
@@ -80,10 +81,19 @@ function rewardRarity(
   return 'common';
 }
 
+function rewardDescription(
+  description: string,
+  rarity: RewardRarity,
+  wantedLevel: number,
+): string {
+  return `${description} / ${wantedRewardWarning(rarity, wantedLevel)}`;
+}
+
 function weaponChoice(
   weaponId: WeaponId,
   build: BuildState,
   rarity: RewardRarity,
+  wantedLevel = 0,
 ): RewardChoice {
   const definition = WEAPON_DEFINITIONS[weaponId];
   const currentLevel = getWeaponLevel(build, weaponId);
@@ -94,15 +104,16 @@ function weaponChoice(
     MAX_WEAPON_LEVEL,
     currentLevel + levelGain,
   ) as WeaponLevel;
+  const description =
+    isUpgrade || nextLevel > 1
+      ? getWeaponUpgradeSummary(weaponId, nextLevel)
+      : definition.description;
   return {
     id: `weapon:${weaponId}`,
     type: 'weapon',
     weaponId,
     displayName: definition.displayName,
-    description:
-      isUpgrade || nextLevel > 1
-        ? getWeaponUpgradeSummary(weaponId, nextLevel)
-        : definition.description,
+    description: rewardDescription(description, rarity, wantedLevel),
     rarity,
     currentLevel,
     nextLevel,
@@ -110,14 +121,18 @@ function weaponChoice(
   };
 }
 
-function moduleChoice(moduleId: ModuleId, rarity: RewardRarity): RewardChoice {
+function moduleChoice(
+  moduleId: ModuleId,
+  rarity: RewardRarity,
+  wantedLevel = 0,
+): RewardChoice {
   const definition = MODULE_DEFINITIONS[moduleId];
   return {
     id: `module:${moduleId}`,
     type: 'module',
     moduleId,
     displayName: definition.displayName,
-    description: definition.description,
+    description: rewardDescription(definition.description, rarity, wantedLevel),
     rarity,
   };
 }
@@ -129,6 +144,7 @@ export function generateWeaponCacheChoices(
   build: BuildState,
   riskMultiplier: number,
   cacheIndex = 0,
+  wantedLevel = 0,
 ): Extract<RewardChoice, { type: 'weapon' }>[] {
   const random = createSeededRandom(
     rewardSeed(
@@ -149,6 +165,7 @@ export function generateWeaponCacheChoices(
         selected,
         build,
         rewardRarity(1, riskMultiplier, random),
+        wantedLevel,
       ) as Extract<RewardChoice, { type: 'weapon' }>,
     );
   }
@@ -162,6 +179,7 @@ export function generateRewardChoices(
   riskMultiplier: number,
   treasureValue = 0,
   rerollIndex = 0,
+  wantedLevel = 0,
 ): RewardChoice[] {
   const random = createSeededRandom(
     rewardSeed(seed, encounterIndex, rerollIndex),
@@ -195,6 +213,7 @@ export function generateRewardChoices(
           weaponId,
           build,
           rewardRarity(treasureValue, riskMultiplier, random),
+          wantedLevel,
         ),
       ),
     ...availableModules
@@ -203,6 +222,7 @@ export function generateRewardChoices(
         moduleChoice(
           moduleId,
           rewardRarity(treasureValue, riskMultiplier, random),
+          wantedLevel,
         ),
       ),
   ];
@@ -220,10 +240,12 @@ export function generateRewardChoices(
       firstWeapon,
       build,
       rewardRarity(treasureValue, riskMultiplier, random),
+      wantedLevel,
     ),
     moduleChoice(
       firstModule,
       rewardRarity(treasureValue, riskMultiplier, random),
+      wantedLevel,
     ),
     third,
   ];
