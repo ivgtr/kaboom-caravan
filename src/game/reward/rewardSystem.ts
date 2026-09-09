@@ -1,6 +1,7 @@
 import type { ModuleId, WeaponId } from '../data/ids';
 import { MODULE_DEFINITIONS } from '../data/moduleDefinitions';
 import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
+import { wantedRewardWarning } from '../session/wantedPressure';
 import { createSeededRandom, type RandomSource } from '../simulation/random';
 import type { BuildState } from '../simulation/types';
 import {
@@ -80,6 +81,10 @@ function rewardRarity(
   return 'common';
 }
 
+function rewardDescription(description: string, rarity: RewardRarity): string {
+  return `${description} / ${wantedRewardWarning(rarity)}`;
+}
+
 function weaponChoice(
   weaponId: WeaponId,
   build: BuildState,
@@ -94,15 +99,16 @@ function weaponChoice(
     MAX_WEAPON_LEVEL,
     currentLevel + levelGain,
   ) as WeaponLevel;
+  const description =
+    isUpgrade || nextLevel > 1
+      ? getWeaponUpgradeSummary(weaponId, nextLevel)
+      : definition.description;
   return {
     id: `weapon:${weaponId}`,
     type: 'weapon',
     weaponId,
     displayName: definition.displayName,
-    description:
-      isUpgrade || nextLevel > 1
-        ? getWeaponUpgradeSummary(weaponId, nextLevel)
-        : definition.description,
+    description: rewardDescription(description, rarity),
     rarity,
     currentLevel,
     nextLevel,
@@ -117,7 +123,7 @@ function moduleChoice(moduleId: ModuleId, rarity: RewardRarity): RewardChoice {
     type: 'module',
     moduleId,
     displayName: definition.displayName,
-    description: definition.description,
+    description: rewardDescription(definition.description, rarity),
     rarity,
   };
 }
