@@ -1,5 +1,18 @@
 import { expect, test } from '@playwright/test';
 
+test('serves a standalone landscape manifest for toolbar-free home-screen launch', async ({
+  request,
+}) => {
+  const response = await request.get('/manifest.webmanifest');
+  expect(response.ok()).toBe(true);
+  const manifest = (await response.json()) as {
+    display?: string;
+    orientation?: string;
+  };
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.orientation).toBe('landscape');
+});
+
 test('freezes combat until explicit resume', async ({ page }) => {
   await page.goto('/?debug');
   const pauseButton = page.getByRole('button', {
@@ -107,7 +120,7 @@ test.describe('touch portrait 390x844', () => {
 test.describe('touch landscape 844x390', () => {
   test.use({ viewport: { width: 844, height: 390 }, hasTouch: true });
 
-  test('tracks the visible viewport and suppresses native game gestures', async ({
+  test('tracks the visible viewport and keeps every critical control inside it', async ({
     page,
   }) => {
     await page.goto('/?debug');
@@ -115,25 +128,59 @@ test.describe('touch landscape 844x390', () => {
       page.getByRole('dialog', { name: '横向きでプレイ' }),
     ).not.toBeVisible();
 
-    const viewportFit = await page
-      .locator('.immersive-shell')
-      .evaluate((shell) => {
-        const rect = shell.getBoundingClientRect();
-        return {
-          height: rect.height,
-          width: rect.width,
-          touchAction: getComputedStyle(shell).touchAction,
-          visualHeight: window.visualViewport?.height ?? innerHeight,
-          visualWidth: window.visualViewport?.width ?? innerWidth,
-        };
-      });
-    expect(
-      Math.abs(viewportFit.height - viewportFit.visualHeight),
-    ).toBeLessThan(2);
-    expect(Math.abs(viewportFit.width - viewportFit.visualWidth)).toBeLessThan(
-      2,
+    const shell = page.locator('.immersive-shell');
+    await expect(shell).toHaveClass(/has-browser-ui/);
+    const viewportFit = await shell.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        height: rect.height,
+        width: rect.width,
+        touchAction: getComputedStyle(element).touchAction,
+        visualHeight: window.visualViewport?.height ?? innerHeight,
+        visualWidth: window.visualViewport?.width ?? innerWidth,
+        innerHeight,
+        innerWidth,
+        clientHeight: document.documentElement.clientHeight,
+        clientWidth: document.documentElement.clientWidth,
+      };
+    });
+    expect(viewportFit.height).toBeLessThanOrEqual(
+      viewportFit.visualHeight + 1,
     );
+    expect(viewportFit.height).toBeLessThanOrEqual(viewportFit.innerHeight + 1);
+    expect(viewportFit.height).toBeLessThanOrEqual(
+      viewportFit.clientHeight + 1,
+    );
+    expect(viewportFit.width).toBeLessThanOrEqual(viewportFit.visualWidth + 1);
+    expect(viewportFit.width).toBeLessThanOrEqual(viewportFit.innerWidth + 1);
+    expect(viewportFit.width).toBeLessThanOrEqual(viewportFit.clientWidth + 1);
     expect(viewportFit.touchAction).toBe('none');
+
+    const clippedControls = await shell.evaluate((element) => {
+      const viewport = element.getBoundingClientRect();
+      const selectors = [
+        '.move.forward',
+        '.move.backward',
+        '.move.boost',
+        '.weapon.main',
+        '.weapon.sub',
+        '.weapon.parry',
+        '.pause-toggle',
+        '.audio-toggle',
+      ];
+      return selectors.filter((selector) => {
+        const target = element.querySelector(selector);
+        if (!(target instanceof HTMLElement)) return true;
+        const rect = target.getBoundingClientRect();
+        return (
+          rect.left < viewport.left - 1 ||
+          rect.top < viewport.top - 1 ||
+          rect.right > viewport.right + 1 ||
+          rect.bottom > viewport.bottom + 1
+        );
+      });
+    });
+    expect(clippedControls).toEqual([]);
 
     const contextMenuPrevented = await page
       .locator('.combat-stage canvas')

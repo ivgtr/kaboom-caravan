@@ -47,6 +47,15 @@ body,
   user-select: none;
 }
 
+.immersive-shell.has-browser-ui .movement-controls,
+.immersive-shell.has-browser-ui .weapon-controls {
+  bottom: max(16px, calc(env(safe-area-inset-bottom) + 10px));
+}
+
+.immersive-shell.has-browser-ui .pause-toggle {
+  bottom: max(16px, calc(env(safe-area-inset-bottom) + 10px));
+}
+
 .immersive-shell.is-viewport-blocked .immersive-game-layer {
   pointer-events: none;
   filter: brightness(0.42) saturate(0.72) blur(1.5px);
@@ -236,6 +245,28 @@ body,
   transform: translateY(3px);
 }
 
+.immersive-install-hint {
+  display: grid;
+  gap: 2px;
+  width: min(390px, 100%);
+  padding: 8px 12px;
+  border: 2px solid #172832;
+  background: rgb(255 208 90 / 92%);
+  color: #172832;
+  text-align: left;
+}
+
+.immersive-install-hint b {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.immersive-install-hint span {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .pause-menu {
   max-height: calc(var(--app-viewport-height, 100dvh) - 24px);
 }
@@ -258,7 +289,22 @@ body,
   }
 }
 
-@media (max-height: 520px) {
+@media (max-height: 520px) and (orientation: landscape) {
+  .immersive-shell.has-browser-ui .movement-controls,
+  .immersive-shell.has-browser-ui .weapon-controls {
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 10px));
+  }
+
+  .immersive-shell.has-browser-ui .pause-toggle {
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 10px));
+  }
+
+  .immersive-shell.has-browser-ui .audio-toggle {
+    top: 94px;
+    right: max(6px, env(safe-area-inset-right));
+    bottom: auto;
+  }
+
   .immersive-orientation-panel {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
@@ -272,19 +318,21 @@ body,
   .immersive-orientation-panel strong,
   .immersive-orientation-panel p,
   .immersive-orientation-panel small,
-  .immersive-fullscreen {
+  .immersive-fullscreen,
+  .immersive-install-hint {
     grid-column: 2;
   }
 
   .immersive-rotate-device {
     grid-column: 1;
-    grid-row: 1 / 6;
+    grid-row: 1 / 7;
     margin: 0;
   }
 
   .immersive-orientation-panel strong,
   .immersive-orientation-panel p,
-  .immersive-orientation-panel small {
+  .immersive-orientation-panel small,
+  .immersive-install-hint {
     justify-self: start;
     text-align: left;
   }
