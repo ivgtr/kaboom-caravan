@@ -3,7 +3,7 @@ name: PR gameplay validation
 on:
   pull_request:
     branches: [main]
-    paths: ['.github/patches/frontline.patch.b64']
+    paths: ['.github/apply_frontline.py']
 
 permissions:
   contents: read
@@ -27,11 +27,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Apply the reviewed gameplay patch
+      - name: Apply source edits with before and after hash validation
         run: |
-          base64 --decode .github/patches/frontline.patch.b64 | gzip --decompress > /tmp/frontline.patch
-          echo '96fa9d41ff89dbf7564da3053a8d53d594ae2e9678b9acfc5e352e75ccf8b888  /tmp/frontline.patch' | sha256sum --check
-          git apply --index /tmp/frontline.patch
+          python .github/apply_frontline.py
+          tar -czf /tmp/frontline-source.tar.gz src README.md tests/e2e/breakthrough.spec.ts
       - run: npm ci
       - run: npm run check
       - run: npx playwright install --with-deps chromium
@@ -46,12 +45,14 @@ jobs:
           path: |
             test-results/
             playwright-report/
+            /tmp/frontline-source.tar.gz
           retention-days: 3
           if-no-files-found: ignore
       - name: Commit validated changes to the PR branch only
         run: |
-          git rm .github/patches/frontline.patch.b64
+          git add src README.md
+          git rm .github/apply_frontline.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'feat: add earned frontline breakthrough and tactical counterattack window'
+          git commit -m 'feat: integrate frontline breakthrough with combat, input and run progression'
           git push origin HEAD:refs/heads/codex/frontline-breakthrough
