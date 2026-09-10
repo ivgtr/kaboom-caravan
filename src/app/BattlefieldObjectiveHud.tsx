@@ -39,7 +39,9 @@ export function BattlefieldObjectiveHud({
       <span>
         {definition.position - definition.radius}〜
         {definition.position + definition.radius}m・
-        {breakout ? `ここを${definition.holdSeconds}秒こじ開けろ / 全滅不要` : `累計${definition.holdSeconds}秒`}
+        {breakout
+          ? `ここを${definition.holdSeconds}秒こじ開けろ / 全滅不要`
+          : `累計${definition.holdSeconds}秒`}
       </span>
       <progress
         aria-label={breakout ? '封鎖線の突破' : '拠点の確保'}
@@ -62,7 +64,9 @@ export function ObjectiveSummary({
     return (
       <small className="objective-summary">
         {definition.displayName}：
-        {objective.status === 'secured' ? '突破成功 / 敵を残して離脱' : '突破失敗'}
+        {objective.status === 'secured'
+          ? '突破成功 / 敵を残して離脱'
+          : '突破失敗'}
       </small>
     );
   }
