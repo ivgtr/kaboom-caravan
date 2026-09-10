@@ -108,11 +108,14 @@ test('real movement secures repair while siege deploys; reward is applied once',
   await page.goto('/?debug&objectivePreview=repair');
   await expect(page.locator('.compact-hud > b')).toHaveText('40');
   await enterZone(page);
+  // Stay in the zone while deliberately advancing ACTION TIME at 1x.
+  await page.keyboard.down('KeyF');
   await expect(page.locator('.core-hud')).toContainText('展開中');
   await expect(page.locator('.objective-hud')).toHaveAttribute(
     'data-state',
     'secured',
   );
+  await page.keyboard.up('KeyF');
   await expect(page.locator('.compact-hud > b')).toHaveText('80');
   await page.waitForTimeout(300);
   await expect(page.locator('.compact-hud > b')).toHaveText('80');
@@ -123,8 +126,10 @@ test('salvage opens an actual three-choice cache, freezes combat, and resumes wi
 }) => {
   await page.goto('/?debug&objectivePreview=salvage');
   await enterZone(page);
+  await page.keyboard.down('KeyF');
   const cache = page.locator('.weapon-cache-panel');
   await expect(cache).toBeVisible();
+  await page.keyboard.up('KeyF');
   await expect(cache.locator('.reward-card')).toHaveCount(3);
   await expect(cache).toContainText('物資拠点：回収成功');
   const clock = await page.locator('.debug-panel').textContent();
@@ -174,10 +179,12 @@ test('active occupation and deadline freeze on manual pause and window blur', as
   await page.waitForTimeout(250);
   expect(await page.locator('.objective-hud').textContent()).toBe(blurred);
   await page.keyboard.press('Escape');
+  await page.keyboard.down('KeyF');
   await expect(page.locator('.objective-hud')).toHaveAttribute(
     'data-state',
     'secured',
   );
+  await page.keyboard.up('KeyF');
 });
 
 test('enemy presence blocks occupation and timeout does not end combat', async ({
