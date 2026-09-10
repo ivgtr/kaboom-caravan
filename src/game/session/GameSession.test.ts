@@ -194,6 +194,9 @@ describe('game session', () => {
     session.combat.projectiles = [];
     session.combat.enemyProjectiles = [];
     if (session.combat.wave) session.combat.wave.completed = true;
+    if (session.combat.objective?.kind === 'breakout') {
+      session.combat.objective.status = 'secured';
+    }
     session.combat.loot = [
       {
         id: 'last-weapon-cache',
