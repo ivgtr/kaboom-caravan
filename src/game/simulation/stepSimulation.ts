@@ -127,11 +127,7 @@ export function stepSimulation(
   }
 
   const redlineState = createRedlineState(state, command, injectedAmmo);
-  const stepped = stepBaseSimulation(
-    redlineState,
-    command,
-    worldDeltaSeconds,
-  );
+  const stepped = stepBaseSimulation(redlineState, command, worldDeltaSeconds);
   const hullAmmoSpent = Math.min(injectedAmmo, firedAmmoCost(stepped.events));
   const hullDamage = hullAmmoSpent * REDLINE_RULES.hullCostPerAmmo;
 
