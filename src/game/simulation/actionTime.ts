@@ -5,19 +5,16 @@ import type { PlayerCommand } from './types';
  * crawls while the player is hands-off, then snaps back to real time as soon
  * as the player commits to a meaningful combat input.
  *
- * The scale is intentionally attached to commands produced by the live input
- * layer. Commands created directly by simulation tests/tools remain 1x unless
- * they opt in with `withActionTime`, which keeps the physics layer useful in
- * isolation.
+ * Timing metadata follows command identity instead of becoming another public
+ * simulation field. Commands created directly by tests/tools therefore remain
+ * 1x unless they explicitly opt in with `withActionTime`.
  */
 export const ACTION_TIME_RULES = {
   idleTimeScale: 0.08,
   committedTimeScale: 1,
 } as const;
 
-export interface ActionTimedPlayerCommand extends PlayerCommand {
-  readonly worldTimeScale: number;
-}
+const commandTimeScales = new WeakMap<PlayerCommand, number>();
 
 export function isActionTimeCommitted(command: PlayerCommand): boolean {
   return (
@@ -29,23 +26,19 @@ export function isActionTimeCommitted(command: PlayerCommand): boolean {
   );
 }
 
-export function withActionTime(
-  command: PlayerCommand,
-): ActionTimedPlayerCommand {
-  return {
-    ...command,
-    worldTimeScale: isActionTimeCommitted(command)
+export function withActionTime(command: PlayerCommand): PlayerCommand {
+  const timedCommand = { ...command };
+  commandTimeScales.set(
+    timedCommand,
+    isActionTimeCommitted(command)
       ? ACTION_TIME_RULES.committedTimeScale
       : ACTION_TIME_RULES.idleTimeScale,
-  };
+  );
+  return timedCommand;
 }
 
 export function getActionTimeScale(command: PlayerCommand): number {
-  const scale = (command as Partial<ActionTimedPlayerCommand>).worldTimeScale;
-  if (typeof scale !== 'number' || !Number.isFinite(scale)) {
-    return ACTION_TIME_RULES.committedTimeScale;
-  }
-  return Math.min(1, Math.max(0, scale));
+  return commandTimeScales.get(command) ?? ACTION_TIME_RULES.committedTimeScale;
 }
 
 export function scaleActionTimeDelta(
