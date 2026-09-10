@@ -194,9 +194,4 @@ function isTextEntry(event: KeyboardEvent): boolean {
 }
 
 export type VirtualControl =
-  | 'move-left'
-  | 'move-right'
-  | 'primary'
-  | 'secondary'
-  | 'parry'
-  | 'boost';
+  'move-left' | 'move-right' | 'primary' | 'secondary' | 'parry' | 'boost';
