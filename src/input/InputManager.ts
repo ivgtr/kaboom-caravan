@@ -1,4 +1,5 @@
 import type { Movement, PlayerCommand } from '../game/simulation/types';
+import { withActionTime } from '../game/simulation/actionTime';
 
 export type InputContext = 'combat' | 'menu';
 export type MenuAction =
@@ -115,7 +116,7 @@ export class InputManager {
       activateBreakthrough: this.breakthroughPending,
     };
     this.breakthroughPending = false;
-    return command;
+    return withActionTime(command);
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {

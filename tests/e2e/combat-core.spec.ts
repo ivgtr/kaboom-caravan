@@ -101,7 +101,19 @@ test('siege deploys, movement cancels it, and partial deployment freezes during 
 }) => {
   await page.goto('/?debug&corePreview=siege');
   const hud = page.locator('.core-hud');
+  // Initial HUD markup can render before the effect connects keyboard input.
+  // A positive combat tick proves the live loop has started before KeyF goes down.
+  await expect
+    .poll(async () => {
+      const text = await page.locator('.debug-panel').textContent();
+      return Number(text?.match(/^tick (\d+)/)?.[1]);
+    })
+    .toBeGreaterThan(0);
+  // The fixture must commit world-time before its stationary 1.5s deployment
+  // can complete under ACTION TIME. Parry keeps the vehicle in place.
+  await page.keyboard.down('KeyF');
   await expect(hud).toContainText('展開中');
+  await page.keyboard.up('KeyF');
   await page.keyboard.down('KeyD');
   await expect(hud).not.toContainText('展開中');
   await page.keyboard.up('KeyD');
@@ -115,7 +127,11 @@ test('siege deploys, movement cancels it, and partial deployment freezes during 
   await page.waitForTimeout(350);
   expect(await progress.getAttribute('value')).toBe(frozen);
   await page.keyboard.press('Escape');
+  // Stationary deployment now needs an explicit combat commitment to give the
+  // world full-speed time; parry keeps the vehicle in place.
+  await page.keyboard.down('KeyF');
   await expect(hud).toContainText('展開中');
+  await page.keyboard.up('KeyF');
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await expect(page.locator('.pause-menu')).toBeVisible();
   const blurred = await progress.getAttribute('value');
@@ -131,8 +147,10 @@ test('counter parries a real incoming projectile and consumes one empowered voll
   await page.goto('/?debug&corePreview=counter');
   const hud = page.locator('.core-hud');
   await expect(hud).toContainText('パリィ成功');
-  // The debug fixture starts a projectile 30m away at 12m/s. Act by simulation
-  // ticks rather than wall time so slow asset loading cannot miss its window.
+  // ACTION TIME ties projectile travel to player commitment. Keep firing while
+  // the fixture approaches so tick 110 still represents roughly 1.8s of world
+  // time, then parry once it reaches the original timing window.
+  await page.keyboard.down('Space');
   await expect
     .poll(
       async () => {
@@ -142,6 +160,7 @@ test('counter parries a real incoming projectile and consumes one empowered voll
       { intervals: [20] },
     )
     .toBeGreaterThanOrEqual(110);
+  await page.keyboard.up('Space');
   await page.keyboard.down('KeyF');
   await expect(hud).toContainText('反攻弾 ×2.5');
   await page.keyboard.up('KeyF');

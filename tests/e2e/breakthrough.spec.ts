@@ -61,9 +61,13 @@ test('vents overheat and freezes the burst clock during pause and blur', async (
   await page.waitForTimeout(200);
   expect(await remaining.getAttribute('value')).toBe(blurred);
   await dialog.getByRole('button', { name: '戦闘を再開' }).click();
+  // ACTION TIME deliberately crawls while hands-off. Keep committing a
+  // non-movement combat input so the four-second burst advances at 1x.
+  await page.keyboard.down('KeyF');
   await expect(panel).toHaveAttribute('data-state', 'spent', {
     timeout: 7000,
   });
+  await page.keyboard.up('KeyF');
 });
 
 for (const key of ['Space', 'Enter']) {
