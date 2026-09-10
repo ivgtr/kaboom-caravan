@@ -152,12 +152,7 @@ const EXPECTED_RUN_BASELINES: Readonly<Record<number, ExpectedRunBaseline>> = {
         'rocket-launcher': 2,
         railgun: 2,
       },
-      moduleIds: [
-        'cooling-fan',
-        'capacitor',
-        'magnetic-armor',
-        'ammo-box',
-      ],
+      moduleIds: ['cooling-fan', 'capacitor', 'magnetic-armor', 'ammo-box'],
       coreId: 'counter',
     },
   },
