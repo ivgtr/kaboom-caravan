@@ -101,6 +101,14 @@ test('siege deploys, movement cancels it, and partial deployment freezes during 
 }) => {
   await page.goto('/?debug&corePreview=siege');
   const hud = page.locator('.core-hud');
+  // Initial HUD markup can render before the effect connects keyboard input.
+  // A positive combat tick proves the live loop has started before KeyF goes down.
+  await expect
+    .poll(async () => {
+      const text = await page.locator('.debug-panel').textContent();
+      return Number(text?.match(/^tick (\d+)/)?.[1]);
+    })
+    .toBeGreaterThan(0);
   // The fixture must commit world-time before its stationary 1.5s deployment
   // can complete under ACTION TIME. Parry keeps the vehicle in place.
   await page.keyboard.down('KeyF');
