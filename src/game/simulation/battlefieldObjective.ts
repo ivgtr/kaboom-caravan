@@ -140,7 +140,8 @@ export function getObjectiveStatus(
     if (objective.status === 'secured') return '突破成功・離脱！';
     if (objective.status === 'lost') return '封鎖された・遠征失敗';
     if (contested) return '出口を塞がれている！ 排除して前へ';
-    if (isInsideObjective(objective, position)) return '突破中・この位置を維持！';
+    if (isInsideObjective(objective, position))
+      return '突破中・この位置を維持！';
     return position < BATTLEFIELD_OBJECTIVES.breakout.position
       ? '敵を全滅させなくていい。出口へ前進 →'
       : '← 封鎖線へ戻れ';
