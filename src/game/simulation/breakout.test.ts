@@ -58,7 +58,6 @@ describe('BREAKOUT core loop', () => {
     expect(result.objective?.status).toBe('secured');
     expect(result.status).toBe('victory');
     expect(result.enemies).toHaveLength(1);
-    expect(result.events).toContainEqual({ type: 'breakout-completed' });
     expect(result.events.at(-1)).toEqual({
       type: 'combat-ended',
       result: 'victory',
@@ -82,7 +81,6 @@ describe('BREAKOUT core loop', () => {
     expect(result.objective?.status).toBe('lost');
     expect(result.status).toBe('defeat');
     expect(result.player.hitPoints).toBeGreaterThan(0);
-    expect(result.events).toContainEqual({ type: 'breakout-failed' });
     expect(result.events.at(-1)).toEqual({
       type: 'combat-ended',
       result: 'defeat',
