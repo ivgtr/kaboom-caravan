@@ -51,7 +51,11 @@ test('ordinary starts do not gain a detour from a preview parameter', async ({
 }) => {
   await page.goto('/?quickStart&objectivePreview=repair');
   await expect(page.locator('.phase-combat')).toBeVisible();
-  await expect(page.locator('.objective-hud')).toHaveCount(0);
+  await expect(page.locator('.objective-hud')).toHaveAttribute(
+    'data-kind',
+    'breakout',
+  );
+  await expect(page.locator('.objective-hud')).toContainText('封鎖線');
   await expect(page.locator('.run-hud')).toContainText('第1戦');
 });
 

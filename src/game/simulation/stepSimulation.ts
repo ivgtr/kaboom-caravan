@@ -115,6 +115,46 @@ function salvageDryKills(state: SimulationState): SimulationState {
   };
 }
 
+function setCombatStatus(
+  state: SimulationState,
+  status: 'victory' | 'defeat',
+): SimulationState {
+  const events = state.events.filter(({ type }) => type !== 'combat-ended');
+  events.push({ type: 'combat-ended', result: status });
+  return { ...state, status, events };
+}
+
+/**
+ * BREAKOUT replaces wave-clear victory on Battles 1-9. A cleared battlefield
+ * is only breathing room: the caravan still has to physically drive through
+ * the marked blockade. Reaching the zone ends the encounter even with enemies
+ * alive; letting the deadline expire ends the run even with hull remaining.
+ */
+function enforceBreakoutResolution(state: SimulationState): SimulationState {
+  const objective = state.objective;
+  if (!objective || objective.kind !== 'breakout') return state;
+
+  if (objective.status === 'secured') {
+    return setCombatStatus(state, 'victory');
+  }
+  if (objective.status === 'lost') {
+    return setCombatStatus(state, 'defeat');
+  }
+
+  // Real destruction/frontline collapse still defeats the player. Only suppress
+  // the old "all enemies are gone" victory while the breakout gate is active.
+  if (state.status === 'victory') {
+    return {
+      ...state,
+      status: 'active',
+      events: state.events.filter(
+        (event) => event.type !== 'combat-ended' || event.result !== 'victory',
+      ),
+    };
+  }
+  return state;
+}
+
 function crashDamageForTarget(
   target: SimulationState['enemies'][number],
 ): number {
@@ -278,11 +318,22 @@ export function stepSimulation(
   command: PlayerCommand,
   deltaSeconds: number,
 ): SimulationState {
+  // Session/unit-test fixtures sometimes enter this function already resolved.
+  // Preserve that explicit terminal state; BREAKOUT only replaces a victory
+  // produced from an ACTIVE encounter by the old full-clear rule.
+  if (state.status !== 'active') {
+    return stepRedlineSimulation(state, command, deltaSeconds);
+  }
+
   const ram = prepareRamImpact(state, command);
   const stepped = stepRedlineSimulation(ram.state, command, deltaSeconds);
-  if (ram.crashDamage <= 0 || !ram.targetId) return stepped;
+  const resolved = enforceBreakoutResolution(stepped);
+
+  // Resolve BREAKOUT before charging a failed RAM. If the collision destroys
+  // the caravan on the same tick it still overrides an otherwise successful exit.
+  if (ram.crashDamage <= 0 || !ram.targetId) return resolved;
   return applyHullDamage(
-    stepped,
+    resolved,
     ram.crashDamage,
     `${RAM_CRASH_SOURCE_PREFIX}-${ram.targetId}`,
   );

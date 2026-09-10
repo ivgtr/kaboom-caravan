@@ -14,29 +14,37 @@ export function BattlefieldObjectiveHud({
 }) {
   const definition = BATTLEFIELD_OBJECTIVES[objective.kind];
   const status = getObjectiveStatus(objective, position, contested);
+  const breakout = objective.kind === 'breakout';
   return (
     <section
       className="objective-hud"
-      aria-label="寄り道の回収状況"
+      aria-label={breakout ? '封鎖線の突破状況' : '寄り道の回収状況'}
       data-state={objective.status}
+      data-kind={objective.kind}
     >
       <div>
         <strong>{definition.displayName}</strong>
-        <b aria-label="回収期限">
+        <b aria-label={breakout ? '突破期限' : '回収期限'}>
           {objective.status === 'active'
             ? `${objective.remainingSeconds.toFixed(1)}秒`
             : objective.status === 'secured'
-              ? '回収済'
-              : '終了'}
+              ? breakout
+                ? '突破！'
+                : '回収済'
+              : breakout
+                ? '封鎖'
+                : '終了'}
         </b>
       </div>
       <span>
         {definition.position - definition.radius}〜
-        {definition.position + definition.radius}m・累計{definition.holdSeconds}
-        秒
+        {definition.position + definition.radius}m・
+        {breakout
+          ? `ここを${definition.holdSeconds}秒こじ開けろ / 全滅不要`
+          : `累計${definition.holdSeconds}秒`}
       </span>
       <progress
-        aria-label="拠点の確保"
+        aria-label={breakout ? '封鎖線の突破' : '拠点の確保'}
         value={objective.progressSeconds}
         max={definition.holdSeconds}
       />
@@ -52,6 +60,16 @@ export function ObjectiveSummary({
 }) {
   if (!objective || objective.status === 'active') return null;
   const definition = BATTLEFIELD_OBJECTIVES[objective.kind];
+  if (objective.kind === 'breakout') {
+    return (
+      <small className="objective-summary">
+        {definition.displayName}：
+        {objective.status === 'secured'
+          ? '突破成功 / 敵を残して離脱'
+          : '突破失敗'}
+      </small>
+    );
+  }
   return (
     <small className="objective-summary">
       {definition.displayName}：

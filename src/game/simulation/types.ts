@@ -176,8 +176,14 @@ export interface WaveState {
 }
 
 export type CombatEvent =
-  | { type: 'objective-secured'; kind: BattlefieldObjectiveKind }
-  | { type: 'objective-lost'; kind: BattlefieldObjectiveKind }
+  | {
+      type: 'objective-secured';
+      kind: Exclude<BattlefieldObjectiveKind, 'breakout'>;
+    }
+  | {
+      type: 'objective-lost';
+      kind: Exclude<BattlefieldObjectiveKind, 'breakout'>;
+    }
   | { type: 'core-ready'; coreId: CombatCoreId }
   | { type: 'core-triggered'; coreId: CombatCoreId; slot: WeaponSlot }
   | { type: 'breakthrough-ready' }

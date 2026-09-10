@@ -70,10 +70,10 @@ describe('route objectives and session rewards', () => {
     ]);
   });
   it.each(['normal', 'elite'] as const)(
-    '%s leaves the normal battle layout alone',
+    '%s uses the breakout objective without detour guards',
     (type) => {
       const session = chooseRoute(type);
-      expect(session.combat.objective).toBeUndefined();
+      expect(session.combat.objective?.kind).toBe('breakout');
       expect(session.combat.enemies).toHaveLength(0);
       expect(session.run.objectivesAttempted).toBe(0);
       expect(session.combat.eliteEncounter).toBe(type === 'elite');
@@ -176,7 +176,7 @@ describe('route objectives and session rewards', () => {
     expect(stepGameSession(reward, IDLE_COMMAND, DT)).toBe(reward);
     const next = selectReward(reward, reward.rewardChoices[0]!.id);
     expect(next.phase).toBe('combat');
-    expect(next.combat.objective).toBeUndefined();
+    expect(next.combat.objective?.kind).toBe('breakout');
     expect(next.run.objectivesAttempted).toBe(1);
     expect(next.run.objectivesSecured).toBe(1);
   });
@@ -204,12 +204,13 @@ describe('route objectives and session rewards', () => {
     session.phase = phase;
     expect(stepGameSession(session, IDLE_COMMAND, 40)).toBe(session);
   });
-  it('starting another run resets both statistics and the objective', () => {
+  it('starting another run resets statistics and creates a fresh breakout', () => {
     const session = stepGameSession(almostSecured('repair'), IDLE_COMMAND, DT);
     const restarted = restartGameSession(session);
     expect(restarted.run.objectivesAttempted).toBe(0);
     expect(restarted.run.objectivesSecured).toBe(0);
-    expect(restarted.combat.objective).toBeUndefined();
+    expect(restarted.combat.objective?.kind).toBe('breakout');
+    expect(restarted.combat.objective?.status).toBe('active');
   });
   it('preserves the elite route quality bonus when rerolling', () => {
     const session = chooseRoute('elite');

@@ -2,7 +2,20 @@ import { createCombatCoreState } from './combatCore';
 import { createEnemy } from '../combat/createEnemy';
 import type { WaveId } from '../data/ids';
 import { createWaveState } from '../wave/waveSystem';
+import { createBreakoutObjective } from './battlefieldObjective';
 import type { SimulationState } from './types';
+
+const BREAKOUT_WAVES = new Set<WaveId>([
+  'battle-01-wave',
+  'battle-02-wave',
+  'battle-03-wave',
+  'battle-04-wave',
+  'battle-05-wave',
+  'battle-06-wave',
+  'battle-07-wave',
+  'battle-08-wave',
+  'battle-09-wave',
+]);
 
 export function createSimulation(seed = 1): SimulationState {
   return {
@@ -62,10 +75,14 @@ export function createWaveSimulation(
   seed: number,
   waveId: WaveId,
 ): SimulationState {
-  return {
+  const simulation: SimulationState = {
     ...createSimulation(seed),
     nextEntitySequence: 1,
     enemies: [],
     wave: createWaveState(waveId),
   };
+  if (BREAKOUT_WAVES.has(waveId)) {
+    simulation.objective = createBreakoutObjective();
+  }
+  return simulation;
 }
