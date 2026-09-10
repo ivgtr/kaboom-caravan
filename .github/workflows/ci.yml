@@ -26,12 +26,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Lint, unit tests, build and formatting
-        run: |
-          npm run lint
-          npm run test
-          npm run build
-          npm run format
-          git diff --exit-code
+        run: npm run check
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Combat interaction regression tests
