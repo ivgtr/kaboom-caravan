@@ -51,16 +51,18 @@ export function isInsideObjective(
   return Math.abs(position - definition.position) <= definition.radius;
 }
 
-function lostEvent(objective: BattlefieldObjectiveState): CombatEvent {
-  return objective.kind === 'breakout'
-    ? { type: 'breakout-failed' }
-    : { type: 'objective-lost', kind: objective.kind };
+function lostEvent(
+  objective: BattlefieldObjectiveState,
+): CombatEvent | undefined {
+  if (objective.kind === 'breakout') return undefined;
+  return { type: 'objective-lost', kind: objective.kind };
 }
 
-function securedEvent(objective: BattlefieldObjectiveState): CombatEvent {
-  return objective.kind === 'breakout'
-    ? { type: 'breakout-completed' }
-    : { type: 'objective-secured', kind: objective.kind };
+function securedEvent(
+  objective: BattlefieldObjectiveState,
+): CombatEvent | undefined {
+  if (objective.kind === 'breakout') return undefined;
+  return { type: 'objective-secured', kind: objective.kind };
 }
 
 export function advanceBattlefieldObjective(
@@ -75,9 +77,10 @@ export function advanceBattlefieldObjective(
 ): { objective: BattlefieldObjectiveState | undefined; event?: CombatEvent } {
   if (!objective || objective.status !== 'active') return { objective };
   if (context.defeated) {
+    const event = lostEvent(objective);
     return {
       objective: { ...objective, status: 'lost' },
-      event: lostEvent(objective),
+      ...(event ? { event } : {}),
     };
   }
   const dt = context.deltaSeconds;
@@ -102,6 +105,7 @@ export function advanceBattlefieldObjective(
       context.battlefieldCleared &&
       dt <= objective.remainingSeconds + EPSILON);
   if (secured) {
+    const event = securedEvent(objective);
     return {
       objective: {
         ...objective,
@@ -109,10 +113,11 @@ export function advanceBattlefieldObjective(
         progressSeconds: definition.holdSeconds,
         remainingSeconds,
       },
-      event: securedEvent(objective),
+      ...(event ? { event } : {}),
     };
   }
   if (remainingSeconds <= EPSILON) {
+    const event = lostEvent(objective);
     return {
       objective: {
         ...objective,
@@ -120,7 +125,7 @@ export function advanceBattlefieldObjective(
         progressSeconds,
         remainingSeconds: 0,
       },
-      event: lostEvent(objective),
+      ...(event ? { event } : {}),
     };
   }
   return { objective: { ...objective, progressSeconds, remainingSeconds } };
