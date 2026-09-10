@@ -1,6 +1,7 @@
 import { derivePlayerStats } from '../build/derivedStats';
 import type { WeaponId } from '../data/ids';
 import { WEAPON_DEFINITIONS } from '../data/weaponDefinitions';
+import { scaleActionTimeDelta } from './actionTime';
 import { stepSimulation as stepBaseSimulation } from './stepSimulationBase';
 import type { CombatEvent, PlayerCommand, SimulationState } from './types';
 
@@ -93,14 +94,22 @@ function salvageDryKills(state: SimulationState): SimulationState {
  * BOOST + FIRE override while the caravan is completely dry. A REDLINE volley
  * may spend every hull-ammo unit except the final hit point; enemy damage can
  * still finish the player on the same tick.
+ *
+ * Live input commands also carry ACTION TIME's world-time scale. Direct test
+ * and tooling commands omit it and therefore retain the simulation's original
+ * 1x behavior.
  */
 export function stepSimulation(
   state: SimulationState,
   command: PlayerCommand,
   deltaSeconds: number,
 ): SimulationState {
+  const worldDeltaSeconds = scaleActionTimeDelta(command, deltaSeconds);
+
   if (state.status !== 'active' || state.player.ammo > 0 || !command.boost) {
-    return salvageDryKills(stepBaseSimulation(state, command, deltaSeconds));
+    return salvageDryKills(
+      stepBaseSimulation(state, command, worldDeltaSeconds),
+    );
   }
 
   const weaponIds = requestedWeaponIds(state, command);
@@ -112,11 +121,17 @@ export function stepSimulation(
   const injectedAmmo = Math.min(requestedAmmo, hullAmmoBudget);
 
   if (injectedAmmo <= 0) {
-    return salvageDryKills(stepBaseSimulation(state, command, deltaSeconds));
+    return salvageDryKills(
+      stepBaseSimulation(state, command, worldDeltaSeconds),
+    );
   }
 
   const redlineState = createRedlineState(state, command, injectedAmmo);
-  const stepped = stepBaseSimulation(redlineState, command, deltaSeconds);
+  const stepped = stepBaseSimulation(
+    redlineState,
+    command,
+    worldDeltaSeconds,
+  );
   const hullAmmoSpent = Math.min(injectedAmmo, firedAmmoCost(stepped.events));
   const hullDamage = hullAmmoSpent * REDLINE_RULES.hullCostPerAmmo;
 
