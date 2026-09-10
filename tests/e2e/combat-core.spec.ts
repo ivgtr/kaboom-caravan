@@ -101,7 +101,11 @@ test('siege deploys, movement cancels it, and partial deployment freezes during 
 }) => {
   await page.goto('/?debug&corePreview=siege');
   const hud = page.locator('.core-hud');
+  // The fixture must commit world-time before its stationary 1.5s deployment
+  // can complete under ACTION TIME. Parry keeps the vehicle in place.
+  await page.keyboard.down('KeyF');
   await expect(hud).toContainText('展開中');
+  await page.keyboard.up('KeyF');
   await page.keyboard.down('KeyD');
   await expect(hud).not.toContainText('展開中');
   await page.keyboard.up('KeyD');
