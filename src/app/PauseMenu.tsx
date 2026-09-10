@@ -57,14 +57,18 @@ export function PauseMenu({
         <span>ひと息つこう</span>
         <h1 id="pause-title">一時停止中</h1>
         <p id="pause-description">
-          戦闘とタイム計測を停止しています。
+          戦闘とタイム計測を完全に停止しています。
           <br />
-          準備ができたら再開しよう。
+          ACTION TIMEの低速化とは別の、本当の一時停止です。
         </p>
       </header>
       <section aria-labelledby="pause-controls-title">
         <h2 id="pause-controls-title">操作ガイド</h2>
         <dl className="pause-controls">
+          <div>
+            <dt>ACTION TIME</dt>
+            <dd>無入力 0.08倍 / 操作中 1.00倍</dd>
+          </div>
           <div>
             <dt>後退 / 前進</dt>
             <dd>
@@ -109,6 +113,8 @@ export function PauseMenu({
           </div>
         </dl>
         <p className="pause-touch-hint">
+          ACTION TIMEでは、何も操作しない間は敵・敵弾・増援・冷却・クールダウンを0.08倍まで遅くできます。ただし討伐タイム自体は進みます。移動・射撃・迎撃・DEATH
+          RIDEを入力すると即座に1倍へ戻るため、連打するほど敵にも同じだけ時間を与えます。
           25mより前での命中やパリィで決死突破ゲージを蓄積。満タンでEを押すと敵4体を自分で追加し、4秒だけ火器3.25倍速・排熱5倍のDEATH
           RIDEへ入ります。
           敵弾も攻撃予兆も消えず、追加敵を倒し切れなければそのまま残ります。1戦1回だけ使用でき、使用後に再充填したゲージは次戦へ持ち越せます。
