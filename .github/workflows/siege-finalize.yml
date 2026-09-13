@@ -1,0 +1,42 @@
+name: Apply verified siege browser fixes
+on:
+  push:
+    branches: [codex/rogue-siege-caravan]
+    paths: [.github/workflows/siege-finalize.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/codex/rogue-siege-caravan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Apply the locally verified four-file correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'codex/rogue-siege-caravan'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          files = ['src/main.tsx', 'src/app/GameEntry.tsx', 'src/app/siege/siege.css', 'tests/e2e/siege.spec.ts']
+          import difflib
+          before = {f: Path(f).read_text() for f in files}
+          s = before[files[0]].replace('import { StrictMode }', 'import { StrictMode, Suspense }')
+          s = s.replace('    <ImmersiveShell>\n      <GameEntry />\n    </ImmersiveShell>', '    <Suspense fallback={<p role="status">戦場を読み込み中…</p>}>\n      <ImmersiveShell>\n        <GameEntry />\n      </ImmersiveShell>\n    </Suspense>')
+          Path(files[0]).write_text(s)
+          s = before[files[1]].replace('import { lazy, Suspense }', 'import { lazy }')
+          s = s[:s.index('  return (')] + '  // The boundary lives above ImmersiveShell so its initial pause request cannot\n  // run before the lazy combat controller has mounted.\n  return legacy ? <LegacyGame /> : <SiegeApp />;\n}\n'
+          Path(files[1]).write_text(s)
+          Path(files[2]).write_text(before[files[2]].replace('height: 27px;', 'height: 30px;'))
+          s = before[files[3]].replace('await page.clock.install();', "await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });")
+          s = s.replace('await page.clock.pauseAt(new Date());', "// Do not compare the runner's wall clock with the browser's advancing clock.\n  // The draft does not simulate combat, so a fixed future target is safe.\n  await page.clock.pauseAt(new Date('2026-01-01T00:01:00Z'));")
+          Path(files[3]).write_text(s)
+          patch = ''.join(''.join(difflib.unified_diff(before[f].splitlines(keepends=True), Path(f).read_text().splitlines(keepends=True), fromfile='a/'+f, tofile='b/'+f)) for f in files)
+          assert hashlib.sha256(patch.encode()).hexdigest() == '7a7d04a483f20987c6c8984eba8ed5f9e95029e5af0ba688f1295e2c16a2fc92'
+          PY
+          git diff --check
+          git add -- src/main.tsx src/app/GameEntry.tsx src/app/siege/siege.css tests/e2e/siege.spec.ts
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: synchronize lazy combat mount and stabilize mobile siege verification'
+          git push origin HEAD:refs/heads/codex/rogue-siege-caravan
