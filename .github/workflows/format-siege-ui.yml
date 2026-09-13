@@ -16,7 +16,19 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx prettier --write src/app/siege/siege-immersive.css
+      - name: Keep compact controls tappable and format the skin
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/app/siege/siege-immersive.css')
+          css = path.read_text()
+          old = "    min-width: 34px;\n    height: 28px;"
+          new = "    min-width: 40px;\n    height: 28px;"
+          assert old in css
+          path.write_text(css.replace(old, new, 1))
+          PY
+          npx prettier --write src/app/siege/siege-immersive.css
       - name: Commit formatted UI
         shell: bash
         run: |
@@ -24,5 +36,5 @@ jobs:
           git diff --check
           git add src/app/siege/siege-immersive.css
           if git diff --cached --quiet; then exit 0; fi
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'style: format immersive siege command deck'
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'style: keep compact command controls tappable'
           git push origin HEAD:refs/heads/codex/rogue-siege-caravan
