@@ -1175,7 +1175,7 @@
     text-overflow: ellipsis;
   }
   .siege-shell .siege-system button {
-    min-width: 34px;
+    min-width: 40px;
     height: 28px;
     padding-inline: 4px;
   }
