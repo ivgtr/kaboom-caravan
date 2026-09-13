@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GameEntry } from './app/GameEntry';
 import { ImmersiveShell } from './app/ImmersiveShell';
@@ -13,8 +13,10 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <ImmersiveShell>
-      <GameEntry />
-    </ImmersiveShell>
+    <Suspense fallback={<p role="status">戦場を読み込み中…</p>}>
+      <ImmersiveShell>
+        <GameEntry />
+      </ImmersiveShell>
+    </Suspense>
   </StrictMode>,
 );

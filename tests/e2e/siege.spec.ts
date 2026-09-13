@@ -1,12 +1,14 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 async function openRun(page: Page) {
-  await page.clock.install();
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
   await page.goto('/?seed=42');
   await expect(
     page.getByRole('dialog', { name: '軍団の改造を選ぶ' }),
   ).toBeVisible();
-  await page.clock.pauseAt(new Date());
+  // Do not compare the runner's wall clock with the browser's advancing clock.
+  // The draft does not simulate combat, so a fixed future target is safe.
+  await page.clock.pauseAt(new Date('2026-01-01T00:01:00Z'));
 }
 async function chooseSwarm(page: Page) {
   await page.locator('.relic-swarm').click();

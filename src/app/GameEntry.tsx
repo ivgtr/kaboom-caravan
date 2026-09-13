@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy } from 'react';
 import { SiegeApp } from './siege/SiegeApp';
 const LegacyGame = lazy(() =>
   import('./GameApp').then(({ GameApp }) => ({ default: GameApp })),
@@ -8,9 +8,7 @@ export function GameEntry() {
   const legacy = new URLSearchParams(window.location.search).has(
     'legacyCombat',
   );
-  return (
-    <Suspense fallback={<p role="status">戦場を読み込み中…</p>}>
-      {legacy ? <LegacyGame /> : <SiegeApp />}
-    </Suspense>
-  );
+  // The boundary lives above ImmersiveShell so its initial pause request cannot
+  // run before the lazy combat controller has mounted.
+  return legacy ? <LegacyGame /> : <SiegeApp />;
 }
