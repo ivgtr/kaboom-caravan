@@ -92,6 +92,7 @@
   gap: 6px;
 }
 .siege-system button {
+  min-width: 44px;
   height: 36px;
   background: #355159;
   border: 1px solid #68817f;
