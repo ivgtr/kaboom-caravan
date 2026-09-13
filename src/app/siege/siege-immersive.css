@@ -1,0 +1,1128 @@
+/*
+ * ROGUE SIEGE art-direction pass.
+ *
+ * The base stylesheet owns layout fallbacks and accessibility. This layer is
+ * deliberately more specific: the battlefield should read as the game, while
+ * the surrounding controls read as salvaged hardware bolted to the caravan —
+ * not a dashboard made from web cards.
+ */
+
+.siege-shell.siege-shell {
+  --deck-black: #101817;
+  --deck-deep: #172321;
+  --deck-steel: #263632;
+  --deck-steel-hi: #4f665e;
+  --deck-edge: #85917a;
+  --deck-paper: #e8d7a8;
+  --deck-amber: #f3c05e;
+  --deck-red: #d75c43;
+  --deck-green: #8bc891;
+  --deck-glow: #c7f2a2;
+  grid-template-rows: 46px minmax(0, 1fr) 118px;
+  gap: 0;
+  padding: max(3px, env(safe-area-inset-top))
+    max(5px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom))
+    max(5px, env(safe-area-inset-left));
+  background:
+    linear-gradient(90deg, #080d0c 0 3px, transparent 3px calc(100% - 3px), #080d0c calc(100% - 3px)),
+    linear-gradient(#182522, #0a1110);
+  color: #f1e7c8;
+  font-family: 'Arial Narrow', 'Roboto Condensed', 'Hiragino Kaku Gothic ProN',
+    'Yu Gothic', sans-serif;
+}
+
+.siege-shell.siege-shell::before,
+.siege-shell.siege-shell::after {
+  content: '';
+  position: absolute;
+  z-index: 80;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #b6aa82 0 16%, #4e5145 20% 48%, #141a18 52%);
+  box-shadow: 0 calc(100dvh - 18px) 0 #303a33;
+  pointer-events: none;
+}
+.siege-shell.siege-shell::before {
+  left: 8px;
+  top: 8px;
+}
+.siege-shell.siege-shell::after {
+  right: 8px;
+  top: 8px;
+}
+
+/* The top edge is a stamped identification rail, not an application header. */
+.siege-shell .siege-topbar {
+  grid-row: 1;
+  position: relative;
+  z-index: 30;
+  margin: 0 4px;
+  padding: 0 14px 0 18px;
+  border: 0;
+  border-bottom: 2px solid #748879;
+  background:
+    linear-gradient(90deg, #273936 0 18%, #172522 18% 82%, #273936 82%),
+    #172522;
+  box-shadow:
+    inset 0 1px #71807866,
+    inset 0 -5px #0a1210,
+    0 3px 0 #080d0c;
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 99.2% 100%, 0.8% 100%, 0 78%);
+}
+.siege-shell .siege-topbar::before {
+  content: 'FIELD COMMAND // KBC-06';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  color: #71847a;
+  font: 700 7px/1 ui-monospace, monospace;
+  letter-spacing: 2px;
+  pointer-events: none;
+}
+.siege-shell .siege-brand b {
+  font-size: 19px;
+  letter-spacing: -0.3px;
+  text-shadow: 0 2px #080d0c;
+}
+.siege-shell .siege-brand b span {
+  color: var(--deck-amber);
+}
+.siege-shell .siege-brand small {
+  margin-top: 3px;
+  color: #8f9a89;
+  font: 700 8px ui-monospace, monospace;
+  letter-spacing: 1.8px;
+}
+.siege-shell .siege-stage-title {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  min-width: 250px;
+  transform: translateX(-50%);
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 18px 7px;
+  border-inline: 1px solid #5b6b60;
+  background: linear-gradient(#101b19cc, #22332fbb);
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+}
+.siege-shell .siege-stage-title span {
+  color: var(--deck-amber);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+}
+.siege-shell .siege-stage-title strong {
+  color: #f4e8c1;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+.siege-shell .siege-system {
+  gap: 5px;
+}
+.siege-shell .siege-system button {
+  position: relative;
+  min-width: 44px;
+  height: 31px;
+  padding: 0 9px;
+  border: 1px solid #687467;
+  border-bottom: 3px solid #080c0b;
+  border-radius: 0;
+  background:
+    linear-gradient(135deg, transparent 0 6px, #344741 6px),
+    #344741;
+  box-shadow: inset 0 1px #8b978255;
+  color: #d9ddbf;
+  font: 800 9px ui-monospace, monospace;
+  letter-spacing: 0.5px;
+}
+.siege-shell .siege-system button::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--deck-green);
+  box-shadow: 0 0 5px #8bc89199;
+}
+.siege-shell .siege-system button:active:not(:disabled) {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+}
+
+/* Gauges float over the sky. They stop consuming an entire dashboard row. */
+.siege-shell .siege-health-row {
+  position: absolute;
+  z-index: 22;
+  top: 55px;
+  left: 18px;
+  right: 18px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 210px minmax(150px, 1fr);
+  gap: 24px;
+  padding: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px #0d1513aa);
+}
+.siege-shell .siege-health-row label {
+  position: relative;
+  padding: 5px 10px 7px;
+  color: #e9dfbd;
+  background: linear-gradient(90deg, #17231fe8, #26342ee8 80%, transparent);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%);
+  font: 800 9px ui-monospace, monospace;
+  letter-spacing: 0.8px;
+}
+.siege-shell .siege-health-row .enemy-health {
+  background: linear-gradient(270deg, #2f1f1be8, #432b25e8 80%, transparent);
+  clip-path: polygon(9px 0, 100% 0, 100% 100%, 9px 100%, 0 50%);
+}
+.siege-shell .siege-health-row label b {
+  color: #fff1c6;
+  font-size: 10px;
+}
+.siege-shell .siege-health-row progress {
+  height: 7px;
+  margin-top: 3px;
+  border: 0;
+  border-radius: 0;
+  background: #07100e;
+  box-shadow: inset 0 0 0 1px #72807177;
+}
+.siege-shell .siege-health-row progress::-webkit-progress-bar {
+  background:
+    repeating-linear-gradient(90deg, #101a17 0 9px, #17231f 9px 11px);
+}
+.siege-shell .siege-health-row progress::-webkit-progress-value {
+  background: repeating-linear-gradient(135deg, #8fc792 0 7px, #75b37f 7px 10px);
+  box-shadow: 0 0 7px #8fc79266;
+}
+.siege-shell .siege-health-row .enemy-health progress::-webkit-progress-value {
+  background: repeating-linear-gradient(45deg, #d9674e 0 7px, #b64a38 7px 10px);
+  box-shadow: 0 0 7px #e36f5166;
+}
+.siege-shell .siege-wave {
+  align-self: start;
+  justify-self: center;
+  min-width: 200px;
+  padding: 4px 12px 6px;
+  border-top: 1px solid #7b8068;
+  border-bottom: 2px solid #111a17;
+  background: #1c2925e8;
+  color: #ded3ae;
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0 50%);
+}
+.siege-shell .siege-wave > b {
+  color: var(--deck-amber);
+  font-size: 16px;
+}
+.siege-shell .siege-wave small {
+  color: #aab39a;
+}
+
+/* Warnings become field markings instead of another horizontal UI panel. */
+.siege-shell .siege-notice {
+  position: absolute;
+  z-index: 23;
+  top: 94px;
+  left: 50%;
+  width: min(620px, 68%);
+  min-height: 24px;
+  transform: translateX(-50%);
+  padding: 3px 30px;
+  border: 0;
+  background:
+    repeating-linear-gradient(135deg, #4b2b22 0 12px, #5e3427 12px 24px);
+  color: #ffe2a2;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+  box-shadow: 0 3px 0 #140b08;
+  font: 900 9px ui-monospace, monospace;
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px #210d08;
+}
+.siege-shell .siege-notice::before,
+.siege-shell .siege-notice::after {
+  content: '▲';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #edb850;
+}
+.siege-shell .siege-notice::before {
+  left: 17px;
+}
+.siege-shell .siege-notice::after {
+  right: 17px;
+}
+
+/* The battlefield owns the screen. */
+.siege-shell .siege-field {
+  grid-row: 2;
+  position: relative;
+  margin: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background:
+    linear-gradient(#12221c10 45%, #07100e22),
+    var(--siege-background) center 66% / cover no-repeat,
+    #aed3c1;
+  box-shadow:
+    inset 0 0 0 3px #0a1110,
+    inset 0 0 0 5px #4e5d50aa,
+    inset 0 20px 35px #0e1a1840,
+    inset 0 -28px 38px #0a111055;
+  clip-path: polygon(0 7px, 7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px));
+}
+.siege-shell .siege-field::before,
+.siege-shell .siege-field::after {
+  content: '';
+  position: absolute;
+  z-index: 18;
+  top: 10px;
+  bottom: 10px;
+  width: 5px;
+  background: repeating-linear-gradient(#b19a64 0 10px, #222d28 10px 20px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.siege-shell .siege-field::before {
+  left: 5px;
+}
+.siege-shell .siege-field::after {
+  right: 5px;
+}
+.siege-shell .siege-horizon {
+  background:
+    linear-gradient(#0a171725, transparent 38%, transparent 70%, #12180e25),
+    repeating-linear-gradient(90deg, transparent 0 79px, #eee0ad10 79px 80px);
+}
+.siege-shell .siege-lane {
+  border-bottom: 1px dashed #f1dda55e;
+  background: linear-gradient(transparent, #9e8c6150);
+}
+.siege-shell .siege-front {
+  border-left: 1px solid #f0cb6866;
+}
+.siege-shell .siege-front span {
+  left: -29px;
+  top: -18px;
+  padding: 3px 9px;
+  border: 1px solid #887b58;
+  background: #1d2b27dd;
+  color: #efd490;
+  font-size: 8px;
+  letter-spacing: 1px;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+}
+.siege-shell .siege-base span {
+  bottom: -12px;
+  left: 10%;
+  right: 10%;
+  padding: 3px 5px;
+  border-top: 1px solid #9b8c61;
+  background: #1a2824dc;
+  color: #eee0b8;
+  font-size: 8px;
+  letter-spacing: 1px;
+  clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 100%, 0 100%);
+}
+.siege-shell .enemy-base span {
+  border-top-color: #c56750;
+  background: #43231edc;
+}
+.siege-shell .siege-field-caption {
+  bottom: 3%;
+  color: #e9dbaa;
+  font: 800 8px ui-monospace, monospace;
+  letter-spacing: 3px;
+  opacity: 0.72;
+}
+
+/* Current run modifiers read as stamped dog-tags bolted above the controls. */
+.siege-shell .siege-build-strip {
+  position: absolute;
+  z-index: 24;
+  left: 18px;
+  right: 18px;
+  bottom: 121px;
+  min-height: 24px;
+  padding: 2px 7px;
+  gap: 5px;
+  background: transparent;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 1px #090e0caa);
+}
+.siege-shell .siege-build-strip > b {
+  padding: 3px 7px;
+  color: #a59a78;
+  background: #17211fdd;
+  border-left: 3px solid #776b4d;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+.siege-shell .siege-build-strip > span {
+  padding: 3px 8px;
+  border: 1px solid #777762;
+  border-left: 4px solid var(--deck-amber);
+  background: #26322ce8;
+  color: #e1d5ae;
+  clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 50%, calc(100% - 5px) 100%, 0 100%);
+  font: 800 8px ui-monospace, monospace;
+  letter-spacing: 0.3px;
+}
+.siege-shell .siege-build-strip small {
+  padding: 3px 7px;
+  background: #17211fdd;
+  color: #b8b799;
+  font: 700 8px ui-monospace, monospace;
+}
+
+/* Bottom controls are one physical deck. Individual troop buttons are switches. */
+.siege-shell .siege-dock {
+  grid-row: 3;
+  position: relative;
+  z-index: 26;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 140px;
+  gap: 7px;
+  margin: 0 4px;
+  padding: 9px 9px 7px;
+  border: 0;
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 36px, #ffffff08 36px 37px),
+    linear-gradient(#45554d 0 2px, #1b2925 2px 13px, #263731 13px 100%);
+  box-shadow:
+    inset 0 2px #8f9a7a,
+    inset 0 -4px #080e0d,
+    0 -4px 0 #0a1110;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%, 0 8px);
+}
+.siege-shell .siege-dock::before,
+.siege-shell .siege-dock::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #b4a97c 0 18%, #4a5145 22% 50%, #111714 54%);
+  z-index: 10;
+}
+.siege-shell .siege-dock::before {
+  left: 8px;
+}
+.siege-shell .siege-dock::after {
+  right: 8px;
+}
+.siege-shell .siege-economy {
+  grid-template-rows: 56% 44%;
+  padding: 3px 5px 0;
+  border-inline: 1px solid #536258;
+  background: linear-gradient(#111b18aa, #26362faa);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.siege-shell .siege-cash {
+  justify-content: flex-start;
+  gap: 6px;
+  padding-left: 7px;
+}
+.siege-shell .siege-cash > span {
+  align-self: flex-start;
+  margin-top: 8px;
+  color: #8d9985;
+  font: 800 8px ui-monospace, monospace;
+  letter-spacing: 1px;
+  writing-mode: vertical-rl;
+}
+.siege-shell .siege-cash strong {
+  color: var(--deck-amber);
+  font: 900 34px/1 ui-monospace, monospace;
+  letter-spacing: -2px;
+  text-shadow: 0 2px #070c0a, 0 0 8px #dca94722;
+}
+.siege-shell .siege-cash small {
+  color: #aeb69c;
+  font: 700 8px/1.45 ui-monospace, monospace;
+}
+.siege-shell .siege-economy > button {
+  position: relative;
+  min-height: 34px;
+  border: 1px solid #71816d;
+  border-bottom: 4px solid #0b100e;
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(135deg, #31443c 0 8px, #384d44 8px 16px);
+  color: #dfe1bb;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+  font: 800 9px ui-monospace, monospace;
+  text-shadow: 0 1px #101713;
+}
+.siege-shell .siege-economy > button::after {
+  content: '';
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #789b72;
+  box-shadow: 0 0 5px #82c37766;
+}
+.siege-shell .siege-economy > button:not(:disabled):active {
+  transform: translateY(2px);
+  border-bottom-width: 2px;
+}
+.siege-shell .siege-economy > button:disabled {
+  filter: saturate(0.35) brightness(0.72);
+}
+
+.siege-shell .siege-troops {
+  gap: 5px;
+  min-width: 0;
+  padding: 1px 0 0;
+}
+.siege-shell .siege-troop-card {
+  position: relative;
+  min-height: 92px;
+  padding: 3px 3px 8px;
+  border: 1px solid #68756a;
+  border-bottom: 5px solid #0a100e;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 50% 30%, #52675b99 0 24%, transparent 55%),
+    linear-gradient(145deg, #2d4038, #182521 70%);
+  color: #e8ddbd !important;
+  box-shadow:
+    inset 0 1px #86908155,
+    inset 0 -8px #0c151244;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 6px);
+  transition: filter 80ms, transform 80ms;
+}
+.siege-shell .siege-troop-card::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  left: 6px;
+  right: 6px;
+  top: 4px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--deck-amber) 0 22%, transparent 22% 26%, #7b8c7c 26% 100%);
+  opacity: 0.75;
+}
+.siege-shell .siege-troop-card:hover:not(:disabled) {
+  filter: brightness(1.16);
+}
+.siege-shell .siege-troop-card:active:not(:disabled) {
+  transform: translateY(3px);
+  border-bottom-width: 2px;
+}
+.siege-shell .siege-troop-card:disabled {
+  border-color: #3c4741;
+  background:
+    repeating-linear-gradient(135deg, #1a2421 0 7px, #202c28 7px 14px);
+  color: #747d70 !important;
+  filter: saturate(0.25);
+}
+.siege-shell .siege-troop-card > kbd,
+.siege-shell .siege-cannon > kbd,
+.siege-shell .siege-economy > button kbd {
+  border: 1px solid #7f8169;
+  border-radius: 0;
+  background: #111a17;
+  color: #d8c68d;
+  box-shadow: inset 0 0 0 1px #303c35;
+  font: 800 8px ui-monospace, monospace;
+}
+.siege-shell .siege-troop-card > kbd {
+  top: 7px;
+  left: 7px;
+}
+.siege-shell .siege-price {
+  top: 7px;
+  right: 7px;
+  padding: 1px 4px;
+  color: #f0ca68;
+  background: #111a17cc;
+  font: 900 12px ui-monospace, monospace;
+  letter-spacing: -0.5px;
+}
+.siege-shell .siege-troop-card img {
+  top: 10%;
+  height: 65%;
+  width: 80%;
+  filter: drop-shadow(0 4px 1px #07100daa);
+}
+.siege-shell .siege-troop-card b {
+  color: #f0e5c5;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px #080e0c;
+}
+.siege-shell .siege-troop-card small {
+  height: 12px;
+  color: #a8ad92;
+  font: 700 8px ui-monospace, monospace;
+}
+.siege-shell .siege-recharge {
+  bottom: 0;
+  height: 4px;
+  background: repeating-linear-gradient(90deg, #d4b85d 0 8px, #f0d879 8px 10px);
+  box-shadow: 0 -1px #090d0c;
+}
+
+.siege-shell .siege-cannon {
+  position: relative;
+  min-height: 92px;
+  border: 1px solid #895d4b;
+  border-bottom: 5px solid #0b0a08;
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(135deg, #4a2b23 0 9px, #573127 9px 18px);
+  color: #ead3a8;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  box-shadow: inset 0 0 0 2px #2b1713;
+}
+.siege-shell .siege-cannon::before {
+  content: 'EMERGENCY ORDNANCE';
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  color: #ae8064;
+  font: 700 6px ui-monospace, monospace;
+  letter-spacing: 0.7px;
+}
+.siege-shell .siege-cannon > span {
+  color: #d6c29b;
+  font: 900 9px ui-monospace, monospace;
+  letter-spacing: 1px;
+}
+.siege-shell .siege-cannon strong {
+  color: #e8bc77;
+  font: 950 25px/1 ui-monospace, monospace;
+  letter-spacing: 1px;
+  text-shadow: 0 2px #160c08;
+}
+.siege-shell .siege-cannon small {
+  color: #bd9b7c;
+  font-size: 8px;
+}
+.siege-shell .siege-cannon progress {
+  height: 5px;
+  border: 0;
+  border-radius: 0;
+  background: #170d0a;
+}
+.siege-shell .siege-cannon progress::-webkit-progress-value {
+  background: #b65a42;
+}
+.siege-shell .siege-cannon.is-ready {
+  border-color: #ee8a54;
+  background:
+    repeating-linear-gradient(135deg, #713021 0 9px, #8a3a26 9px 18px);
+  box-shadow:
+    inset 0 0 0 2px #37120c,
+    0 0 12px #df663344;
+  animation: siege-ready-pulse 0.9s steps(2, end) infinite;
+}
+.siege-shell .siege-cannon.is-ready strong {
+  color: #ffe19c;
+  text-shadow: 0 0 8px #ff9b4b88;
+}
+
+/* Draft / pause / results are a workshop command table, never a web modal. */
+.siege-modal.siege-modal {
+  width: min(1040px, calc(var(--app-viewport-width, 100vw) - 30px));
+  padding: 28px 32px 20px;
+  border: 0;
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 84px, #ffffff05 84px 85px),
+    linear-gradient(145deg, #2f3e37, #111c19 68%);
+  color: #eee2bf;
+  box-shadow:
+    0 30px 120px #030807dd,
+    inset 0 0 0 2px #849078,
+    inset 0 0 0 6px #18231f,
+    inset 0 0 40px #050a0866;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+  font-family: 'Arial Narrow', 'Roboto Condensed', 'Hiragino Kaku Gothic ProN',
+    'Yu Gothic', sans-serif;
+}
+.siege-modal.siege-modal::backdrop {
+  background:
+    radial-gradient(circle at 50% 50%, #1b2923bb, #050807f2),
+    #050807ee;
+  backdrop-filter: blur(2px) saturate(0.5);
+}
+.siege-modal .siege-draft-heading > span,
+.siege-modal .siege-pause-content > span,
+.siege-modal .siege-result > span {
+  display: inline-block;
+  padding: 4px 10px;
+  border-left: 4px solid var(--deck-amber, #f3c05e);
+  background: #0c1512aa;
+  color: #cdbb83;
+  font: 800 9px ui-monospace, monospace;
+  letter-spacing: 2px;
+}
+.siege-modal h1 {
+  margin: 12px 0 8px;
+  color: #f4e7c0;
+  font-size: clamp(25px, 3.2vw, 42px);
+  font-weight: 900;
+  letter-spacing: -0.8px;
+  line-height: 1.12;
+  text-shadow: 0 3px #08100d;
+}
+.siege-modal .siege-draft-heading > p {
+  max-width: 780px;
+  color: #aeb6a0;
+  font-size: 11px;
+}
+.siege-modal .siege-draft-cards {
+  gap: 10px;
+}
+.siege-modal .siege-relic {
+  position: relative;
+  min-height: 270px;
+  padding: 13px 14px 12px;
+  border: 1px solid #6e7966;
+  border-bottom: 5px solid #080e0c;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 50% 29%, #53675988 0 19%, transparent 46%),
+    repeating-linear-gradient(90deg, #22312b 0 39px, #273831 39px 40px);
+  color: #e7dbb9 !important;
+  box-shadow:
+    inset 0 1px #89937b66,
+    inset 0 -28px #0c151244;
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+  overflow: hidden;
+}
+.siege-modal .siege-relic::before,
+.siege-modal .siege-relic::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #c1b487 0 18%, #54584a 22% 48%, #151a17 54%);
+}
+.siege-modal .siege-relic::before {
+  left: 7px;
+  bottom: 7px;
+}
+.siege-modal .siege-relic::after {
+  right: 7px;
+  bottom: 7px;
+}
+.siege-modal .siege-relic:hover,
+.siege-modal .siege-relic:focus-visible {
+  border-color: #d7c16f;
+  background:
+    radial-gradient(circle at 50% 29%, #7a815666 0 23%, transparent 50%),
+    repeating-linear-gradient(90deg, #2b3b31 0 39px, #314438 39px 40px);
+  filter: brightness(1.08);
+}
+.siege-modal .siege-relic > span {
+  color: var(--deck-amber, #f3c05e);
+  font: 900 9px ui-monospace, monospace;
+  letter-spacing: 2px;
+}
+.siege-modal .siege-relic img {
+  height: 104px;
+  margin: 5px 0 1px;
+  filter: drop-shadow(0 7px 2px #05090788);
+}
+.siege-modal .siege-relic h2 {
+  margin: 3px 0 7px;
+  color: #f0e4c0;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+}
+.siege-modal .siege-relic p {
+  color: #bbc1a9;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.siege-modal .siege-relic > b {
+  margin-top: auto;
+  border-top: 1px solid #5e6b5d;
+  color: #d5bd77;
+  font: 800 9px ui-monospace, monospace;
+  letter-spacing: 0.5px;
+}
+.siege-modal .siege-draft-foot {
+  color: #8f9b89;
+}
+.siege-modal .siege-help {
+  border: 1px solid #59685c;
+  border-left: 5px solid #bd9651;
+  background:
+    repeating-linear-gradient(90deg, #15221e 0 59px, #1a2823 59px 60px);
+}
+.siege-modal .siege-help b {
+  color: #dfc77f;
+}
+.siege-modal .siege-owned-relic {
+  padding: 4px 8px;
+  border-left: 3px solid #6d836d;
+  background: #17221f99;
+  color: #b8bea8;
+}
+.siege-modal .siege-menu-actions button {
+  min-height: 42px;
+  padding: 10px 24px;
+  border: 1px solid #7a866f;
+  border-bottom: 4px solid #080e0c;
+  border-radius: 0;
+  background: #2b4337;
+  color: #e8ddb6;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+  font: 900 11px ui-monospace, monospace;
+  letter-spacing: 0.8px;
+}
+.siege-modal .siege-menu-actions button:first-child {
+  background: #7e8f59;
+  color: #101713;
+}
+.siege-modal .siege-result-stats > div {
+  border: 1px solid #566559;
+  border-bottom: 4px solid #111a17;
+  background: #17231f;
+  color: #aaaF99;
+}
+.siege-modal .siege-result-stats b {
+  color: var(--deck-amber, #f3c05e);
+}
+
+@keyframes siege-ready-pulse {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.24);
+  }
+}
+
+/* Compact landscape keeps the same physical language instead of reverting to cards. */
+@media (max-height: 580px) {
+  .siege-shell.siege-shell {
+    grid-template-rows: 35px minmax(0, 1fr) 94px;
+    gap: 0;
+    padding-top: max(2px, env(safe-area-inset-top));
+    padding-bottom: max(3px, env(safe-area-inset-bottom));
+  }
+  .siege-shell .siege-topbar {
+    padding-inline: 8px;
+  }
+  .siege-shell .siege-topbar::before {
+    display: none;
+  }
+  .siege-shell .siege-brand b {
+    font-size: 14px;
+  }
+  .siege-shell .siege-brand small {
+    font-size: 6px;
+    letter-spacing: 0.7px;
+  }
+  .siege-shell .siege-stage-title {
+    top: 3px;
+    min-width: 205px;
+    padding: 3px 12px 5px;
+  }
+  .siege-shell .siege-stage-title span {
+    font-size: 8px;
+  }
+  .siege-shell .siege-stage-title strong {
+    font-size: 10px;
+  }
+  .siege-shell .siege-system button {
+    min-width: 40px;
+    height: 28px;
+    padding-inline: 6px;
+    font-size: 8px;
+  }
+  .siege-shell .siege-health-row {
+    top: 41px;
+    left: 12px;
+    right: 12px;
+    grid-template-columns: minmax(100px, 1fr) 155px minmax(100px, 1fr);
+    gap: 9px;
+  }
+  .siege-shell .siege-health-row label {
+    padding: 3px 7px 4px;
+    font-size: 7px;
+  }
+  .siege-shell .siege-health-row label b {
+    font-size: 8px;
+  }
+  .siege-shell .siege-health-row progress {
+    height: 5px;
+    margin-top: 2px;
+  }
+  .siege-shell .siege-wave {
+    min-width: 150px;
+    padding: 3px 8px;
+  }
+  .siege-shell .siege-wave > b {
+    font-size: 12px;
+  }
+  .siege-shell .siege-wave > span,
+  .siege-shell .siege-wave small {
+    font-size: 6px;
+  }
+  .siege-shell .siege-notice {
+    top: 72px;
+    min-height: 18px;
+    width: min(470px, 65%);
+    padding: 2px 22px;
+    font-size: 7px;
+  }
+  .siege-shell .siege-notice::before {
+    left: 10px;
+  }
+  .siege-shell .siege-notice::after {
+    right: 10px;
+  }
+  .siege-shell .siege-build-strip {
+    left: 12px;
+    right: 12px;
+    bottom: 95px;
+    min-height: 18px;
+    padding: 1px 4px;
+  }
+  .siege-shell .siege-build-strip > b,
+  .siege-shell .siege-build-strip > span,
+  .siege-shell .siege-build-strip small {
+    font-size: 6px;
+    padding-block: 2px;
+  }
+  .siege-shell .siege-dock {
+    grid-template-columns: 126px minmax(0, 1fr) 98px;
+    gap: 4px;
+    padding: 6px 7px 5px;
+  }
+  .siege-shell .siege-economy {
+    padding-inline: 3px;
+  }
+  .siege-shell .siege-cash strong {
+    font-size: 24px;
+  }
+  .siege-shell .siege-cash > span,
+  .siege-shell .siege-cash small {
+    font-size: 6px;
+  }
+  .siege-shell .siege-economy > button {
+    min-height: 29px;
+    font-size: 7px;
+  }
+  .siege-shell .siege-troop-card,
+  .siege-shell .siege-cannon {
+    min-height: 80px;
+    border-bottom-width: 4px;
+  }
+  .siege-shell .siege-troop-card img {
+    top: 9%;
+    height: 62%;
+  }
+  .siege-shell .siege-troop-card b {
+    font-size: 8px;
+  }
+  .siege-shell .siege-troop-card small {
+    height: 9px;
+    font-size: 6px;
+  }
+  .siege-shell .siege-price {
+    top: 6px;
+    right: 5px;
+    font-size: 9px;
+  }
+  .siege-shell .siege-cannon > span {
+    font-size: 8px;
+  }
+  .siege-shell .siege-cannon strong {
+    font-size: 20px;
+  }
+  .siege-shell .siege-cannon small {
+    font-size: 6px;
+  }
+  .siege-shell .siege-cannon::before {
+    display: none;
+  }
+  .siege-modal.siege-modal {
+    padding: 12px 16px 10px;
+  }
+  .siege-modal .siege-relic {
+    min-height: 0;
+    padding: 8px;
+  }
+  .siege-modal .siege-relic img {
+    height: 54px;
+  }
+}
+
+@media (max-width: 650px) {
+  .siege-shell.siege-shell {
+    grid-template-rows: 31px minmax(0, 1fr) 87px;
+  }
+  .siege-shell .siege-topbar {
+    margin-inline: 2px;
+    padding-inline: 5px;
+  }
+  .siege-shell .siege-brand b {
+    font-size: 11px;
+  }
+  .siege-shell .siege-brand small {
+    display: none;
+  }
+  .siege-shell .siege-stage-title {
+    min-width: 156px;
+    gap: 5px;
+    padding-inline: 8px;
+  }
+  .siege-shell .siege-stage-title strong {
+    max-width: 88px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .siege-shell .siege-system button {
+    min-width: 34px;
+    height: 28px;
+    padding-inline: 4px;
+  }
+  .siege-shell .siege-system button::after {
+    display: none;
+  }
+  .siege-shell .siege-health-row {
+    top: 36px;
+    left: 8px;
+    right: 8px;
+    grid-template-columns: minmax(80px, 1fr) 116px minmax(80px, 1fr);
+    gap: 5px;
+  }
+  .siege-shell .siege-health-row label {
+    padding-inline: 5px;
+    letter-spacing: 0;
+  }
+  .siege-shell .siege-wave {
+    min-width: 112px;
+    grid-template-columns: auto 1fr;
+    gap: 0 4px;
+    padding-inline: 5px;
+  }
+  .siege-shell .siege-wave small {
+    max-width: 82px;
+  }
+  .siege-shell .siege-notice {
+    top: 65px;
+    width: 62%;
+    min-height: 16px;
+    font-size: 6px;
+    letter-spacing: 0;
+  }
+  .siege-shell .siege-build-strip {
+    bottom: 88px;
+    left: 8px;
+    right: 8px;
+  }
+  .siege-shell .siege-build-strip > span {
+    max-width: 94px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .siege-shell .siege-dock {
+    grid-template-columns: 86px minmax(0, 1fr) 72px;
+    gap: 3px;
+    margin-inline: 2px;
+    padding: 5px 5px 4px;
+  }
+  .siege-shell .siege-cash {
+    gap: 2px;
+    padding-left: 2px;
+  }
+  .siege-shell .siege-cash > span {
+    display: none;
+  }
+  .siege-shell .siege-cash strong {
+    font-size: 20px;
+  }
+  .siege-shell .siege-cash small {
+    font-size: 5px;
+  }
+  .siege-shell .siege-economy > button {
+    min-height: 28px;
+    padding-inline: 2px;
+    font-size: 6px;
+  }
+  .siege-shell .siege-economy > button::after {
+    display: none;
+  }
+  .siege-shell .siege-troops {
+    gap: 2px;
+  }
+  .siege-shell .siege-troop-card,
+  .siege-shell .siege-cannon {
+    min-height: 76px;
+  }
+  .siege-shell .siege-troop-card {
+    padding-inline: 1px;
+  }
+  .siege-shell .siege-troop-card > kbd {
+    top: 5px;
+    left: 4px;
+  }
+  .siege-shell .siege-price {
+    top: 5px;
+    right: 3px;
+    padding-inline: 2px;
+    font-size: 8px;
+  }
+  .siege-shell .siege-troop-card b {
+    font-size: 7px;
+    letter-spacing: -0.4px;
+  }
+  .siege-shell .siege-troop-card small {
+    display: none;
+  }
+  .siege-shell .siege-cannon > kbd {
+    top: 5px;
+    left: 4px;
+  }
+  .siege-shell .siege-cannon > span {
+    font-size: 7px;
+  }
+  .siege-shell .siege-cannon strong {
+    font-size: 16px;
+  }
+  .siege-shell .siege-cannon small {
+    display: none;
+  }
+  .siege-modal.siege-modal {
+    width: calc(var(--app-viewport-width, 100vw) - 14px);
+    padding: 9px 10px 7px;
+  }
+  .siege-modal h1 {
+    font-size: 19px;
+  }
+  .siege-modal .siege-relic {
+    padding: 6px;
+  }
+  .siege-modal .siege-relic h2 {
+    font-size: 10px;
+  }
+  .siege-modal .siege-relic p {
+    font-size: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siege-shell .siege-cannon.is-ready {
+    animation: none;
+  }
+}
