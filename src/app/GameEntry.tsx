@@ -1,8 +1,11 @@
 import { lazy } from 'react';
 import { SiegeApp } from './siege/SiegeApp';
+import './siege/siege-immersive.css';
+
 const LegacyGame = lazy(() =>
   import('./GameApp').then(({ GameApp }) => ({ default: GameApp })),
 );
+
 /** The army siege is the normal game; the former shooter is comparison-only. */
 export function GameEntry() {
   const legacy = new URLSearchParams(window.location.search).has(
