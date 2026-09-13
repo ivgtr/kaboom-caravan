@@ -9,7 +9,7 @@ const names = {
 test('normal starts have no core, and debug previews require the debug flag', async ({
   page,
 }) => {
-  await page.goto('/?quickStart&corePreview=counter');
+  await page.goto('/?legacyCombat&quickStart&corePreview=counter');
   await expect(page.locator('.phase-combat')).toBeVisible();
   await expect(page.locator('.core-hud')).toHaveCount(0);
   await expect(page.locator('.core-choice-panel')).toHaveCount(0);
@@ -19,7 +19,7 @@ for (const [index, id] of (['relay', 'siege', 'counter'] as const).entries()) {
   test(`${id}: core selection preserves ordinary rewards and takes effect in Battle 2`, async ({
     page,
   }) => {
-    await page.goto('/?debug&corePreview=choice');
+    await page.goto('/?legacyCombat&debug&corePreview=choice');
     const dialog = page.getByRole('dialog', {
       name: 'この遠征の戦い方を決めよう',
     });
@@ -48,7 +48,7 @@ for (const [index, id] of (['relay', 'siege', 'counter'] as const).entries()) {
 test('core dialog traps background focus, ignores Escape, and supports arrows plus native Enter', async ({
   page,
 }) => {
-  await page.goto('/?debug&corePreview=choice');
+  await page.goto('/?legacyCombat&debug&corePreview=choice');
   const dialog = page.locator('.core-choice-panel');
   const first = page.locator('[data-core="relay"]');
   await expect(first).toBeFocused();
@@ -82,7 +82,7 @@ test('core dialog traps background focus, ignores Escape, and supports arrows pl
 test('relay arms the opposite weapon on real fire and both held cancels it', async ({
   page,
 }) => {
-  await page.goto('/?debug&corePreview=relay');
+  await page.goto('/?legacyCombat&debug&corePreview=relay');
   const hud = page.locator('.core-hud');
   await expect(hud).toContainText('片方ずつ');
   await page.keyboard.down('Space');
@@ -99,7 +99,7 @@ test('relay arms the opposite weapon on real fire and both held cancels it', asy
 test('siege deploys, movement cancels it, and partial deployment freezes during pause and blur', async ({
   page,
 }) => {
-  await page.goto('/?debug&corePreview=siege');
+  await page.goto('/?legacyCombat&debug&corePreview=siege');
   const hud = page.locator('.core-hud');
   await expect(hud).toContainText('展開中');
   await page.keyboard.down('KeyD');
@@ -128,7 +128,7 @@ test('siege deploys, movement cancels it, and partial deployment freezes during 
 test('counter parries a real incoming projectile and consumes one empowered volley', async ({
   page,
 }) => {
-  await page.goto('/?debug&corePreview=counter');
+  await page.goto('/?legacyCombat&debug&corePreview=counter');
   const hud = page.locator('.core-hud');
   await expect(hud).toContainText('パリィ成功');
   // The debug fixture starts a projectile 30m away at 12m/s. Act by simulation
@@ -160,7 +160,7 @@ for (const viewport of [
     test('can read and tap the third core, then keeps its combat HUD out of the controls', async ({
       page,
     }) => {
-      await page.goto('/?debug&corePreview=choice');
+      await page.goto('/?legacyCombat&debug&corePreview=choice');
       const dialog = page.locator('.core-choice-panel');
       await expect(dialog).toBeVisible();
       const fits = await dialog.evaluate((element) => {

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GameApp } from './app/GameApp';
+import { GameEntry } from './app/GameEntry';
 import { ImmersiveShell } from './app/ImmersiveShell';
 import './app/game.css';
 import './app/immersive.css';
@@ -14,7 +14,7 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <ImmersiveShell>
-      <GameApp />
+      <GameEntry />
     </ImmersiveShell>
   </StrictMode>,
 );

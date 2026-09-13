@@ -4,7 +4,7 @@ test.describe.configure({ mode: 'serial' });
 
 test('starts a new post-MVP run from the kawaii garage', async ({ page }) => {
   await page.setViewportSize({ width: 1184, height: 689 });
-  await page.goto('/');
+  await page.goto('/?legacyCombat');
 
   const garage = page
     .getByRole('dialog')
@@ -25,7 +25,7 @@ test('navigates the garage with shared menu controls and skips locked loadouts',
   page,
 }) => {
   await page.setViewportSize({ width: 1184, height: 689 });
-  await page.goto('/');
+  await page.goto('/?legacyCombat');
 
   const garage = page
     .getByRole('dialog')
@@ -55,7 +55,7 @@ test('navigates the garage with shared menu controls and skips locked loadouts',
 test('uses the same navigation controls for routes and the result screen', async ({
   page,
 }) => {
-  await page.goto('/?debug=1&routePreview=1');
+  await page.goto('/?legacyCombat&debug=1&routePreview=1');
   const routes = page.getByRole('dialog').filter({ hasText: '進路選択' });
   const normalRoute = routes.getByRole('button', { name: /街道を進む/ });
   const alternateRoute = routes.getByRole('button', {
@@ -69,7 +69,7 @@ test('uses the same navigation controls for routes and the result screen', async
   await expect(routes).toHaveCount(0);
   await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
 
-  await page.goto('/?debug=1&resultPreview=defeat');
+  await page.goto('/?legacyCombat&debug=1&resultPreview=defeat');
   const result = page.getByRole('dialog').filter({ hasText: 'キャラバン大破' });
   const restart = result.getByRole('button', { name: '整備庫へ戻る' });
   await expect(restart).toBeFocused();
@@ -89,7 +89,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?debug=1&resultPreview=defeat');
+    await page.goto('/?legacyCombat&debug=1&resultPreview=defeat');
 
     const result = page
       .getByRole('dialog')
@@ -186,7 +186,7 @@ async function waitThroughWeaponCaches(
 test('supports keyboard and thumb controls while keeping debug opt-in', async ({
   page,
 }) => {
-  await page.goto('/?debug=1');
+  await page.goto('/?legacyCombat&debug=1');
 
   const health = page.getByRole('region', { name: '車両耐久' });
   const debug = page.locator('.debug-panel');
@@ -241,7 +241,7 @@ test('supports keyboard and thumb controls while keeping debug opt-in', async ({
 });
 
 test('hides diagnostic UI from the product view', async ({ page }) => {
-  await page.goto('/?quickStart=1');
+  await page.goto('/?legacyCombat&quickStart=1');
   await expect(page.locator('.debug-panel')).toHaveCount(0);
 });
 
@@ -258,7 +258,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?quickStart=1');
+    await page.goto('/?legacyCombat&quickStart=1');
 
     const stage = page.locator('.combat-stage');
     await expect(stage).toBeVisible();
@@ -296,7 +296,7 @@ test('keeps rolling with inertia after movement input is released', async ({
   const chassisAsset = page.waitForResponse((response) =>
     response.url().endsWith('/assets/animation/veh_player_chassis_v005.png'),
   );
-  await page.goto('/?debug=1');
+  await page.goto('/?legacyCombat&debug=1');
   expect((await rigAsset).ok()).toBe(true);
   expect((await chassisAsset).ok()).toBe(true);
 
@@ -316,7 +316,7 @@ test('keeps rolling with inertia after movement input is released', async ({
     await page.screenshot({
       path: 'artifacts/animation/review/caravan_battery_1440x900_v005.png',
     });
-    await page.goto('/?debug=motion');
+    await page.goto('/?legacyCombat&debug=motion');
     await expect(debug).toContainText('position 10.0');
     await page.screenshot({
       path: 'artifacts/animation/review/caravan_wheel_axes_1440x900_v005.png',
@@ -328,7 +328,7 @@ test('renders an acquired module on the physical caravan mounts', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/?debug=1&rewardPreview=full-modules');
+  await page.goto('/?legacyCombat&debug=1&rewardPreview=full-modules');
 
   const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
   const moduleCard = rewards.locator('.reward-module').first();
@@ -347,7 +347,7 @@ test('renders an acquired module on the physical caravan mounts', async ({
 test('reaches battle clear through live combat', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1184, height: 689 });
-  await page.goto('/?quickStart=1');
+  await page.goto('/?legacyCombat&quickStart=1');
   await enableReactiveParry(page);
   await page.keyboard.down('c');
   await page.keyboard.down('Space');
@@ -372,7 +372,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?debug=1&rewardPreview=full-modules');
+    await page.goto('/?legacyCombat&debug=1&rewardPreview=full-modules');
 
     const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
     const oldestModuleName = '冷却ファン';
@@ -423,7 +423,7 @@ for (const viewport of [
     const mineAsset = page.waitForResponse((response) =>
       response.url().endsWith('/assets/vfx/vfx_mine_deployable_v001.png'),
     );
-    await page.goto('/?debug=1&mineVfx=armed');
+    await page.goto('/?legacyCombat&debug=1&mineVfx=armed');
     expect((await mineAsset).ok()).toBe(true);
     if (process.env.CAPTURE_VFX_REVIEW) {
       await page.waitForTimeout(300);
@@ -451,7 +451,7 @@ for (const viewport of [
     const parrySuccessAsset = page.waitForResponse((response) =>
       response.url().endsWith('/assets/vfx/vfx_parry_deflect_success_v002.png'),
     );
-    await page.goto('/?quickStart=1');
+    await page.goto('/?legacyCombat&quickStart=1');
     expect((await boostAsset).ok()).toBe(true);
     expect((await parryReadyAsset).ok()).toBe(true);
     expect((await parrySuccessAsset).ok()).toBe(true);
@@ -469,7 +469,7 @@ for (const viewport of [
     await page.keyboard.up('ShiftLeft');
     await page.keyboard.up('d');
     for (const pose of ['ready', 'success'] as const) {
-      await page.goto(`/?quickStart=1&parryVfx=${pose}`);
+      await page.goto(`/?legacyCombat&quickStart=1&parryVfx=${pose}`);
       await expect(
         page.getByRole('button', { name: '迎撃パリィ' }),
       ).toBeVisible();
@@ -493,7 +493,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?quickStart=1');
+    await page.goto('/?legacyCombat&quickStart=1');
     const main = page.getByRole('button', { name: '主武器' });
     await expect(main).toContainText('50');
     await page.keyboard.down('Space');
@@ -516,7 +516,7 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport);
     for (const phase of [1, 2, 3] as const) {
-      await page.goto(`/?debug=1&bossPhase=${phase}`);
+      await page.goto(`/?legacyCombat&debug=1&bossPhase=${phase}`);
       await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
       await page.evaluate(async () => {
         const image = new Image();
@@ -551,7 +551,7 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport);
     for (const visualId of ['spore', 'boss-core', 'boss-burst'] as const) {
-      await page.goto(`/?debug=1&enemyVfx=${visualId}`);
+      await page.goto(`/?legacyCombat&debug=1&enemyVfx=${visualId}`);
       await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
       await page.evaluate(async (id) => {
         const image = new Image();
@@ -591,7 +591,7 @@ for (const viewport of [
       'normal',
       'boss',
     ] as const) {
-      await page.goto(`/?debug=1&deathVfx=${preview}`);
+      await page.goto(`/?legacyCombat&debug=1&deathVfx=${preview}`);
       await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
       await page.evaluate(async () => {
         const image = new Image();
@@ -621,7 +621,7 @@ test('shows a recoverable message when Canvas 2D is unavailable', async ({
   await page.addInitScript(() => {
     HTMLCanvasElement.prototype.getContext = () => null;
   });
-  await page.goto('/?quickStart=1');
+  await page.goto('/?legacyCombat&quickStart=1');
 
   const error = page.getByRole('alert');
   await expect(error).toContainText('表示エラー');
@@ -639,7 +639,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?debug=1&rewardPreview=weapon-slot');
+    await page.goto('/?legacyCombat&debug=1&rewardPreview=weapon-slot');
 
     const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
     await expect(rewards).toBeVisible();
@@ -765,7 +765,7 @@ for (const viewport of [
 test('uses a slot confirmation step for a newly acquired weapon', async ({
   page,
 }) => {
-  await page.goto('/?debug=1&rewardPreview=weapon-slot');
+  await page.goto('/?legacyCombat&debug=1&rewardPreview=weapon-slot');
   const rewards = page.getByRole('dialog').filter({ hasText: '戦利品選択' });
   const newWeapon = rewards
     .locator('.reward-card.reward-weapon:not(.reward-upgrade)')
@@ -784,7 +784,7 @@ test('pauses combat and offers three weapons when a weapon cache is opened', asy
   page,
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto('/?debug=1&weaponCachePreview=1');
+  await page.goto('/?legacyCombat&debug=1&weaponCachePreview=1');
   const cache = page.getByRole('dialog').filter({ hasText: '武器箱を発見！' });
 
   await expect(cache).toBeVisible();
@@ -882,7 +882,7 @@ test('renders repair, ammo and weapon-cache supplies as separate drops', async (
       page.waitForResponse((response) => response.url().endsWith(filename)),
     ),
   );
-  await page.goto('/?debug=1&supplyPreview=1');
+  await page.goto('/?legacyCombat&debug=1&supplyPreview=1');
   for (const response of await supplyAssets) expect(response.ok()).toBe(true);
 
   await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
@@ -905,7 +905,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?quickStart=1');
+    await page.goto('/?legacyCombat&quickStart=1');
 
     const controls = {
       forward: page.getByRole('button', { name: '前進' }),

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('normal runs start empty and cannot charge by waiting or pressing E', async ({
   page,
 }) => {
-  await page.goto('/?debug');
+  await page.goto('/?legacyCombat&debug');
   const meter = page.getByRole('progressbar', { name: '決死突破ゲージ' });
   await expect(meter).toHaveAttribute('value', '0');
   await page.keyboard.press('KeyE');
@@ -17,7 +17,7 @@ test('normal runs start empty and cannot charge by waiting or pressing E', async
 test('earns charge from a real hit and requires a fresh E press, not a held key', async ({
   page,
 }) => {
-  await page.goto('/?debug&breakthroughPreview=charging');
+  await page.goto('/?legacyCombat&debug&breakthroughPreview=charging');
   const panel = page.getByRole('region', { name: 'DEATH RIDE状況' });
   await expect(panel).toHaveAttribute('data-state', 'charging');
   await page.keyboard.down('KeyE');
@@ -35,7 +35,7 @@ test('earns charge from a real hit and requires a fresh E press, not a held key'
 test('vents overheat and freezes the burst clock during pause and blur', async ({
   page,
 }) => {
-  await page.goto('/?debug&breakthroughPreview=ready');
+  await page.goto('/?legacyCombat&debug&breakthroughPreview=ready');
   const primary = page.getByRole('button', { name: '主武器', exact: true });
   const panel = page.getByRole('region', { name: 'DEATH RIDE状況' });
   await expect(primary).toHaveClass(/overheat/);
@@ -70,7 +70,7 @@ for (const key of ['Space', 'Enter']) {
   test(`supports native ${key} button activation without also shooting`, async ({
     page,
   }) => {
-    await page.goto('/?debug&breakthroughPreview=ready');
+    await page.goto('/?legacyCombat&debug&breakthroughPreview=ready');
     const button = page.getByRole('button', {
       name: 'DEATH RIDEを発動',
       exact: true,
@@ -96,7 +96,7 @@ for (const viewport of [
     test('keeps the action readable, non-overlapping and tappable', async ({
       page,
     }) => {
-      await page.goto('/?debug&breakthroughPreview=ready');
+      await page.goto('/?legacyCombat&debug&breakthroughPreview=ready');
       const button = page.getByRole('button', {
         name: 'DEATH RIDEを発動',
         exact: true,
