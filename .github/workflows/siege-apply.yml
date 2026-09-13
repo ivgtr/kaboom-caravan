@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Verify and apply authored patch
+      - name: Verify and apply authored source patch
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -32,10 +32,9 @@ jobs:
           assert hashlib.sha256(patch).hexdigest() == 'da2bf754169fdd3e7775a5a63c71f98184a61ae7a5b5535281443d3a7281e5d7'
           pathlib.Path(os.environ['RUNNER_TEMP'], 'siege.patch').write_bytes(patch)
           PY
-          git apply --check "$RUNNER_TEMP/siege.patch"
-          git apply "$RUNNER_TEMP/siege.patch"
-          rm .github/workflows/siege-apply.yml
+          git apply --check --exclude='.github/workflows/*' "$RUNNER_TEMP/siege.patch"
+          git apply --exclude='.github/workflows/*' "$RUNNER_TEMP/siege.patch"
           git diff --check
-          git add -- .github/workflows src tests docs README.md
+          git add -- src tests docs README.md
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: replace default shooter with rogue army siege'
           git push origin HEAD:refs/heads/codex/rogue-siege-caravan
