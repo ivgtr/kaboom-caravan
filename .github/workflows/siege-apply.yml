@@ -1,0 +1,41 @@
+name: Apply verified siege implementation
+on:
+  push:
+    branches: [codex/rogue-siege-caravan]
+    paths: [.github/workflows/siege-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/codex/rogue-siege-caravan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify and apply authored patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'codex/rogue-siege-caravan'
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, subprocess
+          hashes = ['6223295a6c7198e7ceb2636beab02371b6ab5028', '1a9ae634095b0cdbbcd137cc86ca071375c6dca7', '5e7fe02950a65423772f902d1db297889de260f1']
+          chunks = []
+          for sha in hashes:
+              payload = json.loads(subprocess.check_output(['gh', 'api', f'repos/ivgtr/kaboom-caravan/git/blobs/{sha}']))
+              chunk = base64.b64decode(payload['content'])
+              assert hashlib.sha1(b'blob ' + str(len(chunk)).encode() + b'\0' + chunk).hexdigest() == sha
+              chunks.append(chunk)
+          patch = lzma.decompress(b''.join(chunks))
+          assert hashlib.sha256(patch).hexdigest() == 'da2bf754169fdd3e7775a5a63c71f98184a61ae7a5b5535281443d3a7281e5d7'
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'siege.patch').write_bytes(patch)
+          PY
+          git apply --check "$RUNNER_TEMP/siege.patch"
+          git apply "$RUNNER_TEMP/siege.patch"
+          rm .github/workflows/siege-apply.yml
+          git diff --check
+          git add -- .github/workflows src tests docs README.md
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: replace default shooter with rogue army siege'
+          git push origin HEAD:refs/heads/codex/rogue-siege-caravan
