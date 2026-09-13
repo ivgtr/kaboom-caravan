@@ -49,7 +49,7 @@ async function expectNoOverlap(page: Page, a: string, b: string) {
 test('ordinary starts do not gain a detour from a preview parameter', async ({
   page,
 }) => {
-  await page.goto('/?quickStart&objectivePreview=repair');
+  await page.goto('/?legacyCombat&quickStart&objectivePreview=repair');
   await expect(page.locator('.phase-combat')).toBeVisible();
   await expect(page.locator('.objective-hud')).toHaveAttribute(
     'data-kind',
@@ -62,7 +62,7 @@ test('ordinary starts do not gain a detour from a preview parameter', async ({
 test('briefing compares four routes, shows real scouting and keeps focus inside', async ({
   page,
 }) => {
-  await page.goto('/?debug&routePreview');
+  await page.goto('/?legacyCombat&debug&routePreview');
   const dialog = page.getByRole('dialog', { name: '次に進む区画を選ぼう' });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.route-choice')).toHaveCount(4);
@@ -96,7 +96,7 @@ test('briefing compares four routes, shows real scouting and keeps focus inside'
 test('final-battle briefing omits equipment detours but retains repair', async ({
   page,
 }) => {
-  await page.goto('/?debug&routePreview=boss');
+  await page.goto('/?legacyCombat&debug&routePreview=boss');
   const dialog = page.locator('.route-briefing');
   await expect(dialog).toContainText('第10戦');
   await expect(dialog.locator('.route-choice')).toHaveCount(2);
@@ -109,7 +109,7 @@ test('final-battle briefing omits equipment detours but retains repair', async (
 test('real movement secures repair while siege deploys; reward is applied once', async ({
   page,
 }) => {
-  await page.goto('/?debug&objectivePreview=repair');
+  await page.goto('/?legacyCombat&debug&objectivePreview=repair');
   await expect(page.locator('.compact-hud > b')).toHaveText('40');
   await enterZone(page);
   await expect(page.locator('.core-hud')).toContainText('展開中');
@@ -125,7 +125,7 @@ test('real movement secures repair while siege deploys; reward is applied once',
 test('salvage opens an actual three-choice cache, freezes combat, and resumes without duplicate reward', async ({
   page,
 }) => {
-  await page.goto('/?debug&objectivePreview=salvage');
+  await page.goto('/?legacyCombat&debug&objectivePreview=salvage');
   await enterZone(page);
   const cache = page.locator('.weapon-cache-panel');
   await expect(cache).toBeVisible();
@@ -152,7 +152,7 @@ test('salvage opens an actual three-choice cache, freezes combat, and resumes wi
 test('active occupation and deadline freeze on manual pause and window blur', async ({
   page,
 }) => {
-  await page.goto('/?debug&objectivePreview=repair');
+  await page.goto('/?legacyCombat&debug&objectivePreview=repair');
   await enterZone(page);
   await page.keyboard.press('Escape');
   const paused = page.getByRole('dialog', { name: '一時停止中' });
@@ -187,7 +187,7 @@ test('active occupation and deadline freeze on manual pause and window blur', as
 test('enemy presence blocks occupation and timeout does not end combat', async ({
   page,
 }) => {
-  await page.goto('/?debug&objectivePreview=contested');
+  await page.goto('/?legacyCombat&debug&objectivePreview=contested');
   await expect(page.locator('.objective-hud')).toContainText('敵が範囲内');
   await waitForCombatInput(page);
   await page.keyboard.down('KeyD');
@@ -205,7 +205,7 @@ test('enemy presence blocks occupation and timeout does not end combat', async (
   await expect(
     page.getByRole('progressbar', { name: '拠点の確保' }),
   ).toHaveAttribute('value', '0');
-  await page.goto('/?debug&objectivePreview=expired');
+  await page.goto('/?legacyCombat&debug&objectivePreview=expired');
   await expect(page.locator('.objective-hud')).toHaveAttribute(
     'data-state',
     'lost',
@@ -232,7 +232,7 @@ for (const [width, height] of [
     const page = await context.newPage();
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto('/?debug&routePreview');
+    await page.goto('/?legacyCombat&debug&routePreview');
     const dialog = page.locator('.route-briefing');
     await expect(dialog).toBeVisible();
     const bounds = await dialog.boundingBox();
@@ -248,7 +248,7 @@ for (const [width, height] of [
     await expect(salvage).toBeInViewport();
     await salvage.tap();
     await expect(page.locator('.objective-hud')).toBeVisible();
-    await page.goto('/?debug&objectivePreview=repair');
+    await page.goto('/?legacyCombat&debug&objectivePreview=repair');
     await expect(page.locator('.core-hud')).toBeVisible();
     for (const selector of [
       '.core-hud',

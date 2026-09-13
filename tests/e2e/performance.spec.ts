@@ -30,7 +30,7 @@ test.describe('renderer quality and performance gates', () => {
         'Run performance budgets in isolation with one worker.',
       );
       await page.setViewportSize(target);
-      await page.goto('/?debug=performance');
+      await page.goto('/?legacyCombat&debug=performance');
       await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
       await expect
         .poll(
@@ -75,7 +75,7 @@ test.describe('renderer quality and performance gates', () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/?debug=performance&enemyVfx=boss-burst');
+    await page.goto('/?legacyCombat&debug=performance&enemyVfx=boss-burst');
     await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
     await expect
       .poll(async () => (await readDiagnostics(page))?.reducedMotion)
@@ -109,7 +109,7 @@ test.describe('renderer quality and performance gates', () => {
         body: 'not-a-valid-png',
       }),
     );
-    await page.goto('/?debug=1&enemyVfx=spore');
+    await page.goto('/?legacyCombat&debug=1&enemyVfx=spore');
     await expect(page.getByRole('button', { name: '主武器' })).toBeVisible();
     await expect
       .poll(

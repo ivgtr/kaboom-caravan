@@ -1,0 +1,1166 @@
+.siege-shell {
+  --ink: #23363c;
+  --cream: #fff1ce;
+  --mint: #87e5c1;
+  --coral: #ff846c;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: 60px 56px 26px minmax(0, 1fr) 25px 133px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  color: var(--cream);
+  background: #253d42;
+  font-family:
+    ui-rounded, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
+  padding: max(6px, env(safe-area-inset-top))
+    max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom))
+    max(10px, env(safe-area-inset-left));
+  gap: 4px;
+}
+.siege-shell *,
+.siege-modal * {
+  box-sizing: border-box;
+}
+.siege-shell button,
+.siege-modal button {
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.siege-shell button:disabled {
+  cursor: not-allowed;
+}
+.siege-shell button:focus-visible,
+.siege-modal button:focus-visible {
+  outline: 3px solid #fff7bb;
+  outline-offset: -5px;
+}
+.siege-shell kbd,
+.siege-modal kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font: 700 11px monospace;
+  opacity: 0.8;
+}
+.siege-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 14px;
+  background: #172c32;
+  border-bottom: 3px solid #67bdad;
+}
+.siege-brand b {
+  display: block;
+  font-size: 21px;
+  font-weight: 950;
+  letter-spacing: -0.9px;
+  line-height: 1;
+}
+.siege-brand b span {
+  color: var(--mint);
+  margin-left: 5px;
+}
+.siege-brand small {
+  display: block;
+  font: 10px monospace;
+  letter-spacing: 1.5px;
+  margin-top: 5px;
+  color: #a8bbb9;
+}
+.siege-stage-title {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.siege-stage-title span {
+  font: 700 13px monospace;
+  color: var(--mint);
+}
+.siege-stage-title strong {
+  font-size: 15px;
+}
+.siege-system {
+  display: flex;
+  gap: 6px;
+}
+.siege-system button {
+  min-width: 44px;
+  height: 36px;
+  background: #355159;
+  border: 1px solid #68817f;
+  border-radius: 4px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+.siege-system button:disabled {
+  opacity: 0.45;
+}
+.siege-health-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  gap: 22px;
+  padding: 0 12px;
+}
+.siege-health-row label {
+  font-size: 11px;
+  color: #b3d8cd;
+}
+.siege-health-row label b {
+  float: right;
+  color: var(--cream);
+  font: bold 12px monospace;
+}
+.siege-shell progress {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  margin-top: 5px;
+  border: 1px solid #101e24;
+  background: #182c31;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.siege-shell progress::-webkit-progress-bar {
+  background: #182c31;
+}
+.siege-shell progress::-webkit-progress-value {
+  background: var(--mint);
+}
+.siege-shell progress::-moz-progress-bar {
+  background: var(--mint);
+}
+.siege-shell .enemy-health progress::-webkit-progress-value {
+  background: var(--coral);
+}
+.siege-shell .enemy-health progress::-moz-progress-bar {
+  background: var(--coral);
+}
+.siege-wave {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 12px;
+  align-items: center;
+  text-align: center;
+  font-size: 10px;
+}
+.siege-wave > b {
+  grid-row: span 2;
+  font: 700 19px monospace;
+}
+.siege-wave small {
+  color: #a5beb7;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.siege-notice {
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffe8b7;
+  background: #593b35;
+  border-inline: 5px solid var(--coral);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.siege-field {
+  position: relative;
+  overflow: hidden;
+  background:
+    var(--siege-background) center 66% / cover no-repeat,
+    #aed3c1;
+  border: 2px solid #172c32;
+  border-radius: 5px;
+}
+.siege-horizon {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#1b363619, transparent 60%, #192f3860);
+}
+.siege-lane {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9%;
+  height: 25%;
+  background: linear-gradient(transparent, #bfb79559);
+  border-bottom: 2px solid #e9edb57a;
+}
+.siege-front {
+  position: absolute;
+  top: 15%;
+  bottom: 12%;
+  border-left: 1px dashed #fff6d675;
+  opacity: 0.8;
+}
+.siege-front span {
+  position: absolute;
+  left: -24px;
+  top: -17px;
+  padding: 3px 8px;
+  background: #304343ce;
+  color: var(--cream);
+  font: bold 10px monospace;
+}
+.siege-base {
+  position: absolute;
+  bottom: 14%;
+  width: 17%;
+  max-width: 200px;
+  min-width: 65px;
+  z-index: 2;
+  text-align: center;
+}
+.siege-base img {
+  display: block;
+  width: 100%;
+  filter: drop-shadow(0 5px 2px #28363077);
+}
+.siege-base span {
+  position: absolute;
+  bottom: -13px;
+  left: 15%;
+  right: 15%;
+  font: 800 9px monospace;
+  color: #faf3d5;
+  background: #283d43;
+  padding: 3px;
+}
+.ally-base {
+  left: -1%;
+}
+.enemy-base {
+  right: -1%;
+}
+.enemy-base span {
+  background: #73443d;
+}
+.enemy-base.is-warning img {
+  filter: drop-shadow(0 0 14px #ff7644);
+}
+.siege-actor {
+  --size: clamp(42px, 6.8vw, 86px);
+  position: absolute;
+  bottom: calc(16% + var(--rank) * 5px);
+  z-index: 4;
+  width: var(--size);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.siege-actor.kind-titan {
+  --size: clamp(76px, 11vw, 150px);
+  z-index: 3;
+}
+.siege-actor.kind-commander {
+  --size: clamp(90px, 13vw, 165px);
+  z-index: 3;
+}
+.siege-actor.kind-brute {
+  --size: clamp(62px, 8vw, 106px);
+}
+.siege-unit-body {
+  position: relative;
+  height: var(--size);
+  transform-origin: 50% 100%;
+}
+.siege-unit-body img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 2px #19282a60);
+}
+.siege-actor.ally .siege-unit-body img {
+  padding-bottom: 10%;
+}
+.siege-wheels {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 3%;
+  height: 15%;
+  background: linear-gradient(#aebbae, #546767);
+  border: 2px solid #25383e;
+  border-radius: 4px;
+}
+.siege-wheels::before,
+.siege-wheels::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  width: 28%;
+  height: 105%;
+  border-radius: 50%;
+  background: #42565a;
+  border: 3px solid #172b30;
+}
+.siege-wheels::before {
+  left: -8%;
+}
+.siege-wheels::after {
+  right: -8%;
+}
+.siege-unit-meter {
+  position: absolute;
+  top: 8%;
+  width: 45%;
+  height: 4px;
+  left: 27%;
+  border: 1px solid #25383e;
+  background: #23393c;
+  z-index: 3;
+}
+.siege-unit-meter i {
+  display: block;
+  height: 100%;
+  background: #9af6b4;
+}
+.enemy .siege-unit-meter i {
+  background: #fc8d79;
+}
+.siege-actor.is-winding .siege-unit-body {
+  transform: rotate(-7deg) scale(0.98);
+  filter: drop-shadow(0 0 5px #ffe27c);
+}
+.siege-actor.enemy.is-winding .siege-unit-body {
+  transform: rotate(7deg) scale(1.05);
+}
+.siege-actor.is-hit .siege-unit-body {
+  filter: brightness(1.8);
+}
+.siege-actor.is-staggered .siege-unit-body {
+  transform: rotate(12deg);
+}
+.siege-aim {
+  position: absolute;
+  right: 5%;
+  top: 8%;
+  font-size: 22px;
+  font-weight: 950;
+  color: #ffd857;
+  text-shadow: 0 2px #52362e;
+}
+.siege-commander-label {
+  position: absolute;
+  top: -8%;
+  left: 10%;
+  right: 10%;
+  z-index: 4;
+  padding: 4px 0;
+  color: #fff0b5;
+  background: #773b32;
+  font-size: 10px;
+  text-align: center;
+}
+.siege-fx {
+  position: absolute;
+  z-index: 6;
+  bottom: 20%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: #ffed9c;
+  box-shadow: 0 0 8px #ffcc68;
+  animation: siege-pop 0.35s ease-out both;
+}
+.fx-blast {
+  width: 85px;
+  height: 85px;
+  background: radial-gradient(
+    circle,
+    #fff5bc 15%,
+    #ffc567 35%,
+    #ed7c5075 63%,
+    transparent 70%
+  );
+  box-shadow: none;
+}
+.fx-deploy {
+  width: 45px;
+  height: 45px;
+  background: transparent;
+  border: 3px solid #8bffca;
+  box-shadow: none;
+}
+.siege-cannon-beam {
+  position: absolute;
+  z-index: 7;
+  left: 7%;
+  right: 0;
+  bottom: 28%;
+  height: 28px;
+  background: linear-gradient(transparent, #e5fffb, #76f3e0, transparent);
+  box-shadow: 0 0 30px #95ffde;
+  pointer-events: none;
+}
+.siege-field.is-cannon {
+  animation: siege-recoil 0.15s ease-out 2;
+}
+.siege-field-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2%;
+  color: #fffae4;
+  text-shadow: 0 1px 3px #21353a;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.siege-build-strip {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow: hidden;
+  font-size: 9px;
+  padding: 0 7px;
+}
+.siege-build-strip > b {
+  color: #9aacaa;
+  font: 10px monospace;
+  margin-right: 2px;
+}
+.siege-build-strip > span {
+  padding: 2px 7px;
+  background: #425d5b;
+  border-left: 2px solid #95c8a2;
+  white-space: nowrap;
+}
+.siege-build-strip small {
+  margin-left: auto;
+  white-space: nowrap;
+  color: #b6d2c8;
+}
+.siege-dock {
+  display: grid;
+  grid-template-columns: 165px minmax(0, 1fr) 135px;
+  gap: 9px;
+  min-height: 0;
+  padding: 5px;
+  background: #13282c;
+  border: 2px solid #658780;
+  border-radius: 6px;
+  box-shadow: inset 0 2px #b0c1a866;
+}
+.siege-economy {
+  display: grid;
+  grid-template-rows: 55% 45%;
+  min-height: 0;
+}
+.siege-cash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.siege-cash > span {
+  font-size: 10px;
+  color: #b3d7c7;
+}
+.siege-cash strong {
+  font: 900 33px monospace;
+  color: #ffe7a0;
+}
+.siege-cash small {
+  color: #9fb9af;
+  font: 10px monospace;
+}
+.siege-economy > button {
+  border: 2px solid #648d7b;
+  border-bottom-width: 4px;
+  border-radius: 5px;
+  background: #3b6256;
+  color: #e6f5cc;
+  font-size: 11px;
+}
+.siege-economy > button b {
+  display: block;
+  font-size: 11px;
+}
+.siege-economy > button:disabled {
+  filter: brightness(0.65);
+}
+.siege-troops {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+.siege-troop-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  padding: 3px 2px 9px;
+  background: linear-gradient(155deg, #f2e5bb, #afc8b1);
+  color: #263d3f !important;
+  border: 3px solid #9ee7c2;
+  border-bottom-width: 6px;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: filter 0.12s;
+}
+.siege-troop-card:active:not(:disabled) {
+  transform: translateY(2px);
+}
+.siege-troop-card:disabled {
+  background: linear-gradient(155deg, #a6b1a0, #6d8780);
+  border-color: #48645f;
+}
+.siege-troop-card > kbd {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  z-index: 2;
+}
+.siege-price {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font: 900 15px monospace;
+  z-index: 2;
+  color: #193b3c;
+}
+.siege-troop-card img {
+  position: absolute;
+  height: 68%;
+  width: 75%;
+  top: 1%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 1px #29444355);
+}
+.siege-troop-card b {
+  z-index: 1;
+  max-width: 100%;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.siege-troop-card small {
+  z-index: 1;
+  display: block;
+  height: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+}
+.siege-recharge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: #ffd781;
+}
+.siege-cannon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #624a3d;
+  border: 3px solid #9b7660;
+  border-bottom-width: 6px;
+  border-radius: 6px;
+  gap: 2px;
+}
+.siege-cannon > kbd {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+}
+.siege-cannon > span {
+  font-size: 13px;
+  font-weight: 900;
+}
+.siege-cannon strong {
+  font: 900 27px monospace;
+}
+.siege-cannon small {
+  font-size: 9px;
+}
+.siege-cannon progress {
+  width: 85%;
+  height: 6px;
+}
+.siege-cannon.is-ready {
+  background: #ab553f;
+  border-color: #ffad77;
+  box-shadow: inset 0 0 15px #ffac584d;
+}
+.siege-cannon:disabled {
+  filter: saturate(0.5);
+}
+.siege-modal {
+  position: fixed;
+  left: calc(
+    var(--app-viewport-left, 0px) + var(--app-viewport-width, 100vw) / 2
+  );
+  top: calc(
+    var(--app-viewport-top, 0px) + var(--app-viewport-height, 100dvh) / 2
+  );
+  transform: translate(-50%, -50%);
+  inset-inline-end: auto;
+  inset-block-end: auto;
+  margin: 0;
+  width: min(1000px, calc(var(--app-viewport-width, 100vw) - 36px));
+  max-height: calc(var(--app-viewport-height, 100dvh) - 32px);
+  padding: 26px 30px 16px;
+  border: 3px solid #88bba6;
+  border-top: 7px solid #a6e5bc;
+  border-radius: 6px;
+  color: #f4edcf;
+  background: linear-gradient(130deg, #314e50, #19343b);
+  box-shadow: 0 24px 100px #102429ad;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-family: ui-rounded, 'Yu Gothic', system-ui, sans-serif;
+}
+.siege-modal::backdrop {
+  background: #10272ddc;
+}
+.siege-modal:not([open]) {
+  display: none;
+}
+.siege-draft-heading {
+  position: relative;
+}
+.siege-draft-heading > span,
+.siege-pause-content > span,
+.siege-result > span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #9adebb;
+  letter-spacing: 2px;
+}
+.siege-modal h1 {
+  margin: 10px 0;
+  font-size: clamp(24px, 3.3vw, 40px);
+  line-height: 1.25;
+  letter-spacing: -1px;
+}
+.siege-draft-heading > p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 8px 0 18px;
+  color: #c4d6c9;
+}
+.siege-draft-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.siege-relic {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  min-width: 0;
+  padding: 14px;
+  background: linear-gradient(155deg, #eee4c2, #cad8b9);
+  color: #243d3d !important;
+  border: 3px solid #acdbb7;
+  border-bottom: 7px solid #78a997;
+  border-radius: 5px;
+}
+.siege-relic:hover {
+  border-color: #fff1a8;
+  background: #f4e6bb;
+}
+.siege-relic > span {
+  font: 900 12px monospace;
+  letter-spacing: 2px;
+}
+.siege-relic img {
+  width: 100%;
+  height: 110px;
+  object-fit: contain;
+  margin: 5px 0;
+}
+.siege-relic h2 {
+  font-size: 16px;
+  margin: 3px 0 7px;
+}
+.siege-relic p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0 0 14px;
+  flex: 1;
+}
+.siege-relic > b {
+  display: block;
+  font-size: 12px;
+  border-top: 1px solid #809885;
+  padding-top: 9px;
+}
+.siege-draft-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  color: #b2c6bd;
+  margin-top: 14px;
+}
+.siege-draft-foot small {
+  font: 10px monospace;
+}
+.siege-pause-content > p,
+.siege-result > p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.siege-help {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: #102a3099;
+  border-left: 4px solid #83c7aa;
+}
+.siege-help p {
+  margin: 3px 0;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.siege-help b {
+  display: block;
+  color: #a8edbd;
+}
+.siege-owned-relic {
+  margin: 8px 0;
+  color: #bed2c4;
+  font-size: 11px !important;
+}
+.siege-menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0 12px;
+}
+.siege-menu-actions button {
+  padding: 14px 28px;
+  border: 2px solid #bde9c5;
+  border-bottom-width: 5px;
+  background: #416854;
+  border-radius: 5px;
+  color: #f1f5ce;
+  font-weight: 800;
+  font-size: 14px;
+}
+.siege-menu-actions button:first-child {
+  color: #253d3c;
+  background: #c8ebae;
+}
+.siege-pause-content > small {
+  font-size: 10px;
+  color: #a8c0b7;
+}
+.siege-result-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 28px 0;
+}
+.siege-result-stats > div {
+  padding: 16px;
+  background: #10282d;
+  border-bottom: 3px solid #8ac49e;
+  text-align: center;
+  font-size: 12px;
+}
+.siege-result-stats b {
+  display: block;
+  font: 900 36px monospace;
+  color: #e1edae;
+}
+@keyframes siege-pop {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) scale(0.45);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.5);
+  }
+}
+@keyframes siege-recoil {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}
+.siege-shell.is-paused *,
+.is-viewport-blocked .siege-shell * {
+  animation-play-state: paused !important;
+}
+@media (max-height: 580px) {
+  .siege-shell {
+    grid-template-rows: 39px 39px 21px minmax(0, 1fr) 20px 94px;
+    gap: 2px;
+    padding-top: max(3px, env(safe-area-inset-top));
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+  .siege-topbar {
+    padding: 0 9px;
+  }
+  .siege-brand b {
+    font-size: 16px;
+  }
+  .siege-brand small {
+    font-size: 8px;
+    margin-top: 3px;
+    letter-spacing: 0.3px;
+  }
+  .siege-stage-title {
+    gap: 8px;
+  }
+  .siege-stage-title span {
+    font-size: 10px;
+  }
+  .siege-stage-title strong {
+    font-size: 12px;
+  }
+  .siege-system button {
+    height: 29px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+  .siege-health-row {
+    gap: 14px;
+    padding: 0 7px;
+  }
+  .siege-health-row label {
+    font-size: 9px;
+  }
+  .siege-health-row label b {
+    font-size: 10px;
+  }
+  .siege-shell progress {
+    height: 7px;
+    margin-top: 3px;
+  }
+  .siege-wave > b {
+    font-size: 15px;
+  }
+  .siege-wave small,
+  .siege-wave > span {
+    font-size: 8px;
+  }
+  .siege-notice {
+    font-size: 9px;
+  }
+  .siege-build-strip {
+    font-size: 8px;
+    gap: 4px;
+  }
+  .siege-build-strip > span {
+    padding: 1px 5px;
+  }
+  .siege-dock {
+    grid-template-columns: 130px minmax(0, 1fr) 100px;
+    gap: 5px;
+    padding: 3px;
+  }
+  .siege-troops {
+    gap: 4px;
+  }
+  .siege-troop-card {
+    border-width: 2px;
+    border-bottom-width: 4px;
+    padding-bottom: 4px;
+  }
+  .siege-troop-card > b {
+    font-size: 10px;
+  }
+  .siege-troop-card small {
+    font-size: 8px;
+    height: 11px;
+  }
+  .siege-price {
+    font-size: 12px;
+    right: 5px;
+  }
+  .siege-shell kbd {
+    font-size: 9px;
+    min-width: 14px;
+    padding: 0 3px;
+  }
+  .siege-cash {
+    gap: 4px;
+  }
+  .siege-cash strong {
+    font-size: 25px;
+  }
+  .siege-cash small {
+    font-size: 8px;
+  }
+  .siege-economy > button,
+  .siege-economy > button b {
+    font-size: 9px;
+  }
+  .siege-cannon {
+    border-width: 2px;
+    border-bottom-width: 4px;
+    gap: 0;
+  }
+  .siege-cannon > span {
+    font-size: 11px;
+  }
+  .siege-cannon strong {
+    font-size: 23px;
+  }
+  .siege-cannon small {
+    font-size: 8px;
+  }
+  .siege-actor {
+    --size: clamp(35px, 6vw, 60px);
+  }
+  .siege-actor.kind-titan {
+    --size: clamp(58px, 9vw, 96px);
+  }
+  .siege-actor.kind-commander {
+    --size: clamp(70px, 10vw, 100px);
+  }
+  .siege-actor.kind-brute {
+    --size: clamp(48px, 7vw, 74px);
+  }
+  .siege-base {
+    width: 14%;
+    max-width: 130px;
+  }
+  .siege-base span,
+  .siege-field-caption {
+    font-size: 8px;
+  }
+  .siege-field-caption {
+    letter-spacing: 0.5px;
+  }
+  .siege-modal {
+    padding: 12px 18px 10px;
+    max-height: calc(var(--app-viewport-height, 100dvh) - 18px);
+  }
+  .siege-draft-heading {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    column-gap: 16px;
+    align-items: center;
+  }
+  .siege-draft-heading > span {
+    grid-column: 1 / -1;
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .siege-modal h1 {
+    font-size: 25px;
+    margin: 6px 0 8px;
+  }
+  .siege-draft-heading > p {
+    font-size: 10px;
+    margin: 4px 0 8px;
+  }
+  .siege-draft-cards {
+    gap: 9px;
+  }
+  .siege-relic {
+    position: relative;
+    padding: 9px;
+    border-width: 2px;
+    border-bottom-width: 4px;
+  }
+  .siege-relic > span {
+    font-size: 10px;
+  }
+  .siege-relic img {
+    position: absolute;
+    right: 1px;
+    top: 4px;
+    height: 56px;
+    width: 62px;
+    opacity: 0.85;
+  }
+  .siege-relic h2 {
+    font-size: 13px;
+    padding-right: 18px;
+    margin: 16px 0 5px;
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 1px #dce6c7;
+  }
+  .siege-relic p {
+    font-size: 10px;
+    line-height: 1.65;
+    margin-bottom: 7px;
+    z-index: 1;
+  }
+  .siege-relic > b {
+    font-size: 10px;
+    padding-top: 6px;
+  }
+  .siege-draft-foot {
+    margin-top: 9px;
+    font-size: 8px;
+  }
+  .siege-draft-foot small {
+    font-size: 8px;
+  }
+  .siege-help {
+    margin: 5px 0;
+    padding: 7px 12px;
+  }
+  .siege-help p,
+  .siege-pause-content > p {
+    font-size: 11px;
+  }
+  .siege-menu-actions {
+    margin: 12px 0 8px;
+  }
+  .siege-menu-actions button {
+    padding: 9px 20px;
+    font-size: 12px;
+  }
+}
+@media (max-width: 650px) {
+  .siege-shell {
+    padding-left: max(5px, env(safe-area-inset-left));
+    padding-right: max(5px, env(safe-area-inset-right));
+    grid-template-rows: 33px 33px 19px minmax(0, 1fr) 17px 86px;
+  }
+  .siege-brand b {
+    font-size: 13px;
+  }
+  .siege-brand small {
+    font-size: 7px;
+  }
+  .siege-stage-title {
+    display: grid;
+    gap: 1px;
+  }
+  .siege-stage-title strong {
+    font-size: 10px;
+  }
+  .siege-stage-title span {
+    font-size: 8px;
+  }
+  .siege-system button {
+    padding: 0 6px;
+    height: 30px;
+  }
+  .siege-system button > span {
+    display: none;
+  }
+  .siege-health-row {
+    grid-template-columns: 1fr 125px 1fr;
+    gap: 8px;
+  }
+  .siege-wave {
+    gap: 0 5px;
+  }
+  .siege-health-row label b {
+    font-size: 9px;
+  }
+  .siege-notice {
+    font-size: 8px;
+  }
+  .siege-dock {
+    grid-template-columns: 97px minmax(0, 1fr) 77px;
+    gap: 4px;
+  }
+  .siege-troop-card > b {
+    font-size: 8px;
+    letter-spacing: -0.5px;
+  }
+  .siege-troop-card small {
+    font-size: 7px;
+  }
+  .siege-troop-card img {
+    height: 64%;
+    width: 84%;
+    top: 4%;
+  }
+  .siege-price {
+    font-size: 11px;
+    top: 3px;
+    right: 3px;
+  }
+  .siege-cash strong {
+    font-size: 22px;
+  }
+  .siege-cash > span {
+    font-size: 8px;
+  }
+  .siege-cannon small {
+    font-size: 7px;
+  }
+  .siege-actor {
+    --size: 38px;
+  }
+  .siege-actor.kind-titan {
+    --size: 66px;
+  }
+  .siege-actor.kind-commander {
+    --size: 78px;
+  }
+  .siege-field-caption {
+    display: none;
+  }
+  .siege-front span {
+    font-size: 8px;
+    top: -15px;
+  }
+  .siege-commander-label {
+    font-size: 8px;
+    padding: 2px 0;
+  }
+  .siege-modal {
+    width: calc(var(--app-viewport-width, 100vw) - 20px);
+    padding: 9px 12px;
+  }
+  .siege-modal h1 {
+    font-size: 21px;
+  }
+  .siege-relic h2 {
+    font-size: 11px;
+    padding-right: 0;
+  }
+  .siege-relic p {
+    font-size: 9px;
+  }
+  .siege-draft-heading > p {
+    font-size: 9px;
+  }
+  .siege-relic {
+    padding: 7px;
+  }
+  .siege-draft-foot {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .siege-shell *,
+  .siege-modal * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

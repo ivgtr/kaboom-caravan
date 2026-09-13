@@ -14,7 +14,7 @@ test('serves a standalone landscape manifest for toolbar-free home-screen launch
 });
 
 test('freezes combat until explicit resume', async ({ page }) => {
-  await page.goto('/?debug');
+  await page.goto('/?legacyCombat&debug');
   const pauseButton = page.getByRole('button', {
     name: '一時停止と操作ガイド',
   });
@@ -41,7 +41,7 @@ test('freezes combat until explicit resume', async ({ page }) => {
 });
 
 test('blur pauses until explicit resume', async ({ page }) => {
-  await page.goto('/?debug');
+  await page.goto('/?legacyCombat&debug');
   const pauseButton = page.getByRole('button', {
     name: '一時停止と操作ガイド',
   });
@@ -56,7 +56,7 @@ test('blur pauses until explicit resume', async ({ page }) => {
 });
 
 test('repeat is ignored and mute is preserved', async ({ page }) => {
-  await page.goto('/?debug');
+  await page.goto('/?legacyCombat&debug');
   await page.getByRole('button', { name: '音をオフ' }).click();
   await page.keyboard.down('p');
   await page.keyboard.down('p');
@@ -69,7 +69,7 @@ test('repeat is ignored and mute is preserved', async ({ page }) => {
 });
 
 test('Escape still cancels weapon slot selection', async ({ page }) => {
-  await page.goto('/?debug&rewardPreview=weapon-slot');
+  await page.goto('/?legacyCombat&debug&rewardPreview=weapon-slot');
   await page
     .locator('.reward-card:not(.reward-upgrade).reward-weapon button')
     .first()
@@ -90,7 +90,7 @@ test.describe('touch portrait 390x844', () => {
   test('blocks portrait combat and requires resume after rotation', async ({
     page,
   }) => {
-    await page.goto('/?debug');
+    await page.goto('/?legacyCombat&debug');
     const orientationGuard = page.getByRole('dialog', {
       name: '横向きでプレイ',
     });
@@ -123,7 +123,7 @@ test.describe('touch landscape 844x390', () => {
   test('tracks the visible viewport and keeps every critical control inside it', async ({
     page,
   }) => {
-    await page.goto('/?debug');
+    await page.goto('/?legacyCombat&debug');
     await expect(
       page.getByRole('dialog', { name: '横向きでプレイ' }),
     ).not.toBeVisible();
