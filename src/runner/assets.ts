@@ -21,6 +21,10 @@ const rivalNames: Record<RivalKind, string> = {
 export interface RunnerArt {
   player: HTMLCanvasElement;
   background: HTMLImageElement;
+  terrain: {
+    body: HTMLImageElement;
+    cap: HTMLImageElement;
+  };
   rivals: Record<RivalKind, HTMLCanvasElement[]>;
   weapons: Record<WeaponId, HTMLCanvasElement>;
   shield: HTMLCanvasElement;
@@ -93,7 +97,7 @@ function trim(
 }
 
 export async function loadRunnerArt(): Promise<RunnerArt> {
-  const [player, background, rivals, weapons, shield, magnet] =
+  const [player, background, rivals, weapons, shield, magnet, body, cap] =
     await Promise.all([
       loadImage(root('animation/veh_player_chassis_v005.png')).then((image) =>
         trim(image),
@@ -127,6 +131,16 @@ export async function loadRunnerArt(): Promise<RunnerArt> {
       loadImage(root('equipment/mod_magnetic_armor_v001.png')).then((image) =>
         trim(image),
       ),
+      loadImage(root('runner-terrain/rock-body.webp')),
+      loadImage(root('runner-terrain/road-cap.webp')),
     ]);
-  return { player, background, rivals, weapons, shield, magnet };
+  return {
+    player,
+    background,
+    terrain: { body, cap },
+    rivals,
+    weapons,
+    shield,
+    magnet,
+  };
 }

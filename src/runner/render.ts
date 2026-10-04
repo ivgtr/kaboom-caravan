@@ -93,20 +93,67 @@ function connectedRoads(platforms: readonly Platform[]): Platform[][] {
   return roads;
 }
 
-/** Draw joined collision segments as one road, so a crest never looks like a gap. */
+const ROCK_REPEAT = 256;
+const CAP_REPEAT = 512;
+const CAP_DEPTH = 48;
+interface TerrainPatterns {
+  art: RunnerArt['terrain'];
+  body: CanvasPattern;
+  cap: CanvasPattern;
+}
+const terrainPatterns = new WeakMap<
+  CanvasRenderingContext2D,
+  TerrainPatterns
+>();
+
+function getTerrainPatterns(
+  ctx: CanvasRenderingContext2D,
+  art: RunnerArt['terrain'],
+): TerrainPatterns {
+  const cached = terrainPatterns.get(ctx);
+  if (cached?.art === art) return cached;
+  const patterns = {
+    art,
+    body: ctx.createPattern(art.body, 'repeat')!,
+    cap: ctx.createPattern(art.cap, 'repeat-x')!,
+  };
+  patterns.cap.setTransform(
+    new DOMMatrix().scale(
+      CAP_REPEAT / art.cap.width,
+      CAP_DEPTH / art.cap.height,
+    ),
+  );
+  terrainPatterns.set(ctx, patterns);
+  return patterns;
+}
+
+/** Tile painted rock inside the exact shared collision silhouette. */
 function renderTerrain(
   ctx: CanvasRenderingContext2D,
   roads: readonly Platform[][],
+  art: RunnerArt['terrain'],
   view: Viewport,
   camera: number,
 ) {
   const { width, height, ground } = view;
+  const patterns = getTerrainPatterns(ctx, art);
+  // Body UVs stay in world space, so rock size and phase never change on slopes.
+  patterns.body.setTransform(
+    new DOMMatrix([
+      ROCK_REPEAT / art.body.width,
+      0,
+      0,
+      ROCK_REPEAT / art.body.height,
+      -camera,
+      ground,
+    ]),
+  );
   for (const road of roads) {
     const first = road[0]!;
     const last = road[road.length - 1]!;
     const left = first.x - camera;
     const right = last.x + last.width - camera;
-    if (left > width + 80 || right < -80) continue;
+    if (left > width || right < 0) continue;
     const points = road.map((platform) => ({
       x: platform.x - camera,
       y: ground - platform.top,
@@ -117,115 +164,62 @@ function renderTerrain(
     });
     const start = points[0]!;
     const end = points[points.length - 1]!;
-    const band = (top: number, bottom: number, color: string) => {
-      ctx.fillStyle = color;
+    const topPath = () => {
       ctx.beginPath();
-      ctx.moveTo(start.x, start.y + top);
+      ctx.moveTo(start.x, start.y);
       for (let i = 1; i < points.length; i++)
-        ctx.lineTo(points[i]!.x, points[i]!.y + top);
-      for (let i = points.length - 1; i >= 0; i--)
-        ctx.lineTo(points[i]!.x, points[i]!.y + bottom);
-      ctx.closePath();
-      ctx.fill();
+        ctx.lineTo(points[i]!.x, points[i]!.y);
     };
-    const bodyPath = (offset: number) => {
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y + offset);
-      for (let i = 1; i < points.length; i++)
-        ctx.lineTo(points[i]!.x, points[i]!.y + offset);
-      ctx.lineTo(right, height);
-      ctx.lineTo(left, height);
-      ctx.closePath();
-    };
-    const highest = Math.min(...points.map((point) => point.y));
-    const fill = ctx.createLinearGradient(0, highest, 0, highest + 180);
-    fill.addColorStop(0, '#b89367');
-    fill.addColorStop(1, '#706f61');
-    ctx.fillStyle = fill;
-    bodyPath(11);
-    ctx.fill();
-    band(47, 54, '#6c7560');
-    // The uppermost path is exactly the piecewise-linear collision surface.
-    band(0, 19, '#f4d49b');
-    band(0, 5, '#fff0be');
-    band(19, 24, '#69784e');
-    band(24, 34, '#d6b17e');
-
     ctx.save();
-    bodyPath(34);
-    ctx.clip();
-    ctx.strokeStyle = '#7c8063';
-    ctx.lineWidth = 2;
-    for (const platform of road) {
-      const firstCrack = Math.ceil(platform.x / 90) * 90;
-      for (let wx = firstCrack; wx < platform.x + platform.width; wx += 90) {
-        const x = wx - camera;
-        if (x < -90 || x > width + 90) continue;
-        const y = ground - platformTopAt(platform, wx);
-        ctx.beginPath();
-        ctx.moveTo(x, y + 34);
-        ctx.lineTo(x - 15, y + 63);
-        ctx.lineTo(x + 7, y + 82);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-
-    // Cap texture follows the road incline and stays inside each stone.
-    const capMark = (
-      platform: Platform,
-      worldX: number,
-      markWidth: number,
-      depth: number,
-      markHeight: number,
-      color: string,
-    ) => {
-      const x = worldX - camera;
-      const y = ground - platformTopAt(platform, worldX);
-      const endY = ground - platformTopAt(platform, worldX + markWidth);
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(x, y + depth);
-      ctx.lineTo(x + markWidth, endY + depth);
-      ctx.lineTo(x + markWidth, endY + depth + markHeight);
-      ctx.lineTo(x, y + depth + markHeight);
-      ctx.closePath();
-      ctx.fill();
-    };
-    for (const platform of road) {
-      const firstChip = Math.ceil((platform.x + 20) / 90) * 90;
-      for (let wx = firstChip; wx + 28 < platform.x + platform.width; wx += 90)
-        if (wx - camera > -90 && wx - camera < width + 90)
-          capMark(platform, wx, 28, 8, 3, '#eec076');
-    }
-    // Only real ledges get danger stripes. On a 20px stone both stripes together
-    // occupy less than a third of the cap, preserving its actual landing width.
-    for (const [platform, atEnd] of [
-      [first, false],
-      [last, true],
-    ] as const) {
-      const edgeWidth = Math.min(18, platform.width * 0.16);
-      const edgeX = atEnd
-        ? platform.x + platform.width - edgeWidth
-        : platform.x;
-      capMark(platform, edgeX, edgeWidth, 0, 11, '#e37b43');
-      capMark(
-        platform,
-        edgeX + edgeWidth * 0.3,
-        Math.min(4, edgeWidth * 0.24),
-        0,
-        11,
-        '#fff0be',
-      );
-    }
-    ctx.strokeStyle = '#304e4c';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(left, start.y + 12);
-    ctx.lineTo(left, height);
-    ctx.moveTo(right, end.y + 12);
+    topPath();
     ctx.lineTo(right, height);
+    ctx.lineTo(left, height);
+    ctx.closePath();
+    ctx.clip();
+    const fillLeft = Math.max(0, left);
+    const fillRight = Math.min(width, right);
+    const fillTop = Math.max(0, Math.min(...points.map((point) => point.y)));
+    ctx.fillStyle = patterns.body;
+    ctx.fillRect(fillLeft, fillTop, fillRight - fillLeft, height - fillTop);
+
+    ctx.fillStyle = patterns.cap;
+    for (const platform of road) {
+      if (platform.x > camera + width || platform.x + platform.width < camera)
+        continue;
+      const slope = platformSlope(platform);
+      ctx.save();
+      // Map (world x, depth) onto the surface. Adjacent slopes share both the
+      // horizontal texture phase and depth at their join, even at a crest.
+      ctx.transform(
+        1,
+        -slope,
+        0,
+        1,
+        -camera,
+        ground - platform.top + slope * platform.x,
+      );
+      // A half-pixel overlap removes raster seams only between joined pieces.
+      // The shared road clip still stops every image exactly at a real ledge.
+      const capLeft = Math.max(platform.x - 0.5, camera);
+      const capRight = Math.min(
+        platform.x + platform.width + 0.5,
+        camera + width,
+      );
+      ctx.fillRect(capLeft, 0, capRight - capLeft, CAP_DEPTH);
+      ctx.restore();
+    }
+
+    // A restrained contact glint and edge shade keep small landings legible;
+    // both are clipped inside the artwork, never above or across a real gap.
+    topPath();
+    ctx.strokeStyle = '#f5e4b766';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+    const edgeWidth = Math.min(3, (right - left) * 0.08);
+    ctx.fillStyle = '#153d3b3d';
+    ctx.fillRect(left, start.y, edgeWidth, height - start.y);
+    ctx.fillRect(right - edgeWidth, end.y, edgeWidth, height - end.y);
+    ctx.restore();
   }
 }
 
@@ -277,20 +271,8 @@ export function renderRunner(
   ravine.addColorStop(1, '#163c53');
   ctx.fillStyle = ravine;
   ctx.fillRect(0, ground - 2, width, height - ground + 2);
-  for (let i = 0; i < 12; i++) {
-    const x =
-      ((((i * 137 - state.distance * 0.22) % (width + 170)) + width + 170) %
-        (width + 170)) -
-      85;
-    ctx.fillStyle = '#527c76';
-    ctx.beginPath();
-    ctx.moveTo(x - 35, height);
-    ctx.lineTo(x, ground + 120 + (i % 3) * 23);
-    ctx.lineTo(x + 50, height);
-    ctx.fill();
-  }
   const roads = connectedRoads(state.platforms);
-  renderTerrain(ctx, roads, view, camera);
+  renderTerrain(ctx, roads, art.terrain, view, camera);
   // World milestones are scenery, not a finish line.
   const firstMark = Math.floor((camera - 100) / 1000) * 1000;
   for (
