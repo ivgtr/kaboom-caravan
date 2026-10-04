@@ -597,6 +597,11 @@ h1 span {
     padding-top: 10px;
   }
 }
+@media (max-height: 400px) and (orientation: landscape) {
+  .runner[data-status='running'] .runner-best {
+    display: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

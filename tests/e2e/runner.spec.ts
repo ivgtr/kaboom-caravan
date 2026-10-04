@@ -383,6 +383,8 @@ for (const viewport of [
       test.setTimeout(90000);
       await openRun(page);
       await replayRoute(page, info, `touch-${viewport.name}`, true);
+      if (viewport.name === 'landscape')
+        await expect(page.locator('.runner-best')).toBeHidden();
       const canvas = await page
         .locator('canvas[aria-label="ゲーム画面"]')
         .boundingBox();

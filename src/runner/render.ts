@@ -513,7 +513,9 @@ export function renderRunner(
       y = ground - effect.y;
     ctx.save();
     ctx.globalAlpha = fraction;
-    if (effect.text)
+    // Equipment already has one HUD notice; a second label would cover the
+    // mounted weapon during high jumps on a short landscape screen.
+    if (effect.text && effect.kind !== 'pickup')
       text(
         ctx,
         effect.text,
