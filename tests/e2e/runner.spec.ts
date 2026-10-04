@@ -123,13 +123,29 @@ test('collects equipment and clears the first gap through real jump input', asyn
   );
   await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '0.0');
   expect(await distance(page)).toBeGreaterThan(98);
-  // Continue along the same public seeded route to inspect an unarmed rival encounter.
-  await runTo(page, 152);
+  // Real input traverses the two-step crest, a walk-off and a lower valley.
+  await runTo(page, 154);
   await page.keyboard.press('Space');
-  await runTo(page, 234);
+  await page.clock.runFor(350);
+  await capture(page, info, 'desktop-vertical-climb');
+  await runTo(page, 187);
   await page.keyboard.press('Space');
-  await runTo(page, 420);
-  await capture(page, info, 'desktop-rival-encounter');
+  await page.clock.runFor(350);
+  expect(
+    Number(await page.getByTestId('runner').getAttribute('data-y')),
+  ).toBeGreaterThan(128);
+  await capture(page, info, 'desktop-high-crest');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '128.0');
+  await runTo(page, 275);
+  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '64.0');
+  await runTo(page, 288);
+  await page.keyboard.press('Space');
+  await runTo(page, 313);
+  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '0.0');
+  await runTo(page, 340);
+  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '-48.0');
+  await capture(page, info, 'desktop-lower-valley');
 });
 
 test('a natural collision ends the run and restart resets distance', async ({
@@ -203,6 +219,23 @@ for (const viewport of [
         expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1);
       }
       await capture(page, info, `touch-${viewport.name}-jump`);
+      await runTo(page, 84);
+      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
+      await runTo(page, 154);
+      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
+      await page.clock.runFor(350);
+      await capture(page, info, `touch-${viewport.name}-vertical-climb`);
+      await runTo(page, 187);
+      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
+      await page.clock.runFor(350);
+      expect(
+        Number(await page.getByTestId('runner').getAttribute('data-y')),
+      ).toBeGreaterThan(128);
+      await page.clock.runFor(400);
+      await expect(page.getByTestId('runner')).toHaveAttribute(
+        'data-y',
+        '128.0',
+      );
     });
   });
 }

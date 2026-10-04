@@ -68,7 +68,7 @@ export interface RunnerState {
   distance: number;
   speed: number;
   status: 'ready' | 'running' | 'paused' | 'over';
-  reason: 'gap' | 'obstacle' | 'rival' | null;
+  reason: 'gap' | 'wall' | 'obstacle' | 'rival' | null;
   player: {
     y: number;
     vy: number;

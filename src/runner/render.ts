@@ -11,14 +11,16 @@ export interface Viewport {
 }
 export function runnerViewport(width: number, height: number): Viewport {
   // Portrait keeps the same minimum reaction distance; landscape gets more sky, not faster physics.
-  const worldWidth = Math.max(720, Math.min(1120, (width / height) * 540));
+  const worldWidth = Math.max(720, Math.min(2100, (width / height) * 540));
   const scale = width / worldWidth;
   const worldHeight = height / scale;
   return {
     width: worldWidth,
     height: worldHeight,
     scale,
-    ground: worldHeight * (width < height ? 0.64 : 0.72),
+    // Keep the entire -48..128px terrain band plus a full jump visible.
+    // The camera never follows the hop, so the next landing stays still.
+    ground: worldHeight * (width < height ? 0.64 : 0.8),
     anchor: 142,
   };
 }
@@ -279,7 +281,7 @@ export function renderRunner(
       text(
         ctx,
         pickup.weapon
-          ? `${WEAPONS[pickup.weapon].label}${state.weapon?.id === pickup.weapon ? ' ↑' : ''}`
+          ? `${WEAPONS[pickup.weapon].label}${state.weapon?.id === pickup.weapon ? (state.weapon.level === 3 ? ' ↻' : ' ↑') : ''}`
           : pickup.kind === 'shield'
             ? '+1'
             : 'MAG',

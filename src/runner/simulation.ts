@@ -23,6 +23,18 @@ export const MAX_WEAPON_LEVEL = 3;
 export const RIVAL_WARNING_TIME = 1;
 export const GENERATION_AHEAD = 2300;
 export const PLAYER_HALF_HITBOX = PLAYER_WIDTH * 0.36;
+export const TERRAIN_MIN_HEIGHT = -48;
+export const TERRAIN_MAX_HEIGHT = 128;
+export const TERRAIN_DEATH_HEIGHT = -220;
+export const MIN_LANDING_RUN_TIME = 0.5;
+
+/** Descending intersection of the fixed jump arc with a relative landing height. */
+export function jumpLandingTime(rise: number): number {
+  return (
+    (JUMP_VELOCITY + Math.sqrt(JUMP_VELOCITY ** 2 - 2 * GRAVITY * rise)) /
+    GRAVITY
+  );
+}
 
 /** World pixels per second. Progress changes pace, never jump physics. */
 export function getSpeed(distance: number): number {
@@ -111,7 +123,8 @@ function jumpArc(state: RunnerState, edge: number, top: number): void {
 }
 
 function pairWeapon(seed: number, chunk: number): WeaponId {
-  // A separate stateless stream keeps a pair consistent even after old pickups prune.
+  // Adjacent chunks share a seeded choice, even after old pickups prune.
+  // Recovery-road triples guarantee upgrades locally; chunk pairs can be far apart.
   let value = (seed ^ Math.imul(Math.floor(chunk / 2) + 1, 0x9e3779b9)) >>> 0;
   value = Math.imul(value ^ (value >>> 16), 0x21f0aaad);
   value = Math.imul(value ^ (value >>> 15), 0x735a2d97);
@@ -128,6 +141,44 @@ function addEquipment(state: RunnerState, x: number, top: number): void {
   if (state.chunk % 7 === 5) addPickup(state, x + 100, top + 25, 'magnet');
 }
 
+interface TerrainBeat {
+  top: number;
+  plateau?: boolean;
+  walkOff?: boolean;
+}
+
+// Choose a vertical phrase first; horizontal spacing follows its jump envelope.
+// Each phrase returns to zero, so every boundary is safe in any seeded ordering.
+const TERRAIN_PHRASES: readonly (readonly TerrainBeat[])[] = [
+  [
+    { top: 64 },
+    { top: 128, plateau: true },
+    { top: 64, walkOff: true },
+    { top: 0 },
+  ],
+  [
+    { top: 48 },
+    { top: 96 },
+    { top: 48 },
+    { top: 112, plateau: true },
+    { top: 64, walkOff: true },
+    { top: 0 },
+  ],
+  [
+    { top: -48, walkOff: true },
+    { top: 16 },
+    { top: 64, plateau: true },
+    { top: 0, walkOff: true },
+  ],
+  [
+    { top: 48 },
+    { top: 0, walkOff: true },
+    { top: -48, plateau: true },
+    { top: 16 },
+    { top: 0, walkOff: true },
+  ],
+];
+
 /** Append authored, individually traversable chunks; never remove/rewrite terrain. */
 export function generateTerrain(
   state: RunnerState,
@@ -142,15 +193,26 @@ export function generateTerrain(
     const roll = random(state);
     const first = state.chunk === 0;
     const recovery = !first && state.chunk % 4 === 3;
-    const crate = !first && !recovery && stage >= 1 && roll < 0.24;
-    const rhythm = !first && !recovery && !crate && stage >= 2 && roll > 0.72;
+    const crate = state.chunk > 1 && !recovery && stage >= 1 && roll < 0.22;
 
-    if (recovery) {
+    if (first) {
+      // Preserve a simple first jump and a generous landing to learn the controls.
+      jumpArc(state, start, top);
+      addPlatform(state, 980, 610, 0);
+      state.generatedUntil = 1590;
+      scrapLine(state, 1190, 0);
+      addEquipment(state, 1310, 0);
+    } else if (recovery) {
       // A full straight before and after a rival. Rivals stop well before its edge.
       const length = 1700;
       addPlatform(state, start, length, top);
       scrapLine(state, start + 100, top, 4);
-      addEquipment(state, start + 210, top);
+      addEquipment(state, start + 300, top);
+      // A local three-pickup build window survives even when vertical phrases
+      // between other rewards exceed the weapon lifetime. Every jump is optional.
+      const weapon = pairWeapon(state.seed, state.chunk);
+      addPickup(state, start + 650, top + 100, 'weapon', weapon);
+      addPickup(state, start + 1000, top + 100, 'weapon', weapon);
       if (stage >= 1) {
         const kinds: RivalKind[] = [
           'basic',
@@ -179,7 +241,7 @@ export function generateTerrain(
       }
       state.generatedUntil += length;
     } else if (crate) {
-      const length = 820 + random(state) * 180;
+      const length = 920 + random(state) * 120;
       addPlatform(state, start, length, top);
       const x = start + 250;
       state.obstacles.push({
@@ -189,36 +251,56 @@ export function generateTerrain(
         height: 25 + stage,
         top,
       });
-      // The high reward follows the same fixed jump used for every obstacle.
       addPickup(state, x + 15, top + 105, 'scrap');
       scrapLine(state, start + 480, top);
-      addEquipment(state, start + length - 280, top);
+      addEquipment(state, start + length - 290, top);
       state.generatedUntil += length;
     } else {
-      const gap = first
-        ? 80
-        : speed * (0.33 + Math.min(0.09, stage * 0.018) + random(state) * 0.02);
-      const landingTop = first ? 0 : random(state) < 0.3 ? 18 : 0;
-      const landing = first
-        ? 610
-        : rhythm
-          ? speed * 0.94
-          : 610 + random(state) * 150;
-      jumpArc(state, start, top);
-      addPlatform(state, start + gap, landing, landingTop);
-      state.generatedUntil = start + gap + landing;
-      if (rhythm) {
-        // Two jumps, not one huge gap. The middle landing exceeds one full flight.
-        const secondEdge = state.generatedUntil;
-        const secondGap = getSpeed(secondEdge) * 0.35;
-        jumpArc(state, secondEdge, landingTop);
-        addPlatform(state, secondEdge + secondGap, 610, 0);
-        state.generatedUntil = secondEdge + secondGap + 610;
-        scrapLine(state, secondEdge + secondGap + 180, 0);
-        addEquipment(state, state.generatedUntil - 280, 0);
-      } else {
-        scrapLine(state, start + gap + 210, landingTop);
-        addEquipment(state, state.generatedUntil - 280, landingTop);
+      // The first phrase guarantees a visible 64 -> 128px climb immediately
+      // after the learning landing; later phrases mix crests, stones and valleys.
+      const phrase =
+        TERRAIN_PHRASES[
+          state.chunk === 1
+            ? 0
+            : Math.floor(random(state) * TERRAIN_PHRASES.length)
+        ]!;
+      let previousTop = top;
+      for (const beat of phrase) {
+        const edge = state.generatedUntil;
+        const pace = getSpeed(edge);
+        const rise = beat.top - previousTop;
+        const flight = jumpLandingTime(rise);
+        const gapTime =
+          rise > 0
+            ? Math.min(0.28, flight * (0.42 + random(state) * 0.04))
+            : flight * (0.45 + random(state) * 0.04);
+        const gap = beat.walkOff ? 0 : pace * gapTime;
+        // A late, safe launch lands at most ~0.36s into these stones. The
+        // remaining runway gives >0.5s grounded before the next launch window.
+        const landingFlight = beat.walkOff
+          ? Math.sqrt((-2 * rise) / GRAVITY) + PLAYER_HALF_HITBOX / pace
+          : flight;
+        const landingRun = Math.max(
+          1.02,
+          landingFlight -
+            (beat.walkOff ? 0 : gapTime) +
+            MIN_LANDING_RUN_TIME +
+            0.16,
+        );
+        const landing = beat.plateau
+          ? Math.max(660, pace * 2.15)
+          : pace * (landingRun + random(state) * 0.06);
+        if (gap > 0) jumpArc(state, edge, previousTop);
+        addPlatform(state, edge + gap, landing, beat.top);
+        state.generatedUntil = edge + gap + landing;
+        if (beat.plateau) {
+          // Optional jumps cannot be forced into a pickup by an adjacent climb
+          // or drop: leave >=290px on both sides of the reward's flat road.
+          addEquipment(state, edge + gap + landing / 2, beat.top);
+        } else {
+          scrapLine(state, edge + gap + landing * 0.45, beat.top, 2);
+        }
+        previousTop = beat.top;
       }
     }
     state.chunk++;
@@ -368,9 +450,10 @@ function supportAt(
   );
 }
 
-function stepPhysics(state: RunnerState, dt: number): void {
+function stepPhysics(state: RunnerState, dt: number, oldX: number): void {
   const player = state.player;
   const oldY = player.y;
+  const oldVy = player.vy;
   const wasGrounded = player.grounded;
   const support = wasGrounded
     ? supportAt(state, state.distance, oldY)
@@ -378,6 +461,31 @@ function stepPhysics(state: RunnerState, dt: number): void {
   player.buffer = Math.max(0, player.buffer - dt);
   player.invulnerable = Math.max(0, player.invulnerable - dt);
   player.squash *= Math.exp(-dt * 15);
+
+  // Resolve a swept front-face crossing before considering a top landing.
+  // Endpoint-only overlap would let a low/late jump enter a raised platform,
+  // or snap onto its roof even though the feet hit its vertical face first.
+  const travel = state.distance - oldX;
+  for (const platform of state.platforms) {
+    if (
+      oldX + PLAYER_HALF_HITBOX <= platform.x &&
+      state.distance + PLAYER_HALF_HITBOX > platform.x
+    ) {
+      const crossingTime =
+        (dt * (platform.x - oldX - PLAYER_HALF_HITBOX)) / travel;
+      const feetAtFace = support
+        ? oldY
+        : oldY + oldVy * crossingTime - 0.5 * GRAVITY * crossingTime ** 2;
+      if (feetAtFace < platform.top - 0.001) {
+        state.distance = platform.x - PLAYER_HALF_HITBOX;
+        player.y = feetAtFace;
+        const previous = state.platforms[state.platforms.indexOf(platform) - 1];
+        // A missed ordinary hole remains a gap; raised entry faces are walls.
+        endRun(state, platform.top > (previous?.top ?? 0) ? 'wall' : 'gap');
+        return;
+      }
+    }
+  }
 
   if (support) {
     player.y = support.top;
@@ -421,7 +529,7 @@ function stepPhysics(state: RunnerState, dt: number): void {
       return;
     }
   }
-  if (player.y < -140) endRun(state, 'gap');
+  if (player.y < TERRAIN_DEATH_HEIGHT) endRun(state, 'gap');
 }
 
 function damageRival(state: RunnerState, rival: Rival, damage: number): void {
@@ -559,6 +667,7 @@ function stepFixed(state: RunnerState, dt: number): void {
   state.time += dt;
   state.speed = getSpeed(state.distance);
   const travel = state.speed * dt;
+  const oldX = state.distance;
   state.distance += travel;
   state.noticeTime = Math.max(0, state.noticeTime - dt);
   state.magnet = Math.max(0, state.magnet - travel);
@@ -574,7 +683,7 @@ function stepFixed(state: RunnerState, dt: number): void {
     }
   }
   generateTerrain(state);
-  stepPhysics(state, dt);
+  stepPhysics(state, dt, oldX);
   if (state.status !== 'running') return;
   for (const pickup of state.pickups) {
     const dx = pickup.x - state.distance;

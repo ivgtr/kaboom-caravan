@@ -408,7 +408,7 @@ export function RunnerApp() {
               <p
                 className={view.time > 12 ? 'runner-hint faded' : 'runner-hint'}
               >
-                穴と木箱はジャンプ
+                穴・上り段差はジャンプ
                 <br />
                 <span>タップ / SPACE / ↑</span>
               </p>
@@ -475,7 +475,7 @@ export function RunnerApp() {
           <p className="runner-instructions">
             画面タップ / SPACE / ↑ でジャンプ
             <br />
-            武器は自動。穴と木箱に気をつけて。
+            武器は自動。穴・段差・木箱に気をつけて。
           </p>
         </section>
       )}
@@ -522,7 +522,9 @@ export function RunnerApp() {
               ? 'あと少し、届かなかった。'
               : view.reason === 'rival'
                 ? 'ライバルとぶつかった。'
-                : '木箱は、跳び越えよう。'}
+                : view.reason === 'wall'
+                  ? '上り段差は、少し早めにジャンプ。'
+                  : '木箱は、跳び越えよう。'}
           </p>
           <div className="runner-stats">
             <span>
