@@ -431,6 +431,13 @@ h1 span {
   margin-top: 28px;
   font-size: 13px;
 }
+@media (orientation: landscape) {
+  .runner-protection {
+    top: max(78px, calc(env(safe-area-inset-top) + 56px));
+    left: auto;
+    right: max(28px, env(safe-area-inset-right));
+  }
+}
 @media (max-width: 650px) and (orientation: portrait) {
   .runner-hud {
     inset: max(20px, env(safe-area-inset-top)) 18px auto 18px;
@@ -514,8 +521,9 @@ h1 span {
     height: 40px;
   }
   .runner-protection {
-    top: 100px;
-    left: max(19px, env(safe-area-inset-left));
+    top: max(65px, calc(env(safe-area-inset-top) + 53px));
+    left: auto;
+    right: max(19px, env(safe-area-inset-right));
     font-size: 9px;
   }
   .runner-notice {

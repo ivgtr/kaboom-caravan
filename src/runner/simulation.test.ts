@@ -7,7 +7,6 @@ import {
   JUMP_BUFFER_TIME,
   JUMP_VELOCITY,
   MAX_WEAPON_LEVEL,
-  MIN_LANDING_RUN_TIME,
   TERRAIN_DEATH_HEIGHT,
   TERRAIN_MIN_HEIGHT,
   TERRAIN_MAX_HEIGHT,
@@ -24,6 +23,13 @@ import {
   startRunner,
   stepRunner,
 } from './simulation';
+import {
+  platformTopAt,
+  platformSlope,
+  platformsJoin,
+  supportingPlatform,
+  playerMuzzle,
+} from './terrain';
 import {
   FIXED_DT,
   type Pickup,
@@ -62,24 +68,56 @@ function pickup(
   });
 }
 
-/** This player has no weapons, magnet or shield. It only presses the one jump button. */
-function zeroGearPolicy(state: RunnerState): void {
+/** Real inputs only: preserve every arrival position through the entire run. */
+function zeroGearPolicy(
+  state: RunnerState,
+  lead = 0.14,
+  bufferTime = 0.055,
+): void {
   state.weapon = null;
   state.shield = 0;
   state.magnet = 0;
   state.pickups = state.pickups.filter((item) => item.kind === 'scrap');
-  if (!state.player.grounded) return;
   const speed = getSpeed(state.distance);
-  const support = state.platforms.find(
-    (platform) =>
-      state.distance + PLAYER_HALF_HITBOX > platform.x &&
-      state.distance - PLAYER_HALF_HITBOX < platform.x + platform.width &&
-      Math.abs(state.player.y - platform.top) < 1,
-  );
+  if (!state.player.grounded) {
+    if (state.player.buffer > 0 || state.player.vy >= 0) return;
+    // A single anticipatory press at each tiny landing, not airborne jumping.
+    const landing = state.platforms.find((platform) => {
+      if (platform.width > 40 || state.player.y < platform.top) return false;
+      const time =
+        (state.player.vy +
+          Math.sqrt(
+            state.player.vy ** 2 +
+              2 * GRAVITY * (state.player.y - platform.top),
+          )) /
+        GRAVITY;
+      const x = state.distance + speed * time;
+      return (
+        time <= bufferTime &&
+        x + PLAYER_HALF_HITBOX > platform.x &&
+        x - PLAYER_HALF_HITBOX < platform.x + platform.width
+      );
+    });
+    if (landing) requestJump(state);
+    return;
+  }
+  let support = supportingPlatform(state);
+  if (support && support.width <= 40) {
+    requestJump(state);
+    return;
+  }
+  // Read the complete continuous road; seams in a hill are not jump prompts.
+  let next = support
+    ? state.platforms[state.platforms.indexOf(support) + 1]
+    : undefined;
+  while (support && next && platformsJoin(support, next)) {
+    support = next;
+    next = state.platforms[state.platforms.indexOf(support) + 1];
+  }
   const edge = support ? support.x + support.width : Infinity;
-  const next = state.platforms.find((platform) => platform.x >= edge - 0.1);
-  const needsJump = next && (next.x > edge + 0.1 || next.top > state.player.y);
-  const gapSoon = needsJump && edge - state.distance < speed * 0.14;
+  const needsJump =
+    next && (next.x > edge + 0.1 || next.top > platformTopAt(support!, edge));
+  const gapSoon = needsJump && edge - state.distance < speed * lead;
   const crateSoon = state.obstacles.some(
     (obstacle) =>
       obstacle.x > state.distance &&
@@ -232,6 +270,119 @@ describe('fixed one-button runner physics', () => {
     expect(state.player.grounded).toBe(true);
     expect(state.jumps).toBe(0);
     expect(TERRAIN_DEATH_HEIGHT).toBeLessThan(-48 - 150);
+  });
+
+  it('follows exact uphill/downhill joins without crest launch or changing world-X pace', () => {
+    const state = arena();
+    state.platforms = [
+      { id: 1, x: -500, width: 500, top: 0 },
+      { id: 2, x: 0, width: 220, top: 0, endTop: 64 },
+      { id: 3, x: 220, width: 220, top: 64, endTop: 128 },
+      { id: 4, x: 440, width: 220, top: 128, endTop: -48 },
+      { id: 5, x: 660, width: 300, top: -48, endTop: 0 },
+      { id: 6, x: 960, width: 500, top: 0 },
+    ];
+    state.distance = -20;
+    while (state.distance < 1100) {
+      const oldX = state.distance;
+      stepRunner(state);
+      expect(state.status).toBe('running');
+      expect(state.distance - oldX).toBeCloseTo(getSpeed(oldX) * FIXED_DT, 10);
+      expect(state.player.grounded).toBe(true);
+      expect(state.player.vy).toBe(0);
+      expect(state.player.y).toBeCloseTo(
+        platformTopAt(supportingPlatform(state)!, state.distance),
+        10,
+      );
+    }
+    expect(state.jumps).toBe(0);
+  });
+
+  it.each([64, -48])(
+    'jumps from a %ipx slope with the same fixed impulse, then lands from above',
+    (endTop) => {
+      const state = arena();
+      state.platforms = [{ id: 1, x: -200, width: 900, top: 0, endTop }];
+      state.player.y = platformTopAt(state.platforms[0]!, state.distance);
+      const launchY = state.player.y;
+      requestJump(state);
+      expect(state.player.vy).toBe(JUMP_VELOCITY);
+      let apex = launchY;
+      while (!state.player.grounded && state.status === 'running') {
+        stepRunner(state);
+        apex = Math.max(apex, state.player.y);
+      }
+      expect(apex - launchY).toBeCloseTo(JUMP_VELOCITY ** 2 / (2 * GRAVITY), 0);
+      expect(state.player.y).toBeCloseTo(
+        platformTopAt(state.platforms[0]!, state.distance),
+        10,
+      );
+      expect(state.player.vy).toBe(0);
+      expect(state.jumps).toBe(1);
+    },
+  );
+
+  it('does not snap an airborne car up a slope or bridge a separated equal-height road', () => {
+    const below = arena();
+    below.platforms = [{ id: 1, x: -20, width: 500, top: 20, endTop: 100 }];
+    below.player.grounded = false;
+    below.player.coyote = 0;
+    stepRunner(below);
+    expect(below.player.grounded).toBe(false);
+    expect(below.player.y).toBeLessThan(0);
+    const gap = arena();
+    gap.platforms = [
+      { id: 1, x: -500, width: 500, top: 0 },
+      { id: 2, x: 8, width: 500, top: 0 },
+    ];
+    gap.distance = 17;
+    stepRunner(gap);
+    expect(gap.player.grounded).toBe(false);
+    expect(gap.player.y).toBeLessThan(0);
+    stepRunner(gap);
+    expect(gap.player.grounded).toBe(false);
+  });
+
+  it('sweeps a fast descent onto a 20px sloped stone and consumes its one buffered press', () => {
+    const state = arena();
+    state.platforms = [{ id: 1, x: 5, width: 20, top: 10, endTop: 14 }];
+    state.player = {
+      ...state.player,
+      y: 20,
+      vy: -300,
+      grounded: false,
+      coyote: 0,
+    };
+    requestJump(state);
+    advance(state, 0.05);
+    expect(state.status).toBe('running');
+    expect(state.jumps).toBe(1);
+    expect(state.player.vy).toBeGreaterThan(450);
+    expect(state.player.buffer).toBe(0);
+  });
+
+  it('uses the shared leaning muzzle transform for automatic shots on slopes', () => {
+    const state = arena();
+    state.platforms[0] = { id: 1, x: -200, width: 800, top: 0, endTop: 128 };
+    state.player.y = platformTopAt(state.platforms[0], state.distance);
+    pickup(state, 'weapon', 'machine');
+    state.rivals = [
+      {
+        id: 2,
+        x: 200,
+        y: 0,
+        kind: 'basic',
+        hp: 20,
+        maxHp: 20,
+        speed: 0,
+        age: 2,
+        defeated: false,
+        hit: 0,
+      },
+    ];
+    stepRunner(state);
+    expect(state.shots[0]!.x).toBeCloseTo(playerMuzzle(state).x, 10);
+    expect(state.shots[0]!.y).toBeCloseTo(playerMuzzle(state).y, 10);
   });
 
   it('caps speed and never changes the jump when equipment changes', () => {
@@ -601,7 +752,7 @@ describe('deterministic endless terrain', () => {
     expect(state.player.grounded).toBe(true);
   });
 
-  it('reproduces seeded vertical phrases with analytically generous jump and re-jump windows', () => {
+  it('reproduces varied joined slopes, tiny stones and safe optional reward rests', () => {
     for (let seed = 1; seed <= 64; seed++) {
       const state = createRunner(seed);
       const clone = createRunner(seed);
@@ -610,87 +761,207 @@ describe('deterministic endless terrain', () => {
       expect(state.platforms).toEqual(clone.platforms);
       expect(state.obstacles).toEqual(clone.obstacles);
       expect(state.rivals).toEqual(clone.rivals);
-      expect(state.platforms[2]!.top).toBe(64);
-      expect(state.platforms[2]!.x).toBeLessThan(1660);
-      expect(state.platforms[3]!.top).toBe(128);
-      const heights = new Set(state.platforms.map((platform) => platform.top));
+      expect(state.platforms[2]).toMatchObject({ x: 1590, top: 0, endTop: 64 });
+      expect(state.platforms[3]).toMatchObject({ top: 64, endTop: 128 });
+      const heights = new Set(
+        state.platforms.flatMap((road) => [road.top, road.endTop ?? road.top]),
+      );
       expect(Math.min(...heights)).toBe(TERRAIN_MIN_HEIGHT);
       expect(Math.max(...heights)).toBe(TERRAIN_MAX_HEIGHT);
       expect(heights.size).toBeGreaterThanOrEqual(7);
+      expect(state.platforms.some((road) => platformSlope(road) > 0)).toBe(
+        true,
+      );
+      expect(state.platforms.some((road) => platformSlope(road) < 0)).toBe(
+        true,
+      );
+      expect(
+        new Set(
+          state.platforms
+            .filter((road) => road.width <= 40)
+            .map((road) => road.width),
+        ),
+      ).toEqual(new Set([20, 24, 28, 32, 36, 40]));
       for (let i = 1; i < state.platforms.length; i++) {
         const previous = state.platforms[i - 1]!;
         const next = state.platforms[i]!;
-        const edge = previous.x + previous.width;
-        const gap = next.x - edge;
-        const rise = next.top - previous.top;
-        expect(gap).toBeGreaterThanOrEqual(-0.00001);
-        expect(rise).toBeLessThanOrEqual(64);
-        expect(next.top).toBeGreaterThanOrEqual(TERRAIN_MIN_HEIGHT);
-        expect(next.top).toBeLessThanOrEqual(TERRAIN_MAX_HEIGHT);
-        if (gap <= 0.001 && rise <= 0) continue;
-        const downTime = jumpLandingTime(rise);
-        const upTime =
-          rise > 0
-            ? (JUMP_VELOCITY -
-                Math.sqrt(JUMP_VELOCITY ** 2 - 2 * GRAVITY * rise)) /
-              GRAVITY
-            : 0;
-        // Conservative full-foot clearance, two fixed-step safety ticks, and a
-        // half-second ground reserve. Check both ends of this road's speed ramp.
-        for (const speed of [getSpeed(edge), getSpeed(next.x + next.width)]) {
-          const reserve = speed * (MIN_LANDING_RUN_TIME + 0.14);
-          const earliest = Math.max(
-            speed * (upTime + 2 * FIXED_DT) - gap + PLAYER_HALF_HITBOX,
-            speed * downTime - gap - next.width + PLAYER_HALF_HITBOX + reserve,
-            speed * 0.04,
-          );
-          const latest = Math.min(
-            speed * (downTime - 2 * FIXED_DT) - gap - PLAYER_HALF_HITBOX,
-            speed * 0.25,
-          );
-          expect(
-            (latest - earliest) / speed,
-            `rise ${rise}, gap ${gap}, speed ${speed}`,
-          ).toBeGreaterThanOrEqual(0.12);
-          // The policy's middle-of-window launch leaves a further 0.14s for
-          // the next launch rather than counting coyote/buffer as the solution.
-          const landingInRoad = speed * (downTime - 0.14) - gap;
-          expect(
-            (next.width - landingInRoad - PLAYER_HALF_HITBOX) / speed - 0.14,
-          ).toBeGreaterThan(MIN_LANDING_RUN_TIME);
-        }
+        expect(next.x - previous.x - previous.width).toBeGreaterThanOrEqual(
+          -0.00001,
+        );
+        if (next.endTop !== undefined)
+          expect(platformsJoin(previous, next)).toBe(true);
       }
       for (const item of state.pickups.filter(
-        (pickup) => pickup.kind === 'weapon',
+        (item) => item.kind === 'weapon',
       )) {
         const road = state.platforms.find(
-          (platform) =>
-            item.x >= platform.x && item.x <= platform.x + platform.width,
+          (road) => item.x >= road.x && item.x <= road.x + road.width,
         )!;
+        expect(platformSlope(road)).toBe(0);
         expect(item.y).toBe(road.top + 100);
         expect(item.x - road.x).toBeGreaterThanOrEqual(280);
         expect(road.x + road.width - item.x).toBeGreaterThanOrEqual(280 - 1e-6);
       }
       for (const obstacle of state.obstacles) {
         const road = state.platforms.find(
-          (platform) =>
-            obstacle.x >= platform.x &&
-            obstacle.x <= platform.x + platform.width,
+          (road) => obstacle.x >= road.x && obstacle.x <= road.x + road.width,
         )!;
+        expect(platformSlope(road)).toBe(0);
         expect(obstacle.top).toBe(road.top);
         expect(obstacle.x - road.x).toBeGreaterThanOrEqual(250 - 1e-6);
         expect(road.x + road.width - obstacle.x).toBeGreaterThanOrEqual(500);
       }
       for (const rival of state.rivals) {
         const road = state.platforms.find(
-          (platform) =>
-            rival.x >= platform.x && rival.x < platform.x + platform.width,
+          (road) => rival.x >= road.x && rival.x < road.x + road.width,
         )!;
         expect(road.width).toBeGreaterThanOrEqual(1700);
+        expect(platformSlope(road)).toBe(0);
         expect(rival.y).toBe(road.top);
         expect(rival.speed).toBeLessThan(getSpeed(rival.x));
         expect(RIVALS[rival.kind].height).toBeLessThan(45);
       }
+    }
+  });
+
+  it('carries every full precision phrase through entry, all three stones and exit with bounded input jitter', () => {
+    for (const start of [0, 9000, 18000]) {
+      const seen = new Set<string>();
+      for (let seed = 1; seed <= 64 && seen.size < 4; seed++) {
+        const fixture = createRunner(seed * 7927);
+        fixture.random = seed * 7927;
+        fixture.platforms = [{ id: 1, x: start - 500, width: 1100, top: 0 }];
+        fixture.generatedUntil = start + 600;
+        fixture.chunk = 6;
+        generateTerrain(fixture, start + 601);
+        const stones = fixture.platforms.filter((road) => road.width <= 40);
+        const signature = stones
+          .map((stone) => `${stone.top}/${stone.width}`)
+          .join(',');
+        if (stones.length !== 3 || seen.has(signature)) continue;
+        seen.add(signature);
+        const entry =
+          fixture.platforms[fixture.platforms.indexOf(stones[0]!) - 1]!;
+        const exit =
+          fixture.platforms[fixture.platforms.indexOf(stones[2]!) + 1]!;
+        for (const lead of [0.108, 0.14, 0.172]) {
+          const state = structuredClone(fixture);
+          state.distance = start;
+          state.player.y = 0;
+          state.pickups = [];
+          state.obstacles = [];
+          state.rivals = [];
+          state.shield = 0;
+          state.generatedUntil = 1e9;
+          startRunner(state);
+          let presses = 0;
+          let observedJumps = 0;
+          let nextPress = Infinity;
+          const landed = new Set<number>();
+          const seenEffects = new Set<number>();
+          while (
+            state.status === 'running' &&
+            state.distance < exit.x + exit.width - 100
+          ) {
+            if (
+              presses === 0 &&
+              entry.x + entry.width - state.distance <=
+                getSpeed(state.distance) * lead
+            ) {
+              expect(requestJump(state)).toBe(true);
+              presses++;
+            } else if (presses > 0 && presses < 4 && state.time >= nextPress) {
+              // Exactly one scheduled press per arrival. Never refill an expired
+              // buffer or retry on the ground to hide an invalid phrase.
+              expect(requestJump(state)).toBe(false);
+              presses++;
+              nextPress = Infinity;
+            }
+            if (state.jumps !== observedJumps) {
+              observedJumps = state.jumps;
+              const next = stones[state.jumps - 1];
+              if (next) {
+                const bufferLead = state.jumps % 2 === 0 ? 0.075 : 0.025;
+                const jitter = (lead < 0.14 ? -1 : 1) * FIXED_DT;
+                nextPress =
+                  state.time +
+                  jumpLandingTime(next.top - state.player.y) -
+                  bufferLead +
+                  jitter;
+              }
+            }
+            stepRunner(state);
+            for (const effect of state.effects) {
+              if (effect.kind !== 'land' || seenEffects.has(effect.id))
+                continue;
+              seenEffects.add(effect.id);
+              const road = [...stones, exit].find(
+                (road) =>
+                  effect.x + PLAYER_HALF_HITBOX > road.x &&
+                  effect.x - PLAYER_HALF_HITBOX < road.x + road.width &&
+                  effect.y === road.top,
+              );
+              if (road) landed.add(road.id);
+            }
+          }
+          expect(
+            state.status,
+            `${signature}, start ${start}, lead ${lead}, ${state.reason} at ${state.distance}, presses ${presses}, jumps ${state.jumps}`,
+          ).toBe('running');
+          expect(presses).toBe(4);
+          expect(state.jumps).toBe(4);
+          expect(landed).toEqual(
+            new Set([...stones, exit].map((road) => road.id)),
+          );
+          expect(state.player.grounded).toBe(true);
+        }
+      }
+      expect(seen.size).toBe(4);
+    }
+  });
+
+  it('preserves a real coyote exit after the complete buffered introductory stone chain', () => {
+    for (const start of [0, 9000, 18000]) {
+      const state = createRunner(42);
+      state.distance = start;
+      state.platforms = [{ id: 1, x: start - 500, width: 1100, top: 0 }];
+      state.generatedUntil = start + 600;
+      state.chunk = 2;
+      generateTerrain(state, start + 601);
+      const stones = state.platforms.filter((road) => road.width <= 40);
+      const last = stones[2]!;
+      const exit = state.platforms[state.platforms.indexOf(last) + 1]!;
+      state.generatedUntil = 1e9;
+      state.pickups = [];
+      state.obstacles = [];
+      state.rivals = [];
+      startRunner(state);
+      let lastLanded = false;
+      let coyoteUsed = false;
+      while (
+        state.status === 'running' &&
+        state.distance < exit.x + exit.width - 100
+      ) {
+        if (!lastLanded && state.jumps < 3) zeroGearPolicy(state);
+        if (state.player.grounded && supportingPlatform(state)?.id === last.id)
+          lastLanded = true;
+        if (
+          lastLanded &&
+          !coyoteUsed &&
+          !state.player.grounded &&
+          state.player.coyote < COYOTE_TIME - 0.025
+        ) {
+          expect(state.player.coyote).toBeGreaterThan(0);
+          expect(requestJump(state)).toBe(true);
+          coyoteUsed = true;
+        }
+        stepRunner(state);
+      }
+      expect(lastLanded).toBe(true);
+      expect(coyoteUsed).toBe(true);
+      expect(state.status).toBe('running');
+      expect(state.jumps).toBe(4);
+      expect(state.player.grounded).toBe(true);
     }
   });
 
@@ -699,16 +970,20 @@ describe('deterministic endless terrain', () => {
       const state = createRunner(seed * 7927);
       startRunner(state);
       while (state.status === 'running' && state.distance < 36000) {
-        zeroGearPolicy(state);
+        zeroGearPolicy(
+          state,
+          0.14 + ((seed % 5) - 2) * 0.016,
+          0.03 + (seed % 4) * 0.015,
+        );
         stepRunner(state);
       }
       expect(
         state.status,
         `seed ${seed}, ${state.reason} at ${state.distance.toFixed(1)}px`,
       ).toBe('running');
-      expect(state.jumps).toBeGreaterThan(25);
+      expect(state.jumps).toBeGreaterThanOrEqual(24);
       expect(state.passed).toBeGreaterThan(3);
-      expect(state.platforms.length).toBeLessThan(16);
+      expect(state.platforms.length).toBeLessThan(32);
       expect(state.pickups.length).toBeLessThan(60);
       expect(state.rivals.length).toBeLessThan(5);
       expect(state.effects.length).toBeLessThanOrEqual(48);

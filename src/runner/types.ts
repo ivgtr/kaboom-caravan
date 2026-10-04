@@ -8,6 +8,8 @@ export interface Platform {
   x: number;
   width: number;
   top: number;
+  /** Omitted for a flat road; otherwise the top at x + width. */
+  endTop?: number;
 }
 export interface Obstacle {
   id: number;

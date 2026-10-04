@@ -43,7 +43,9 @@ function snapshot(state: RunnerState) {
   return {
     status: state.status,
     distance: Math.floor(state.distance / PIXELS_PER_METRE),
+    worldX: state.distance,
     y: state.player.y,
+    grounded: state.player.grounded,
     speed: state.speed,
     scrap: state.scrap,
     shield: state.shield,
@@ -316,7 +318,9 @@ export function RunnerApp() {
       data-testid="runner"
       data-status={view.status}
       data-distance={view.distance}
+      data-world-x={view.worldX.toFixed(2)}
       data-y={view.y.toFixed(1)}
+      data-grounded={view.grounded}
       data-jumps={view.jumps}
       data-art-ready={playable}
     >
@@ -408,7 +412,7 @@ export function RunnerApp() {
               <p
                 className={view.time > 12 ? 'runner-hint faded' : 'runner-hint'}
               >
-                穴・上り段差はジャンプ
+                坂を走って、足場を跳びつなぐ
                 <br />
                 <span>タップ / SPACE / ↑</span>
               </p>
@@ -475,7 +479,7 @@ export function RunnerApp() {
           <p className="runner-instructions">
             画面タップ / SPACE / ↑ でジャンプ
             <br />
-            武器は自動。穴・段差・木箱に気をつけて。
+            武器は自動。細い足場は着地前のタップで次へ。
           </p>
         </section>
       )}

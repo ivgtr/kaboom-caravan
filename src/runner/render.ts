@@ -1,6 +1,13 @@
 import { WEAPONS } from './definitions';
 import type { RunnerArt } from './assets';
-import type { RunnerState } from './types';
+import {
+  platformSlope,
+  platformTopAt,
+  platformsJoin,
+  playerTilt,
+  supportingPlatform,
+} from './terrain';
+import type { Platform, RunnerState } from './types';
 
 export interface Viewport {
   width: number;
@@ -75,6 +82,153 @@ function text(
   ctx.fillText(value, x, y);
 }
 
+function connectedRoads(platforms: readonly Platform[]): Platform[][] {
+  const roads: Platform[][] = [];
+  for (const platform of platforms) {
+    const road = roads[roads.length - 1];
+    const previous = road?.[road.length - 1];
+    if (previous && platformsJoin(previous, platform)) road!.push(platform);
+    else roads.push([platform]);
+  }
+  return roads;
+}
+
+/** Draw joined collision segments as one road, so a crest never looks like a gap. */
+function renderTerrain(
+  ctx: CanvasRenderingContext2D,
+  roads: readonly Platform[][],
+  view: Viewport,
+  camera: number,
+) {
+  const { width, height, ground } = view;
+  for (const road of roads) {
+    const first = road[0]!;
+    const last = road[road.length - 1]!;
+    const left = first.x - camera;
+    const right = last.x + last.width - camera;
+    if (left > width + 80 || right < -80) continue;
+    const points = road.map((platform) => ({
+      x: platform.x - camera,
+      y: ground - platform.top,
+    }));
+    points.push({
+      x: right,
+      y: ground - platformTopAt(last, last.x + last.width),
+    });
+    const start = points[0]!;
+    const end = points[points.length - 1]!;
+    const band = (top: number, bottom: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y + top);
+      for (let i = 1; i < points.length; i++)
+        ctx.lineTo(points[i]!.x, points[i]!.y + top);
+      for (let i = points.length - 1; i >= 0; i--)
+        ctx.lineTo(points[i]!.x, points[i]!.y + bottom);
+      ctx.closePath();
+      ctx.fill();
+    };
+    const bodyPath = (offset: number) => {
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y + offset);
+      for (let i = 1; i < points.length; i++)
+        ctx.lineTo(points[i]!.x, points[i]!.y + offset);
+      ctx.lineTo(right, height);
+      ctx.lineTo(left, height);
+      ctx.closePath();
+    };
+    const highest = Math.min(...points.map((point) => point.y));
+    const fill = ctx.createLinearGradient(0, highest, 0, highest + 180);
+    fill.addColorStop(0, '#b89367');
+    fill.addColorStop(1, '#706f61');
+    ctx.fillStyle = fill;
+    bodyPath(11);
+    ctx.fill();
+    band(47, 54, '#6c7560');
+    // The uppermost path is exactly the piecewise-linear collision surface.
+    band(0, 19, '#f4d49b');
+    band(0, 5, '#fff0be');
+    band(19, 24, '#69784e');
+    band(24, 34, '#d6b17e');
+
+    ctx.save();
+    bodyPath(34);
+    ctx.clip();
+    ctx.strokeStyle = '#7c8063';
+    ctx.lineWidth = 2;
+    for (const platform of road) {
+      const firstCrack = Math.ceil(platform.x / 90) * 90;
+      for (let wx = firstCrack; wx < platform.x + platform.width; wx += 90) {
+        const x = wx - camera;
+        if (x < -90 || x > width + 90) continue;
+        const y = ground - platformTopAt(platform, wx);
+        ctx.beginPath();
+        ctx.moveTo(x, y + 34);
+        ctx.lineTo(x - 15, y + 63);
+        ctx.lineTo(x + 7, y + 82);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // Cap texture follows the road incline and stays inside each stone.
+    const capMark = (
+      platform: Platform,
+      worldX: number,
+      markWidth: number,
+      depth: number,
+      markHeight: number,
+      color: string,
+    ) => {
+      const x = worldX - camera;
+      const y = ground - platformTopAt(platform, worldX);
+      const endY = ground - platformTopAt(platform, worldX + markWidth);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y + depth);
+      ctx.lineTo(x + markWidth, endY + depth);
+      ctx.lineTo(x + markWidth, endY + depth + markHeight);
+      ctx.lineTo(x, y + depth + markHeight);
+      ctx.closePath();
+      ctx.fill();
+    };
+    for (const platform of road) {
+      const firstChip = Math.ceil((platform.x + 20) / 90) * 90;
+      for (let wx = firstChip; wx + 28 < platform.x + platform.width; wx += 90)
+        if (wx - camera > -90 && wx - camera < width + 90)
+          capMark(platform, wx, 28, 8, 3, '#eec076');
+    }
+    // Only real ledges get danger stripes. On a 20px stone both stripes together
+    // occupy less than a third of the cap, preserving its actual landing width.
+    for (const [platform, atEnd] of [
+      [first, false],
+      [last, true],
+    ] as const) {
+      const edgeWidth = Math.min(18, platform.width * 0.16);
+      const edgeX = atEnd
+        ? platform.x + platform.width - edgeWidth
+        : platform.x;
+      capMark(platform, edgeX, edgeWidth, 0, 11, '#e37b43');
+      capMark(
+        platform,
+        edgeX + edgeWidth * 0.3,
+        Math.min(4, edgeWidth * 0.24),
+        0,
+        11,
+        '#fff0be',
+      );
+    }
+    ctx.strokeStyle = '#304e4c';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(left, start.y + 12);
+    ctx.lineTo(left, height);
+    ctx.moveTo(right, end.y + 12);
+    ctx.lineTo(right, height);
+    ctx.stroke();
+  }
+}
+
 export function renderRunner(
   ctx: CanvasRenderingContext2D,
   state: RunnerState,
@@ -135,55 +289,8 @@ export function renderRunner(
     ctx.lineTo(x + 50, height);
     ctx.fill();
   }
-  for (const platform of state.platforms) {
-    const x = sx(platform.x),
-      y = ground - platform.top;
-    if (x > width + 80 || x + platform.width < -80) continue;
-    const fill = ctx.createLinearGradient(0, y, 0, y + 180);
-    fill.addColorStop(0, '#b89367');
-    fill.addColorStop(1, '#706f61');
-    ctx.fillStyle = fill;
-    ctx.fillRect(x, y + 11, platform.width, height - y);
-    ctx.fillStyle = '#6c7560';
-    ctx.fillRect(x + 4, y + 47, platform.width - 8, 7);
-    ctx.fillStyle = '#f4d49b';
-    ctx.fillRect(x, y, platform.width, 19);
-    ctx.fillStyle = '#fff0be';
-    ctx.fillRect(x, y, platform.width, 5);
-    ctx.fillStyle = '#69784e';
-    ctx.fillRect(x, y + 19, platform.width, 5);
-    ctx.fillStyle = '#d6b17e';
-    ctx.fillRect(x, y + 24, platform.width, 10);
-    ctx.strokeStyle = '#7c8063';
-    ctx.lineWidth = 2;
-    const first = Math.ceil(platform.x / 90) * 90;
-    for (let wx = first; wx < platform.x + platform.width - 12; wx += 90) {
-      const xx = sx(wx);
-      if (xx < -90 || xx > width + 90) continue;
-      ctx.beginPath();
-      ctx.moveTo(xx, y + 34);
-      ctx.lineTo(xx - 15, y + 63);
-      ctx.lineTo(xx + 7, y + 82);
-      ctx.stroke();
-      ctx.fillStyle = '#eec076';
-      ctx.fillRect(xx + 20, y + 8, 28, 3);
-    }
-    // Clearly mark each edge; stripes sit on the road, never hide the hole.
-    for (const edge of [x, x + platform.width - 18]) {
-      ctx.fillStyle = '#e37b43';
-      ctx.fillRect(edge, y, 18, 11);
-      ctx.fillStyle = '#fff0be';
-      ctx.fillRect(edge + 5, y, 4, 11);
-    }
-    ctx.strokeStyle = '#304e4c';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(x, y + 12);
-    ctx.lineTo(x, height);
-    ctx.moveTo(x + platform.width, y + 12);
-    ctx.lineTo(x + platform.width, height);
-    ctx.stroke();
-  }
+  const roads = connectedRoads(state.platforms);
+  renderTerrain(ctx, roads, view, camera);
   // World milestones are scenery, not a finish line.
   const firstMark = Math.floor((camera - 100) / 1000) * 1000;
   for (
@@ -192,11 +299,11 @@ export function renderRunner(
     mark += 1000
   ) {
     const platform = state.platforms.find(
-      (p) => mark >= p.x + 15 && mark < p.x + p.width - 15,
+      (p) => mark >= p.x + 60 && mark < p.x + p.width - 60,
     );
     if (!platform) continue;
     const x = sx(mark),
-      y = ground - platform.top;
+      y = ground - platformTopAt(platform, mark);
     ctx.fillStyle = '#43675b';
     ctx.fillRect(x - 2, y - 106, 4, 106);
     ctx.fillStyle = '#e9e5b7';
@@ -348,26 +455,45 @@ export function renderRunner(
     ctx.restore();
   }
   const foot = ground - state.player.y;
-  const support = state.platforms.find(
-    (p) => state.distance >= p.x && state.distance <= p.x + p.width,
-  );
-  if (support)
-    ellipse(
-      ctx,
-      anchor,
-      ground - support.top + 2,
-      42 - Math.min(15, state.player.y * 0.08),
-      7,
-      '#163e4447',
-    );
+  const support = state.player.grounded
+    ? supportingPlatform(state)
+    : state.platforms.find(
+        (platform) =>
+          state.distance >= platform.x &&
+          state.distance <= platform.x + platform.width &&
+          state.player.y >= platformTopAt(platform, state.distance),
+      );
+  if (support) {
+    const top = platformTopAt(support, state.distance);
+    const clearance = Math.max(0, state.player.y - top);
+    ctx.save();
+    // Keep the shadow on the actual stone, not suspended across either gap.
+    const road = roads.find((segments) => segments.includes(support))!;
+    const first = road[0]!;
+    const last = road[road.length - 1]!;
+    const left = first.x - camera;
+    const right = last.x + last.width - camera;
+    ctx.beginPath();
+    ctx.moveTo(left, ground - first.top);
+    for (const segment of road)
+      ctx.lineTo(
+        segment.x + segment.width - camera,
+        ground - platformTopAt(segment, segment.x + segment.width),
+      );
+    ctx.lineTo(right, height);
+    ctx.lineTo(left, height);
+    ctx.closePath();
+    ctx.clip();
+    ctx.translate(anchor, ground - top + 3);
+    ctx.rotate(-Math.atan(platformSlope(support)));
+    ellipse(ctx, 0, 0, 42 - Math.min(15, clearance * 0.08), 7, '#163e4447');
+    ctx.restore();
+  }
   ctx.save();
   ctx.translate(anchor, foot);
-  const tilt = state.player.grounded
-    ? reducedMotion
-      ? 0
-      : Math.sin(state.time * 25) * 0.012
-    : Math.max(-0.13, Math.min(0.17, -state.player.vy * 0.00028));
-  ctx.rotate(tilt);
+  // Even reduced-motion mode retains the necessary ground angle. The wheels,
+  // roof mount, shield and simulation's muzzle share this exact transform.
+  ctx.rotate(playerTilt(state));
   const squash = state.player.squash;
   ctx.scale(1 + squash * 0.07, 1 - squash * 0.1);
   if (state.player.invulnerable <= 0 || Math.floor(state.time * 16) % 2 === 0)

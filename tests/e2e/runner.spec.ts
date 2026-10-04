@@ -1,4 +1,23 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import {
+  createRunner,
+  generateTerrain,
+  JUMP_AIRTIME,
+  PLAYER_HALF_HITBOX,
+  requestJump,
+  startRunner,
+  stepRunner,
+} from '../../src/runner/simulation';
+import {
+  platformSlope,
+  platformTopAt,
+  platformsJoin,
+} from '../../src/runner/terrain';
+import {
+  FIXED_DT,
+  type Platform,
+  type RunnerState,
+} from '../../src/runner/types';
 
 async function openRun(page: Page) {
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
@@ -24,15 +43,227 @@ async function distance(page: Page) {
   return Number(await page.getByTestId('runner').getAttribute('data-distance'));
 }
 
-async function runTo(page: Page, metres: number) {
-  for (let step = 0; step < 100 && (await distance(page)) < metres; step++) {
-    await page.clock.runFor(100);
-    await expect(page.getByTestId('runner')).toHaveAttribute(
-      'data-status',
-      'running',
+interface Checkpoint {
+  name: string;
+  x: number;
+  surface?: Platform;
+  apex?: number;
+}
+interface ReplayEvent {
+  at: number;
+  x: number;
+  jumps: number;
+  checkpoint?: Checkpoint;
+}
+
+/**
+ * A deterministic, input-only heuristic replay, not a human-feel playtest.
+ * The model is local to the test process. The page gets only real keyboard/touch
+ * presses and elapsed animation frames; no position, gear or invulnerability edits.
+ */
+function planRoute(late: boolean): ReplayEvent[] {
+  const preview = createRunner(42);
+  generateTerrain(preview, 26000);
+  const roads = preview.platforms;
+  const firstRise = roads.find((road) => platformSlope(road) > 0)!;
+  const crest = roads.find((road) => road.top === 128 && !platformSlope(road))!;
+  const descent = roads.find(
+    (road) => road.top === 128 && platformSlope(road) < 0,
+  )!;
+  const chainAt = (minimum: number) =>
+    roads.findIndex(
+      (road, index) =>
+        road.x >= minimum && road.width <= 40 && roads[index - 1]!.width > 40,
+    );
+  const firstChain = chainAt(0);
+  const lateChain = chainAt(18000);
+  const checkpoints: Checkpoint[] = [
+    { name: 'equipped-first-gap', x: 1100, surface: roads[1] },
+    {
+      name: 'slope-ascent',
+      x: firstRise.x + firstRise.width * 0.6,
+      surface: firstRise,
+    },
+    { name: 'crest-apex', x: crest.x + crest.width / 2, apex: crest.top },
+    {
+      name: 'slope-descent',
+      x: descent.x + descent.width / 2,
+      surface: descent,
+    },
+    {
+      name: 'tiny-chain',
+      x: (roads[firstChain]!.x + roads[firstChain + 1]!.x) / 2,
+    },
+    {
+      name: 'chain-exit',
+      x: roads[firstChain + 3]!.x + 280,
+      surface: roads[firstChain + 3],
+    },
+  ];
+  if (late) {
+    const lateCrest = roads.find(
+      (road) => road.x > 16000 && road.top === 128 && !platformSlope(road),
+    )!;
+    const lateDescent = roads.find(
+      (road) =>
+        road.x > lateCrest.x && road.top === 128 && platformSlope(road) < 0,
+    )!;
+    checkpoints.push(
+      {
+        name: 'late-crest-apex',
+        x: lateCrest.x + lateCrest.width / 2,
+        apex: lateCrest.top,
+      },
+      {
+        name: 'late-slope-descent',
+        x: lateDescent.x + lateDescent.width / 2,
+        surface: lateDescent,
+      },
+      {
+        name: 'late-tiny-chain',
+        x: (roads[lateChain]!.x + roads[lateChain + 1]!.x) / 2,
+      },
+      {
+        name: 'late-chain-exit',
+        x: roads[lateChain + 3]!.x + 280,
+        surface: roads[lateChain + 3],
+      },
     );
   }
-  expect(await distance(page)).toBeGreaterThanOrEqual(metres);
+  const state = createRunner(42);
+  startRunner(state);
+  requestJump(state); // The start button also performs the first jump.
+  const events: ReplayEvent[] = [];
+  let accumulator = 0;
+  let at = 0;
+  let starterGear = false;
+  const crestJumps = new Set<number>();
+  const record = (checkpoint?: Checkpoint) =>
+    events.push({ at, x: state.distance, jumps: state.jumps, checkpoint });
+  while (checkpoints.length && at < 120000) {
+    if (needsPress(state)) {
+      requestJump(state);
+      record();
+    }
+    while (checkpoints[0] && state.distance >= checkpoints[0].x)
+      record(checkpoints.shift());
+    accumulator += 0.016; // Playwright's clock schedules animation frames every 16ms.
+    while (accumulator >= FIXED_DT) {
+      stepRunner(state, FIXED_DT);
+      accumulator -= FIXED_DT;
+    }
+    at += 16;
+    expect(
+      state.status,
+      `Input route stopped at ${state.distance}: ${state.reason}`,
+    ).toBe('running');
+  }
+  expect(checkpoints).toEqual([]);
+  return events;
+
+  function needsPress(run: RunnerState): boolean {
+    if (!run.player.grounded) {
+      return (
+        run.player.vy < 0 &&
+        !run.player.buffer &&
+        run.platforms.some(
+          (road) =>
+            road.width <= 40 &&
+            run.player.y >= road.top &&
+            run.player.y - road.top < 22 &&
+            run.distance + PLAYER_HALF_HITBOX + run.speed * 0.1 > road.x &&
+            run.distance - PLAYER_HALF_HITBOX < road.x + road.width,
+        )
+      );
+    }
+    if (!starterGear && run.distance >= 410) {
+      starterGear = true;
+      return true;
+    }
+    const support = run.platforms.find(
+      (road) =>
+        run.distance + PLAYER_HALF_HITBOX > road.x &&
+        run.distance - PLAYER_HALF_HITBOX < road.x + road.width &&
+        Math.abs(run.player.y - platformTopAt(road, run.distance)) < 0.1,
+    );
+    if (
+      support?.top === 128 &&
+      !platformSlope(support) &&
+      !crestJumps.has(support.x) &&
+      run.distance >=
+        support.x + support.width / 2 - run.speed * JUMP_AIRTIME * 0.5
+    ) {
+      crestJumps.add(support.x);
+      return true;
+    }
+    const next = run.platforms[run.platforms.indexOf(support!) + 1];
+    return (
+      Boolean(
+        support &&
+        next &&
+        !platformsJoin(support, next) &&
+        support.x + support.width - run.distance <= run.speed * 0.14,
+      ) ||
+      run.obstacles.some(
+        (obstacle) =>
+          obstacle.x > run.distance &&
+          obstacle.x - run.distance <= run.speed * JUMP_AIRTIME * 0.5,
+      ) ||
+      run.rivals.some(
+        (rival) =>
+          !rival.defeated &&
+          rival.x > run.distance &&
+          rival.x - run.distance <=
+            (run.speed - rival.speed) * JUMP_AIRTIME * 0.5,
+      )
+    );
+  }
+}
+
+async function replayRoute(
+  page: Page,
+  info: TestInfo,
+  name: string,
+  touch = false,
+  late = false,
+) {
+  const events = planRoute(late);
+  const runner = page.getByTestId('runner');
+  if (touch)
+    await page.getByRole('button', { name: 'スタート', exact: true }).tap();
+  else
+    await page.getByRole('button', { name: 'スタート', exact: true }).click();
+  let at = 0;
+  for (const event of events) {
+    await page.clock.runFor(event.at - at);
+    at = event.at;
+    if (!event.checkpoint) {
+      if (touch)
+        await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
+      else await page.keyboard.press('Space');
+    }
+    await expect(runner).toHaveAttribute('data-status', 'running');
+    const x = Number(await runner.getAttribute('data-world-x'));
+    // Read-only UI snapshots update every 60ms; one RAF phase can also differ.
+    expect(Math.abs(x - event.x)).toBeLessThan(30);
+    if (!event.checkpoint) continue;
+    const checkpoint = event.checkpoint;
+    const y = Number(await runner.getAttribute('data-y'));
+    if (checkpoint.surface) {
+      await expect(runner).toHaveAttribute('data-grounded', 'true');
+      expect(Math.abs(y - platformTopAt(checkpoint.surface, x))).toBeLessThan(
+        1,
+      );
+    }
+    if (checkpoint.apex !== undefined) {
+      expect(y).toBeGreaterThan(checkpoint.apex + 80);
+      await expect(runner).toHaveAttribute('data-grounded', 'false');
+    }
+    if (checkpoint.name === 'equipped-first-gap')
+      await expect(page.getByLabel('現在の装備')).toContainText('MACHINE');
+    await expect(runner).toHaveAttribute('data-jumps', String(event.jumps));
+    await capture(page, info, `${name}-${checkpoint.name}`);
+  }
 }
 
 test('starts a real run and held Space produces only one jump', async ({
@@ -101,51 +332,13 @@ test('pause and focus interruption freeze distance until explicit resume', async
   expect(await distance(page)).toBeGreaterThan(interrupted);
 });
 
-test('collects equipment and clears the first gap through real jump input', async ({
+test('keyboard input traverses slopes, tiny chains and a later capped-speed pattern', async ({
   page,
 }, info) => {
+  test.setTimeout(120000);
   await openRun(page);
-  await page.getByRole('button', { name: 'スタート', exact: true }).click();
-  await runTo(page, 42);
-  await page.keyboard.press('Space');
-  await runTo(page, 84);
-  await expect(page.getByLabel('現在の装備')).toContainText('MACHINE');
-  await page.keyboard.press('Space');
-  await page.clock.runFor(400);
-  expect(
-    Number(await page.getByTestId('runner').getAttribute('data-y')),
-  ).toBeGreaterThan(0);
-  await capture(page, info, 'desktop-equipped-first-gap');
-  await page.clock.runFor(500);
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-status',
-    'running',
-  );
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '0.0');
-  expect(await distance(page)).toBeGreaterThan(98);
-  // Real input traverses the two-step crest, a walk-off and a lower valley.
-  await runTo(page, 154);
-  await page.keyboard.press('Space');
-  await page.clock.runFor(350);
-  await capture(page, info, 'desktop-vertical-climb');
-  await runTo(page, 187);
-  await page.keyboard.press('Space');
-  await page.clock.runFor(350);
-  expect(
-    Number(await page.getByTestId('runner').getAttribute('data-y')),
-  ).toBeGreaterThan(128);
-  await capture(page, info, 'desktop-high-crest');
-  await page.clock.runFor(400);
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '128.0');
-  await runTo(page, 275);
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '64.0');
-  await runTo(page, 288);
-  await page.keyboard.press('Space');
-  await runTo(page, 313);
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '0.0');
-  await runTo(page, 340);
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '-48.0');
-  await capture(page, info, 'desktop-lower-valley');
+  await replayRoute(page, info, 'desktop', false, true);
+  expect(await distance(page)).toBeGreaterThan(1800);
 });
 
 test('a natural collision ends the run and restart resets distance', async ({
@@ -180,22 +373,16 @@ test('a natural collision ends the run and restart resets distance', async ({
 
 for (const viewport of [
   { width: 390, height: 844, name: 'portrait' },
-  { width: 844, height: 390, name: 'landscape' },
+  { width: 568, height: 320, name: 'landscape' },
 ]) {
   test.describe(`touch ${viewport.name}`, () => {
     test.use({ viewport, hasTouch: true });
-    test('touch jump works and the playable view fits', async ({
+    test('touch input clears slopes and tiny chains while the playable view fits', async ({
       page,
     }, info) => {
+      test.setTimeout(90000);
       await openRun(page);
-      await page.getByRole('button', { name: 'スタート', exact: true }).tap();
-      await page.clock.runFor(850);
-      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
-      await page.clock.runFor(150);
-      await expect(page.getByTestId('runner')).toHaveAttribute(
-        'data-jumps',
-        '2',
-      );
+      await replayRoute(page, info, `touch-${viewport.name}`, true);
       const canvas = await page
         .locator('canvas[aria-label="ゲーム画面"]')
         .boundingBox();
@@ -218,24 +405,6 @@ for (const viewport of [
         expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
         expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1);
       }
-      await capture(page, info, `touch-${viewport.name}-jump`);
-      await runTo(page, 84);
-      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
-      await runTo(page, 154);
-      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
-      await page.clock.runFor(350);
-      await capture(page, info, `touch-${viewport.name}-vertical-climb`);
-      await runTo(page, 187);
-      await page.getByRole('button', { name: 'ジャンプ', exact: true }).tap();
-      await page.clock.runFor(350);
-      expect(
-        Number(await page.getByTestId('runner').getAttribute('data-y')),
-      ).toBeGreaterThan(128);
-      await page.clock.runFor(400);
-      await expect(page.getByTestId('runner')).toHaveAttribute(
-        'data-y',
-        '128.0',
-      );
     });
   });
 }
