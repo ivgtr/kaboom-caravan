@@ -89,7 +89,7 @@ export function renderRunner(
   sky.addColorStop(1, '#ffdf9c');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
-  const bgHeight = Math.min(ground * 0.88, 430);
+  const bgHeight = ground + 2;
   const sourceHeight = art.background.height * 0.65;
   const bgWidth = (bgHeight * art.background.width) / sourceHeight;
   const bgOffset = (state.distance * 0.075) % (bgWidth * 2);

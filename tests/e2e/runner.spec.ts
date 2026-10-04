@@ -123,6 +123,13 @@ test('collects equipment and clears the first gap through real jump input', asyn
   );
   await expect(page.getByTestId('runner')).toHaveAttribute('data-y', '0.0');
   expect(await distance(page)).toBeGreaterThan(98);
+  // Continue along the same public seeded route to inspect an unarmed rival encounter.
+  await runTo(page, 152);
+  await page.keyboard.press('Space');
+  await runTo(page, 234);
+  await page.keyboard.press('Space');
+  await runTo(page, 420);
+  await capture(page, info, 'desktop-rival-encounter');
 });
 
 test('a natural collision ends the run and restart resets distance', async ({
