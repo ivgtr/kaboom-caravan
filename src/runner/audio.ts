@@ -1,7 +1,10 @@
+import { JACKPOT_FREEZE, MAX_ABILITY_LEVEL, REEL_FIRST_REVEAL } from './fever';
 import { START_SPEED } from './pacing';
-import type { RunnerState, WeaponId } from './types';
+import type { AbilityId, FeverReel, RunnerState, WeaponId } from './types';
 
-type Bus = 'music' | 'effects';
+type Bus = 'music' | 'effects' | 'tension' | 'reward';
+type Timbre = OscillatorType | 'brass' | 'chime';
+type Envelope = 'pluck' | 'hold' | 'rise';
 type Voice = {
   source: AudioScheduledSourceNode;
   gain: GainNode;
@@ -9,9 +12,10 @@ type Voice = {
   end: number;
   bus: Bus;
 };
+type Phrase = { at: number; sound: (at: number) => void };
 
-// An original D-Dorian loop. Reward notes share its key, rather than competing
-// with the score. The bed stays deliberately smaller than the chest reveals.
+// Original D-Dorian writing: the small running bed leaves space for the machine.
+// Mechanical anticipation, confirmed wins and the rare FREEZE have separate roles.
 const CHORDS = [
   [62, 65, 69, 72],
   [62, 67, 71, 74],
@@ -22,42 +26,63 @@ const ROOTS = [38, 43, 36, 45];
 const MELODY = [0, -1, 2, 1, -1, 3, 2, -1];
 const REWARD_NOTES = [74, 77, 81, 84];
 const MAX_VOICES = 28;
-const MUSIC_VOICES = 14;
-const LOOK_AHEAD = 0.085;
+const BACKGROUND_VOICES = 12;
+const LOOK_AHEAD = 0.065;
 const hz = (note: number) => 440 * 2 ** ((note - 69) / 12);
 const clamp = (n: number, low: number, high: number) =>
   Math.max(low, Math.min(high, n));
 
-/** Gesture-unlocked, frame-scheduled audio. No timers survive pause or retry. */
+/** Gesture-unlocked, frame-scheduled synthesis. No timers or downloaded samples. */
 export class RunnerAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private music: GainNode | null = null;
   private effects: GainNode | null = null;
+  private tension: GainNode | null = null;
+  private rewardBus: GainNode | null = null;
   private motor: OscillatorNode | null = null;
   private motorGain: GainNode | null = null;
   private noise: AudioBuffer | null = null;
+  private brass: PeriodicWave | null = null;
+  private chime: PeriodicWave | null = null;
   private voices = new Set<Voice>();
+  private phrases: Phrase[] = [];
   private pending = new Map<string, number>();
   private cooldowns = new Map<string, number>();
+  private lastState: RunnerState | null = null;
   private lastShot = 0;
   private lastTime = 0;
   private lastFireAt = -1;
   private lastEvent = 0;
+  private lastReward = 0;
   private lastReel = 0;
   private lastRevealed = 0;
   private lastLevel = 0;
+  private lastAbilities: Record<AbilityId, number> = {
+    boost: 0,
+    slam: 0,
+    gold: 0,
+    magnet: 0,
+  };
   private frozen = false;
+  private armedJackpot = 0;
+  private resync = false;
   private sounding = false;
+  private acceptEffects = false;
   private step = 0;
   private nextBeat = 0;
+  private nextRatchet = 0;
+  private ratchetStep = 0;
   private duckUntil = 0;
+  private protectedUntil = 0;
+  private jackpotUntil = 0;
   private _enabled = true;
   private disposed = false;
 
   constructor() {
-    // RAF can stop completely in the background, so silence independently.
+    // RAF can stop entirely in the background. Silence without waiting for it.
     document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('blur', this.onBlur);
   }
 
   get enabled() {
@@ -73,6 +98,8 @@ export class RunnerAudio {
     if (document.hidden) this.silence();
   };
 
+  private onBlur = () => this.silence();
+
   unlock() {
     if (!this.enabled || this.disposed) return;
     try {
@@ -82,7 +109,7 @@ export class RunnerAudio {
       }
       void this.context.resume().catch(() => {});
     } catch {
-      // A blocked/unsupported audio device must never block play.
+      // A blocked or unsupported audio device must never block play.
     }
   }
 
@@ -90,9 +117,13 @@ export class RunnerAudio {
     this.master = context.createGain();
     this.master.gain.value = 0;
     this.music = context.createGain();
-    this.music.gain.value = 0.48;
+    this.music.gain.value = 0.4;
     this.effects = context.createGain();
     this.effects.gain.value = 0.85;
+    this.tension = context.createGain();
+    this.tension.gain.value = 0.75;
+    this.rewardBus = context.createGain();
+    this.rewardBus.gain.value = 0.85;
     const compressor = context.createDynamicsCompressor();
     compressor.threshold.value = -18;
     compressor.knee.value = 14;
@@ -107,25 +138,13 @@ export class RunnerAudio {
     }
     ceiling.curve = curve;
     ceiling.oversample = '2x';
-    this.music.connect(compressor);
-    this.effects.connect(compressor);
+    for (const bus of [this.music, this.effects, this.tension, this.rewardBus])
+      bus.connect(compressor);
     compressor.connect(ceiling);
     ceiling.connect(this.master);
     this.master.connect(context.destination);
 
-    // A short, quiet echo gives the plucks some space without a sample download.
-    const delay = context.createDelay(0.5);
-    const feedback = context.createGain();
-    const wet = context.createGain();
-    delay.delayTime.value = 0.19;
-    feedback.gain.value = 0.16;
-    wet.gain.value = 0.13;
-    this.music.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wet);
-    wet.connect(compressor);
-
+    // Dry buses ensure the FREEZE and reveal ducking also silence every tail.
     this.motor = context.createOscillator();
     this.motor.type = 'triangle';
     this.motorGain = context.createGain();
@@ -133,7 +152,16 @@ export class RunnerAudio {
     this.motor.connect(this.motorGain);
     this.motorGain.connect(this.music);
     this.motor.start();
-
+    this.brass = context.createPeriodicWave(
+      new Float32Array(12),
+      new Float32Array([
+        0, 1, 0.48, 0.24, 0.1, 0.13, 0.06, 0.04, 0.03, 0.02, 0.01, 0.01,
+      ]),
+    );
+    this.chime = context.createPeriodicWave(
+      new Float32Array(10),
+      new Float32Array([0, 1, 0.08, 0.36, 0.03, 0.18, 0.02, 0.1, 0.01, 0.06]),
+    );
     this.noise = context.createBuffer(
       1,
       context.sampleRate,
@@ -147,18 +175,27 @@ export class RunnerAudio {
     }
   }
 
-  /** Call on every frame, including pause/mute, so stale cues never accumulate. */
+  /** Consume every state change even while muted/paused; never replay a backlog. */
   update(state: RunnerState) {
     if (this.disposed) return;
-    if (state.time < this.lastTime) {
+    if (
+      (this.lastState && this.lastState !== state) ||
+      state.time < this.lastTime
+    ) {
       this.silence();
-      this.lastShot = this.lastEvent = this.lastReel = this.lastRevealed = 0;
+      this.lastShot =
+        this.lastEvent =
+        this.lastReward =
+        this.lastReel =
+        this.lastRevealed =
+          0;
       this.lastFireAt = -1;
       this.lastLevel = 0;
       this.cooldowns.clear();
       this.step = 0;
       this.frozen = false;
     }
+    this.lastState = state;
     this.lastTime = state.time;
     let newest: (typeof state.shots)[number] | undefined;
     for (const shot of state.shots) {
@@ -176,10 +213,15 @@ export class RunnerAudio {
     this.frozen = freeze;
     const reel = fever.reel;
     const newReel = !!reel && reel.id !== this.lastReel;
-    const newReveal =
-      !!reel && reel.revealed > (newReel ? 0 : this.lastRevealed);
+    const previousReveal = newReel ? 0 : this.lastRevealed;
+    const newReveal = !!reel && reel.revealed > previousReveal;
     this.lastReel = reel?.id ?? 0;
     this.lastRevealed = reel?.revealed ?? 0;
+    const reward = fever.rewardCue;
+    const newReward = !!reward && reward.id !== this.lastReward;
+    this.lastReward = reward?.id ?? 0;
+    const previousAbilities = this.lastAbilities;
+    this.lastAbilities = { ...fever.abilities };
     const event = fever.event;
     const newEvent = !!event && event.id !== this.lastEvent;
     this.lastEvent = event?.id ?? 0;
@@ -187,14 +229,26 @@ export class RunnerAudio {
     const context = this.context;
     const running =
       this.enabled && state.status === 'running' && !document.hidden;
-    if (!running || freeze || !context || context.state !== 'running') {
+    if (!running || !context || context.state !== 'running') {
       this.silence();
       return;
     }
+    if (freeze) {
+      // Resume during a still-visible FREEZE can arm its remaining release.
+      // Returning after it ended cannot: this branch must actually be observed.
+      this.armedJackpot = reel?.jackpot ? reel.id : 0;
+      this.resync = false;
+      this.silence(true);
+      return;
+    }
     const now = context.currentTime;
+    const skipCues = this.resync;
+    this.resync = false;
+    this.acceptEffects = !skipCues;
     if (!this.sounding) {
       this.sounding = true;
       this.nextBeat = now + 0.025;
+      this.nextRatchet = now + 0.07;
       this.master!.gain.setTargetAtTime(0.7, now, 0.015);
     }
     const pace = clamp(
@@ -210,31 +264,74 @@ export class RunnerAudio {
     );
     this.motorGain!.gain.setTargetAtTime(0.009 + pace * 0.004, now, 0.06);
 
-    if (released) {
-      this.stopVoices();
+    const jackpot =
+      !skipCues && released && reel?.jackpot && this.armedJackpot === reel.id;
+    if (released) this.armedJackpot = 0;
+    if (jackpot) {
       this.step = 0;
-      this.nextBeat = now + 0.02;
-      this.pending.clear();
-      this.reward('jackpot', now);
-    } else {
-      if (newReel) this.pending.set('chest', 1);
-      if (newReveal) this.pending.set('reveal', Math.min(4, reel.revealed));
-      if (raisedLevel) this.pending.set(level === 2 ? 'hyper' : 'rush', 1);
-      if (newEvent && ['chain', 'rush', 'hyper'].includes(event.kind))
-        this.pending.set(event.kind, 1);
+      this.nextBeat = now + 0.08;
+      this.jackpot(now);
     }
+    if (!skipCues) {
+      if (newReel && !reel.jackpot) this.chest(now);
+      if (newReveal) {
+        // All stops are driven by APPLIED rewards, including a frame containing
+        // several actual reveals. No precomputed result is announced early.
+        for (let i = previousReveal; i < reel.revealed; i++) {
+          const entry = reel.rewards[i];
+          if (!entry) continue;
+          const capped = previousAbilities[entry.kind] >= MAX_ABILITY_LEVEL;
+          previousAbilities[entry.kind] = Math.min(
+            MAX_ABILITY_LEVEL,
+            previousAbilities[entry.kind] + entry.count,
+          );
+          this.award(
+            now + (i - previousReveal) * 0.035,
+            i + 1,
+            capped,
+            entry.count > 1,
+          );
+        }
+      } else if (newReward) {
+        // A whole reel can finish in one simulation batch. rewardCue survives
+        // both reel removal and an unrelated combat event overwriting event.
+        this.award(now, 1, reward.text.includes(' MAX → '), false);
+      }
+      // A promotion is already visible; do not stack another entry fanfare over
+      // the rare jackpot answer or defer it into a stale announcement.
+      if (raisedLevel && now >= this.jackpotUntil) this.entry(level, now);
+      if (newEvent && event.kind === 'chain') this.pending.set('chain', 1);
+    }
+    if (reel && !skipCues) this.ratchet(reel, now, newReel || newReveal);
     this.flush(now);
-    if (freshShot && newest && now - this.lastFireAt > 0.095) {
+    this.flushPhrases(now);
+    if (
+      !skipCues &&
+      freshShot &&
+      newest &&
+      now >= this.protectedUntil &&
+      now - this.lastFireAt > 0.095
+    ) {
       this.lastFireAt = now;
       this.fire(newest.weapon, now);
     }
     this.music!.gain.setTargetAtTime(
-      now < this.duckUntil ? 0.18 : reel ? 0.29 : 0.48,
+      now < this.duckUntil ? 0.07 : reel ? 0.22 : 0.4,
       now,
-      0.07,
+      now < this.duckUntil ? 0.009 : 0.12,
+    );
+    this.effects!.gain.setTargetAtTime(
+      now < this.protectedUntil ? 0.08 : 0.85,
+      now,
+      0.008,
+    );
+    this.tension!.gain.setTargetAtTime(
+      now < this.protectedUntil ? 0.14 : 0.75,
+      now,
+      0.012,
     );
 
-    // Never catch up missed bars after a background stall or suspended device.
+    // Never catch up bars after a background stall or a suspended audio device.
     if (this.nextBeat < now - 0.12) this.nextBeat = now + 0.025;
     let scheduled = 0;
     while (this.nextBeat < now + LOOK_AHEAD && scheduled++ < 3) {
@@ -242,7 +339,6 @@ export class RunnerAudio {
       this.nextBeat += 30 / tempo;
     }
   }
-
   private musicStep(
     step: number,
     at: number,
@@ -297,32 +393,35 @@ export class RunnerAudio {
           'music',
         );
     }
-    if (reel && beat % 2 === 1)
-      this.note(REWARD_NOTES[beat % 4]!, at, 0.035, 0.022, 'sine', 'music');
   }
 
-  /** Aggregate particle/bullet bursts into one cue of each kind per frame. */
+  /** Routine effects aggregate; reward state has a single authoritative source. */
   play(kind: string) {
-    if (!this.enabled || !this.sounding || this.frozen || document.hidden)
+    if (
+      !this.enabled ||
+      !this.sounding ||
+      !this.acceptEffects ||
+      this.frozen ||
+      document.hidden ||
+      ['chest', 'reveal', 'rush', 'hyper', 'jackpot'].includes(kind)
+    )
       return;
     this.pending.set(kind, Math.min(8, (this.pending.get(kind) ?? 0) + 1));
   }
 
   private flush(now: number) {
-    // The prominent cue wins; dozens of defeated objects cannot become a chord
-    // of dozens of explosions or mask a reel reveal.
+    if (now < this.protectedUntil) {
+      this.pending.clear();
+      return;
+    }
     const priority = [
-      'hyper',
-      'rush',
-      'reveal',
-      'chest',
-      'chain',
       'upgrade',
       'slam',
       'hit',
+      'guard',
+      'chain',
       'gold',
       'pickup',
-      'guard',
       'recover',
       'jump',
       'land',
@@ -331,24 +430,24 @@ export class RunnerAudio {
     ];
     let played = 0;
     for (const kind of priority) {
-      const count = this.pending.get(kind);
-      if (!count || played >= 3) continue;
-      const cooldown = ['burst', 'gold', 'pickup', 'pass'].includes(kind)
-        ? 0.15
+      if (!this.pending.has(kind) || played >= 2) continue;
+      const cooldown = ['burst', 'gold', 'pickup', 'pass', 'chain'].includes(
+        kind,
+      )
+        ? 0.16
         : 0.075;
       if (now - (this.cooldowns.get(kind) ?? -10) < cooldown) continue;
       this.cooldowns.set(kind, now);
-      this.effect(kind, now, count);
+      this.effect(kind, now);
       played++;
     }
     this.pending.clear();
   }
 
-  private effect(kind: string, now: number, count: number) {
-    if (
-      ['chest', 'reveal', 'rush', 'hyper', 'chain', 'upgrade'].includes(kind)
-    ) {
-      this.reward(kind, now, count);
+  private effect(kind: string, now: number) {
+    if (kind === 'chain' || kind === 'upgrade') {
+      this.note(kind === 'chain' ? 81 : 74, now, 0.08, 0.035, 'chime');
+      if (kind === 'upgrade') this.note(81, now + 0.06, 0.13, 0.035);
       return;
     }
     const cues: Record<string, [number, number, number, number]> = {
@@ -368,56 +467,182 @@ export class RunnerAudio {
     if (kind === 'slam' || kind === 'hit') this.hiss(now, 0.12, 0.045, 950);
   }
 
-  private reward(kind: string, now: number, count = 1) {
-    if (kind === 'reveal') {
-      const note = REWARD_NOTES[clamp(count - 1, 0, 3)]!;
-      this.note(note, now, 0.19, 0.085);
-      this.note(note + 12, now + 0.015, 0.12, 0.025, 'sine');
-      this.duckUntil = Math.max(this.duckUntil, now + 0.24);
-      return;
-    }
-    if (kind === 'chest') {
-      this.sweep(110, 220, now, 0.12, 0.085);
-      this.hiss(now, 0.07, 0.04, 2200);
-      [69, 74, 77].forEach((note, i) =>
-        this.note(note, now + i * 0.045, 0.14, 0.057),
-      );
-      this.duckUntil = Math.max(this.duckUntil, now + 0.35);
-      return;
-    }
-    if (kind === 'chain') {
-      this.note(81, now, 0.13, 0.052);
-      this.note(86, now + 0.055, 0.2, 0.065);
-      return;
-    }
-    const jackpot = kind === 'jackpot';
-    const hyper = jackpot || kind === 'hyper';
-    const notes = hyper ? [74, 77, 81, 84, 86] : [69, 74, 77, 81];
-    const spacing = jackpot ? 0.09 : 0.065;
-    this.sweep(
-      135,
-      38,
+  private protect(now: number, attack: number, duck: number) {
+    this.protectedUntil = Math.max(this.protectedUntil, now + attack);
+    this.duckUntil = Math.max(this.duckUntil, now + duck);
+  }
+
+  private chest(now: number) {
+    this.protect(now, 0.12, 0.28);
+    this.ratchetStep = 0;
+    this.sweep(170, 70, now, 0.09, 0.075, 'triangle', 'reward');
+    this.hiss(now, 0.045, 0.075, 2600, 'reward');
+    // A latch, a questioning two-note call, then a rising mechanical intake.
+    this.later(now + 0.045, (at) =>
+      this.note(69, at, 0.105, 0.065, 'brass', 'reward'),
+    );
+    this.later(now + 0.145, (at) =>
+      this.note(74, at, 0.14, 0.065, 'brass', 'reward'),
+    );
+    this.hiss(now + 0.1, 0.45, 0.035, 600, 'tension', 'rise');
+  }
+
+  private ratchet(reel: FeverReel, now: number, reset: boolean) {
+    if (reset) this.nextRatchet = now + 0.065;
+    if (reel.revealed >= reel.rewards.length || now < this.nextRatchet) return;
+    const first = reel.jackpot ? JACKPOT_FREEZE + 0.16 : REEL_FIRST_REVEAL;
+    const interval = reel.revealInterval;
+    const start =
+      reel.revealed === 0
+        ? reel.jackpot
+          ? JACKPOT_FREEZE
+          : 0
+        : first + (reel.revealed - 1) * interval;
+    const end = first + reel.revealed * interval;
+    const remaining = end - reel.elapsed;
+    if (remaining <= 0.025) return;
+    const progress = clamp((reel.elapsed - start) / (end - start), 0, 1);
+    const frequency = 570 + progress * 1500 + reel.revealed * 130;
+    // The ratchet actually accelerates toward EACH scheduled stop. It never
+    // schedules beyond that stop and does not promise an unearned extra reward.
+    this.hiss(
       now,
-      jackpot ? 0.38 : 0.22,
-      jackpot ? 0.15 : 0.09,
-      'sine',
+      0.017,
+      0.032 + progress * 0.013,
+      2300 + progress * 1800,
+      'tension',
     );
-    if (hyper) this.hiss(now, 0.24, 0.055, 2800);
-    notes.forEach((note, i) =>
-      this.note(note, now + i * spacing, 0.32, hyper ? 0.095 : 0.065),
+    this.sweep(
+      frequency,
+      frequency * 0.57,
+      now,
+      0.026,
+      0.022,
+      this.ratchetStep++ % 3 === 0 ? 'square' : 'triangle',
+      'tension',
     );
-    const end = now + notes.length * spacing;
-    for (const note of [62, 69, 74, 77])
-      this.note(
-        note,
-        end,
-        jackpot ? 0.9 : 0.45,
-        jackpot ? 0.065 : 0.035,
-        'sine',
-        'effects',
-        0.02,
+    this.nextRatchet = now + Math.min(remaining, 0.105 - progress * 0.076);
+  }
+
+  private award(
+    now: number,
+    ordinal: number,
+    capped: boolean,
+    merged: boolean,
+  ) {
+    this.stopVoices('tension');
+    this.protect(now, 0.2, 0.42);
+    const note = REWARD_NOTES[clamp(ordinal - 1, 0, 3)]!;
+    // The dry physical stop leads the tonal body, rather than another soft ping.
+    this.hiss(now, 0.025, 0.095, 2900, 'reward');
+    this.sweep(210, 72, now, 0.047, 0.075, 'square', 'reward');
+    this.sweep(150, 52, now + 0.008, 0.16, 0.11, 'sine', 'reward');
+    if (capped) {
+      // Capped ranks really convert to points: a falling coin cadence, distinct
+      // from the rising phrase that says a new rank or additional award landed.
+      [86, 81, 77, 74].forEach((pitch, i) =>
+        this.later(now + 0.035 + i * 0.045, (at) =>
+          this.note(pitch, at, 0.13, 0.066, 'chime', 'reward'),
+        ),
       );
-    this.duckUntil = Math.max(this.duckUntil, end + (jackpot ? 0.85 : 0.35));
+      return;
+    }
+    this.note(note, now + 0.012, 0.25, 0.105, 'brass', 'reward', 0.004, 'hold');
+    this.note(note + 12, now + 0.02, 0.32, 0.044, 'chime', 'reward');
+    if ((ordinal > 1 || merged) && now >= this.jackpotUntil) {
+      // This phrase is earned at the SECOND real stop, never on opening a chest
+      // whose hidden outcome happens to contain multiple rewards.
+      [note - 5, note, note + 7].forEach((pitch, i) =>
+        this.later(now + 0.055 + i * 0.055, (at) =>
+          this.note(pitch, at, 0.15, 0.062, 'brass', 'reward', 0.003, 'hold'),
+        ),
+      );
+      this.later(now + 0.235, (at) =>
+        this.note(note + 12, at, 0.3, 0.05, 'chime', 'reward'),
+      );
+      this.protect(now, 0.27, 0.52);
+    }
+  }
+
+  private entry(level: number, now: number) {
+    this.protect(now, level === 2 ? 0.48 : 0.3, level === 2 ? 0.86 : 0.55);
+    this.sweep(level === 2 ? 155 : 125, 43, now, 0.24, 0.115, 'sine', 'reward');
+    this.hiss(now, level === 2 ? 0.16 : 0.07, 0.06, 2300, 'reward');
+    const pitches = level === 2 ? [74, 77, 81, 86] : [62, 69, 74];
+    const times = level === 2 ? [0, 0.075, 0.15, 0.29] : [0, 0.075, 0.2];
+    pitches.forEach((pitch, i) =>
+      this.later(now + times[i]!, (at) => {
+        this.note(pitch, at, 0.19, 0.09, 'brass', 'reward', 0.004, 'hold');
+        this.note(pitch + 12, at + 0.012, 0.15, 0.025, 'chime', 'reward');
+      }),
+    );
+    if (level === 2)
+      this.later(now + 0.46, (at) => {
+        for (const pitch of [62, 69, 77, 86])
+          this.note(pitch, at, 0.43, 0.043, 'brass', 'reward', 0.012, 'hold');
+      });
+  }
+
+  private jackpot(now: number) {
+    this.pending.clear();
+    this.phrases = [];
+    this.protect(now, 1.05, 1.5);
+    this.jackpotUntil = now + 1.5;
+    // Reserved for an observed FREEZE release: sub impact, dry crack, inharmonic
+    // struck metal, a wide original brass answer, and a ringing upper crown.
+    this.sweep(190, 35, now, 0.42, 0.16, 'sine', 'reward');
+    this.sweep(88, 44, now, 0.5, 0.09, 'triangle', 'reward');
+    this.hiss(now, 0.035, 0.13, 3500, 'reward');
+    this.hiss(now + 0.025, 0.48, 0.075, 6800, 'reward');
+    for (const [ratio, volume] of [
+      [1, 0.07],
+      [2.76, 0.043],
+      [4.07, 0.026],
+    ])
+      this.sweep(
+        587 * ratio!,
+        582 * ratio!,
+        now,
+        0.6,
+        volume!,
+        'sine',
+        'reward',
+      );
+    this.note(74, now, 0.18, 0.12, 'brass', 'reward', 0.004, 'hold');
+    [81, 84, 86].forEach((pitch, i) =>
+      this.later(now + [0.12, 0.25, 0.4][i]!, (at) => {
+        this.note(pitch, at, 0.23, 0.105, 'brass', 'reward', 0.005, 'hold');
+        this.note(pitch - 12, at, 0.19, 0.05, 'brass', 'reward');
+      }),
+    );
+    this.later(now + 0.59, (at) => {
+      this.sweep(95, 49, at, 0.5, 0.11, 'sine', 'reward');
+      for (const pitch of [62, 69, 77, 86])
+        this.note(pitch, at, 0.65, 0.065, 'brass', 'reward', 0.015, 'hold');
+      this.note(98, at, 0.78, 0.037, 'chime', 'reward');
+      this.hiss(at, 0.28, 0.038, 7200, 'reward');
+    });
+    this.later(now + 0.9, (at) =>
+      this.note(93, at, 0.38, 0.033, 'chime', 'reward'),
+    );
+    this.later(now + 1.08, (at) =>
+      this.note(98, at, 0.4, 0.03, 'chime', 'reward'),
+    );
+  }
+
+  private later(at: number, sound: Phrase['sound']) {
+    if (this.phrases.length < 64) this.phrases.push({ at, sound });
+  }
+
+  private flushPhrases(now: number) {
+    const due = this.phrases.filter((phrase) => phrase.at <= now + LOOK_AHEAD);
+    this.phrases = this.phrases.filter(
+      (phrase) => phrase.at > now + LOOK_AHEAD,
+    );
+    due.sort((a, b) => a.at - b.at);
+    for (const phrase of due) {
+      if (phrase.at >= now - 0.1) phrase.sound(Math.max(now, phrase.at));
+    }
   }
 
   private fire(weapon: WeaponId, now: number) {
@@ -445,11 +670,22 @@ export class RunnerAudio {
     at: number,
     duration: number,
     volume: number,
-    type: OscillatorType = 'triangle',
+    type: Timbre = 'triangle',
     bus: Bus = 'effects',
     attack = 0.005,
+    envelope: Envelope = 'pluck',
   ) {
-    this.sweep(hz(note), hz(note), at, duration, volume, type, bus, attack);
+    this.sweep(
+      hz(note),
+      hz(note),
+      at,
+      duration,
+      volume,
+      type,
+      bus,
+      attack,
+      envelope,
+    );
   }
 
   private sweep(
@@ -458,14 +694,17 @@ export class RunnerAudio {
     at: number,
     duration: number,
     volume: number,
-    type: OscillatorType = 'triangle',
+    type: Timbre = 'triangle',
     bus: Bus = 'effects',
     attack = 0.005,
+    envelope: Envelope = 'pluck',
   ) {
     const context = this.context;
     if (!context || !this.reserve(bus)) return;
     const source = context.createOscillator();
-    source.type = type;
+    if (type === 'brass' || type === 'chime')
+      source.setPeriodicWave(type === 'brass' ? this.brass! : this.chime!);
+    else source.type = type;
     source.frequency.setValueAtTime(from, at);
     source.frequency.exponentialRampToValueAtTime(
       Math.max(20, to),
@@ -477,8 +716,14 @@ export class RunnerAudio {
       duration,
       volume,
       bus,
-      type === 'sine' ? 10000 : 4300,
+      type === 'sine' || type === 'chime'
+        ? 10000
+        : type === 'brass'
+          ? 6800
+          : 4300,
       attack,
+      'lowpass',
+      envelope,
     );
   }
 
@@ -488,6 +733,7 @@ export class RunnerAudio {
     volume: number,
     frequency: number,
     bus: Bus = 'effects',
+    envelope: Envelope = 'pluck',
   ) {
     const context = this.context;
     if (!context || !this.noise || !this.reserve(bus)) return;
@@ -502,6 +748,7 @@ export class RunnerAudio {
       frequency,
       0.002,
       'bandpass',
+      envelope,
     );
   }
 
@@ -509,13 +756,26 @@ export class RunnerAudio {
     for (const voice of this.voices) {
       if (voice.end <= this.context!.currentTime) this.voices.delete(voice);
     }
+    const voices = [...this.voices];
     if (
-      bus === 'music' &&
-      [...this.voices].filter((v) => v.bus === 'music').length >= MUSIC_VOICES
+      bus !== 'reward' &&
+      voices.filter((v) => v.bus !== 'reward').length >= BACKGROUND_VOICES
     )
       return false;
-    // Reserve half the budget for prominent rewards. Do not steal a voice and
-    // briefly exceed the physical cap while its release envelope is playing.
+    if (bus === 'music' && voices.filter((v) => v.bus === 'music').length >= 8)
+      return false;
+    if (
+      bus === 'effects' &&
+      voices.filter((v) => v.bus === 'effects').length >= 4
+    )
+      return false;
+    if (
+      bus === 'tension' &&
+      voices.filter((v) => v.bus === 'tension').length >= 4
+    )
+      return false;
+    // At least sixteen slots cannot be occupied by guns, rhythm, or ratchets.
+    // Release tails count too: stealing must never exceed the physical cap.
     return this.voices.size < MAX_VOICES;
   }
 
@@ -528,23 +788,49 @@ export class RunnerAudio {
     frequency: number,
     attack: number,
     filterType: BiquadFilterType = 'lowpass',
+    envelope: Envelope = 'pluck',
   ) {
     const context = this.context!;
     const gain = context.createGain();
     const filter = context.createBiquadFilter();
     filter.type = filterType;
-    filter.frequency.value = frequency;
-    filter.Q.value = 0.55;
+    filter.frequency.setValueAtTime(frequency, at);
+    filter.Q.value = filterType === 'bandpass' ? 0.8 : 0.55;
+    const peak = clamp(volume, 0.001, 0.16);
     gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(
-      clamp(volume, 0.001, 0.16),
-      at + Math.min(attack, duration / 3),
-    );
+    if (envelope === 'rise') {
+      gain.gain.linearRampToValueAtTime(peak * 0.1, at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(peak, at + duration * 0.88);
+      filter.frequency.exponentialRampToValueAtTime(4500, at + duration);
+    } else {
+      gain.gain.linearRampToValueAtTime(
+        peak,
+        at + Math.min(attack, duration / 3),
+      );
+      if (envelope === 'hold') {
+        gain.gain.exponentialRampToValueAtTime(
+          peak * 0.65,
+          at + duration * 0.55,
+        );
+        filter.frequency.exponentialRampToValueAtTime(
+          frequency * 0.48,
+          at + duration,
+        );
+      }
+    }
     gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
     gain.gain.linearRampToValueAtTime(0, at + duration + 0.01);
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(bus === 'music' ? this.music! : this.effects!);
+    gain.connect(
+      bus === 'music'
+        ? this.music!
+        : bus === 'effects'
+          ? this.effects!
+          : bus === 'tension'
+            ? this.tension!
+            : this.rewardBus!,
+    );
     const voice: Voice = {
       source,
       gain,
@@ -569,35 +855,49 @@ export class RunnerAudio {
     voice.gain.gain.setTargetAtTime(0, now, 0.004);
     voice.end = Math.min(voice.end, now + 0.025);
     voice.source.stop(voice.end);
-    // Keep release tails in the budget even if pause/resume is spammed.
   }
 
-  private stopVoices() {
-    for (const voice of this.voices) this.stopVoice(voice);
+  private stopVoices(bus?: Bus) {
+    for (const voice of this.voices)
+      if (!bus || voice.bus === bus) this.stopVoice(voice);
   }
 
-  private silence() {
+  private silence(forFreeze = false) {
+    this.acceptEffects = false;
     this.pending.clear();
+    this.phrases = [];
+    if (!forFreeze) {
+      this.resync = true;
+      this.armedJackpot = 0;
+    }
     if (!this.context || !this.sounding) return;
     this.sounding = false;
     const now = this.context.currentTime;
     this.master?.gain.setTargetAtTime(0, now, 0.007);
     this.motorGain?.gain.setTargetAtTime(0, now, 0.007);
     this.stopVoices();
-    this.nextBeat = 0;
-    this.duckUntil = 0;
+    this.nextBeat = this.nextRatchet = 0;
+    this.duckUntil = this.protectedUntil = this.jackpotUntil = 0;
   }
 
   close() {
     this.silence();
     this.disposed = true;
     document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('blur', this.onBlur);
     this.motor?.stop(this.context?.currentTime ?? 0);
     void this.context?.close().catch(() => {});
     this.context = null;
-    this.master = this.music = this.effects = this.motorGain = null;
+    this.master =
+      this.music =
+      this.effects =
+      this.tension =
+      this.rewardBus =
+      this.motorGain =
+        null;
     this.motor = null;
     this.noise = null;
+    this.brass = this.chime = null;
     this.voices.clear();
   }
 
