@@ -1,5 +1,6 @@
-import { RIVALS, WEAPONS, WEAPON_ORDER } from './definitions';
-import { platformTopAt, platformsJoin, playerMuzzle } from './terrain';
+import { RIVALS, WEAPON_ORDER } from './definitions';
+import { collectPickup, stepCombat } from './combat';
+import { platformTopAt, platformsJoin } from './terrain';
 import {
   FIXED_DT,
   PLAYER_HEIGHT,
@@ -7,40 +8,40 @@ import {
   type Effect,
   type Pickup,
   type Platform,
-  type Rival,
   type RivalKind,
   type RunnerState,
   type WeaponId,
 } from './types';
+export {
+  collectPickup,
+  MAX_WEAPON_LEVEL,
+  MAGNET_DISTANCE,
+  RIVAL_WARNING_TIME,
+} from './combat';
 
-export const GRAVITY = 1450;
-export const JUMP_VELOCITY = 520;
+export const GRAVITY = 1550;
+export const JUMP_VELOCITY = 575;
+export const RECOVERY_VELOCITY = 430;
+export const RELEASE_VELOCITY = 300;
 export const COYOTE_TIME = 0.09;
 export const JUMP_BUFFER_TIME = 0.1;
 export const JUMP_AIRTIME = (2 * JUMP_VELOCITY) / GRAVITY;
-export const WEAPON_DISTANCE = 1600;
-export const MAGNET_DISTANCE = 1100;
-export const MAX_WEAPON_LEVEL = 3;
-export const RIVAL_WARNING_TIME = 1;
-export const GENERATION_AHEAD = 2300;
-export const PLAYER_HALF_HITBOX = PLAYER_WIDTH * 0.36;
+export const GENERATION_AHEAD = 2500;
+export const PLAYER_HALF_HITBOX = PLAYER_WIDTH / 2;
 export const TERRAIN_MIN_HEIGHT = -48;
-export const TERRAIN_MAX_HEIGHT = 128;
-export const TERRAIN_DEATH_HEIGHT = -220;
+export const TERRAIN_MAX_HEIGHT = 112;
+export const TERRAIN_DEATH_HEIGHT = -230;
 
-/** Descending intersection of the fixed jump arc with a relative landing height. */
+/** Descending intersection of a held jump with a relative landing height. */
 export function jumpLandingTime(rise: number): number {
-  return (
-    (JUMP_VELOCITY + Math.sqrt(JUMP_VELOCITY ** 2 - 2 * GRAVITY * rise)) /
-    GRAVITY
-  );
+  const discriminant = JUMP_VELOCITY ** 2 - 2 * GRAVITY * rise;
+  return discriminant < 0
+    ? Infinity
+    : (JUMP_VELOCITY + Math.sqrt(discriminant)) / GRAVITY;
 }
-
-/** World pixels per second. Progress changes pace, never jump physics. */
 export function getSpeed(distance: number): number {
-  return 220 + 120 * Math.min(1, Math.max(0, distance) / 18000);
+  return 330 + 110 * Math.min(1, Math.max(0, distance) / 22000);
 }
-
 function random(state: RunnerState): number {
   let value = state.random | 0;
   value ^= value << 13;
@@ -49,11 +50,9 @@ function random(state: RunnerState): number {
   state.random = value >>> 0;
   return state.random / 4294967296;
 }
-
 function id(state: RunnerState): number {
   return state.nextId++;
 }
-
 function addEffect(
   state: RunnerState,
   kind: Effect['kind'],
@@ -73,12 +72,10 @@ function addEffect(
   if (state.effects.length > 48)
     state.effects.splice(0, state.effects.length - 48);
 }
-
 function notice(state: RunnerState, text: string): void {
   state.notice = text;
   state.noticeTime = 2.2;
 }
-
 function addPlatform(
   state: RunnerState,
   x: number,
@@ -96,7 +93,6 @@ function addPlatform(
   state.platforms.push(platform);
   return platform;
 }
-
 function addPickup(
   state: RunnerState,
   x: number,
@@ -106,7 +102,6 @@ function addPickup(
 ): void {
   state.pickups.push({ id: id(state), x, y, kind, weapon, taken: false });
 }
-
 function scrapLine(
   state: RunnerState,
   x: number,
@@ -114,206 +109,186 @@ function scrapLine(
   count = 3,
 ): void {
   for (let i = 0; i < count; i++)
-    addPickup(state, x + 55 * i, top + 24, 'scrap');
+    addPickup(state, x + 52 * i, top + 22, 'scrap');
 }
-
 function jumpArc(state: RunnerState, edge: number, top: number): void {
   const speed = getSpeed(edge);
-  for (const time of [0.18, 0.36, 0.54]) {
+  for (const time of [0.2, 0.38, 0.56])
     addPickup(
       state,
-      edge + speed * (time - 0.15),
-      top + JUMP_VELOCITY * time - 0.5 * GRAVITY * time * time + 14,
+      edge + speed * (time - 0.12),
+      top + JUMP_VELOCITY * time - 0.5 * GRAVITY * time * time + 17,
       'scrap',
     );
-  }
 }
-
 function pairWeapon(seed: number, chunk: number): WeaponId {
-  // Adjacent chunks share a seeded choice, even after old pickups prune.
-  // Recovery-road triples guarantee upgrades locally; chunk pairs can be far apart.
-  let value = (seed ^ Math.imul(Math.floor(chunk / 2) + 1, 0x9e3779b9)) >>> 0;
-  value = Math.imul(value ^ (value >>> 16), 0x21f0aaad);
-  value = Math.imul(value ^ (value >>> 15), 0x735a2d97);
-  value = (value ^ (value >>> 15)) >>> 0;
-  return WEAPON_ORDER[value % WEAPON_ORDER.length] ?? 'machine';
+  // A repeated pair makes upgrades discoverable, but a new route changes loadouts.
+  return (
+    WEAPON_ORDER[
+      (Math.floor(chunk / 4) + (seed % WEAPON_ORDER.length)) %
+        WEAPON_ORDER.length
+    ] ?? 'machine'
+  );
 }
-
-function addEquipment(state: RunnerState, x: number, top: number): void {
-  // Jump deliberately for a swap/upgrade; staying low preserves the current build.
+function addRival(
+  state: RunnerState,
+  x: number,
+  top: number,
+  kind: RivalKind = 'basic',
+  speed = 0,
+): void {
+  const definition = RIVALS[kind];
+  state.rivals.push({
+    id: id(state),
+    x,
+    y: top,
+    kind,
+    hp: definition.hp,
+    maxHp: definition.hp,
+    speed,
+    age: 0,
+    defeated: false,
+    hit: 0,
+  });
+}
+function addCrate(state: RunnerState, x: number, top: number): void {
+  state.obstacles.push({
+    id: id(state),
+    x,
+    top,
+    width: 34,
+    height: 30,
+    hp: 2,
+    maxHp: 2,
+    destroyed: false,
+    hit: 0,
+  });
+}
+function equipmentLane(state: RunnerState, start: number, top: number): void {
   const weapon = pairWeapon(state.seed, state.chunk);
-  addPickup(state, x, top + 100, 'weapon', weapon);
-  scrapLine(state, x - 55, top, 3);
-  if (state.chunk % 4 === 2) addPickup(state, x + 100, top + 25, 'shield');
-  if (state.chunk % 7 === 5) addPickup(state, x + 100, top + 25, 'magnet');
+  addPickup(state, start + 145, top + 88, 'weapon', weapon);
+  // Every gun immediately has something useful to do; all targets can be hopped.
+  const kinds: RivalKind[] = [
+    'basic',
+    'rusher',
+    'heavy',
+    'bomber',
+    'artillery',
+    'fortress',
+  ];
+  const kind = kinds[Math.min(kinds.length - 1, Math.floor(state.chunk / 3))]!;
+  const raised = state.chunk % 4 === 0;
+  addCrate(state, start + 385, raised ? boundedHeight(top + 12) : top);
+  addRival(state, start + 465, raised ? boundedHeight(top + 24) : top, kind);
+  if (state.chunk > 4)
+    addRival(
+      state,
+      start + 535,
+      raised ? boundedHeight(top + 24) : top,
+      'basic',
+    );
+  scrapLine(state, start + 225, top, 3);
+  if (state.chunk % 6 === 4) addPickup(state, start + 630, top + 25, 'shield');
+  if (state.chunk % 10 === 8) addPickup(state, start + 620, top + 25, 'magnet');
+}
+function boundedHeight(value: number): number {
+  return Math.max(TERRAIN_MIN_HEIGHT, Math.min(TERRAIN_MAX_HEIGHT, value));
 }
 
-/** A breathing road, connected hill, then a downhill valley. X pace stays fixed. */
-function addHillPhrase(state: RunnerState): void {
-  let top = 0;
-  const highFirst = state.chunk === 1 || random(state) < 0.5;
-  const heights = highFirst
-    ? [64, 128, 64, 0, -48, 16, 0]
-    : [-48, 16, 64, 128, 64, 0];
-  for (const endTop of heights) {
-    const width = Math.max(220, getSpeed(state.generatedUntil) * 0.9);
-    addPlatform(state, state.generatedUntil, width, top, endTop);
-    state.generatedUntil += width;
-    top = endTop;
-    if (top === 128) {
-      const width = 700;
-      addPlatform(state, state.generatedUntil, width, top);
-      addEquipment(state, state.generatedUntil + width / 2, top);
-      scrapLine(state, state.generatedUntil + 110, top);
-      state.generatedUntil += width;
-    }
-  }
-  addPlatform(state, state.generatedUntil, 260, 0);
-  state.generatedUntil += 260;
-}
-
-/**
- * Three beats of one fixed jump each, then a long rest. Stones are deliberately
- * smaller than the cart: a landing can consume a buffered press immediately.
- * Position each next beat from the previous landing, not from its right edge.
- * Acceleration during a single arc is <1px here; the full carried-state tests
- * validate the actual accelerating integrator, entry and exit together.
- */
-const PRECISION_PHRASES = [
-  [
-    [32, 40],
-    [64, 28],
-    [16, 20],
-  ],
-  [
-    [48, 32],
-    [16, 24],
-    [-32, 36],
-  ],
-  [
-    [16, 28],
-    [-48, 20],
-    [0, 40],
-  ],
-  [
-    [64, 40],
-    [16, 20],
-    [48, 28],
-  ],
-] as const;
-
-function addPrecisionPhrase(state: RunnerState): void {
-  addPlatform(state, state.generatedUntil, 240, 0);
-  state.generatedUntil += 240;
-  let launchX = state.generatedUntil - getSpeed(state.generatedUntil) * 0.14;
-  let top = 0;
-  const phrase =
-    PRECISION_PHRASES[
-      state.chunk === 2
-        ? 0
-        : Math.floor(random(state) * PRECISION_PHRASES.length)
-    ]!;
-  for (const [nextTop, width] of phrase) {
-    const centre = launchX + getSpeed(launchX) * jumpLandingTime(nextTop - top);
-    addPlatform(state, centre - width / 2, width, nextTop);
-    addPickup(state, centre, nextTop + 24, 'scrap');
-    launchX = centre;
-    top = nextTop;
-  }
-  // Leave enough ascent before an exposed exit face, including a last stone
-  // below zero. The wide rest still catches early and late arrivals.
-  const restStart =
-    launchX + getSpeed(launchX) * (jumpLandingTime(-top) - 0.28);
-  addPlatform(state, restStart, 760, 0);
-  addEquipment(state, restStart + 380, 0);
-  state.generatedUntil = restStart + 760;
-}
-
-/** Append complete authored rhythm phrases; never remove/rewrite terrain. */
+/** Short, complete phrases: a readable gap, a wide landing, then the next beat. */
 export function generateTerrain(
   state: RunnerState,
   target = state.distance + GENERATION_AHEAD,
 ): void {
   while (state.generatedUntil < target) {
-    const start = state.generatedUntil;
-    const previous = state.platforms[state.platforms.length - 1];
-    const top = previous ? platformTopAt(previous, start) : 0;
-    const speed = getSpeed(start);
-    const stage = Math.min(5, Math.floor(start / 2400));
+    const edge = state.generatedUntil;
+    const previous = state.platforms[state.platforms.length - 1]!;
+    const top = platformTopAt(previous, edge);
+    const speed = getSpeed(edge);
     const roll = random(state);
     const first = state.chunk === 0;
-    const recovery = !first && state.chunk % 4 === 3;
-    const crate = state.chunk > 3 && !recovery && stage >= 1 && roll < 0.22;
-
-    if (first) {
-      // Preserve a simple first jump and a generous landing to learn the controls.
-      jumpArc(state, start, top);
-      addPlatform(state, 980, 610, 0);
-      state.generatedUntil = 1590;
-      scrapLine(state, 1190, 0);
-      addEquipment(state, 1310, 0);
-    } else if (recovery) {
-      // A full straight before and after a rival. Rivals stop well before its edge.
-      const length = 1700;
-      addPlatform(state, start, length, top);
-      scrapLine(state, start + 100, top, 4);
-      addEquipment(state, start + 300, top);
-      // A local three-pickup build window survives even when vertical phrases
-      // between other rewards exceed the weapon lifetime. Every jump is optional.
-      const weapon = pairWeapon(state.seed, state.chunk);
-      addPickup(state, start + 650, top + 100, 'weapon', weapon);
-      addPickup(state, start + 1000, top + 100, 'weapon', weapon);
-      if (stage >= 1) {
-        const kinds: RivalKind[] = [
-          'basic',
+    const narrow = edge > 12500 && state.chunk % 13 === 11;
+    const gap = speed * (first ? 0.34 + roll * 0.04 : 0.36 + roll * 0.1);
+    const rise = first ? 0 : [-32, 0, 32, 48][Math.floor(random(state) * 4)]!;
+    const nextTop = boundedHeight(top + rise);
+    const start = edge + gap;
+    jumpArc(state, edge, top);
+    if (narrow) {
+      // One late-run accent, never a chain. A wide exit is part of this phrase.
+      addPlatform(state, start, 160, nextTop);
+      addPickup(state, start + 80, nextTop + 22, 'scrap');
+      const exit = start + 160 + speed * 0.32;
+      addPlatform(state, exit, 620, nextTop);
+      jumpArc(state, start + 160, nextTop);
+      scrapLine(state, exit + 170, nextTop, 4);
+      state.generatedUntil = exit + 620;
+    } else if (state.chunk % 3 === 1) {
+      // A generous landing flows through a short climb or dip and a clear ramp lip.
+      addPlatform(state, start, 300, nextTop);
+      const rampEnd = boundedHeight(nextTop + (roll < 0.5 ? 64 : -48));
+      addPlatform(state, start + 300, 200, nextTop, rampEnd);
+      addPlatform(state, start + 500, 280, rampEnd);
+      scrapLine(state, start + 135, nextTop, 3);
+      for (let i = 0; i < 3; i++)
+        addPickup(
+          state,
+          start + 345 + 55 * i,
+          nextTop + ((rampEnd - nextTop) * (45 + 55 * i)) / 200 + 24,
+          'scrap',
+        );
+      if (state.chunk >= 4) {
+        addPickup(
+          state,
+          start + 125,
+          nextTop + 88,
+          'weapon',
+          pairWeapon(state.seed, state.chunk),
+        );
+        addRival(
+          state,
+          start + 365,
+          nextTop + (rampEnd - nextTop) * 0.325,
           'rusher',
-          'heavy',
-          'bomber',
-          'artillery',
-          'fortress',
-        ];
-        const unlocked = Math.min(kinds.length, stage + 1);
-        const kind = kinds[Math.floor(random(state) * unlocked)] ?? 'basic';
-        const definition = RIVALS[kind];
-        state.rivals.push({
-          id: id(state),
-          x: start + 600,
-          y: top,
-          kind,
-          hp: definition.hp,
-          maxHp: definition.hp,
-          speed: speed * definition.pace,
-          age: 0,
-          defeated: false,
-          hit: 0,
-        });
-        scrapLine(state, start + 1320, top);
+        );
+        addRival(
+          state,
+          start + 445,
+          nextTop + (rampEnd - nextTop) * 0.725,
+          state.chunk > 9 ? 'artillery' : 'basic',
+        );
       }
-      state.generatedUntil += length;
-    } else if (crate) {
-      const length = 920 + random(state) * 120;
-      addPlatform(state, start, length, top);
-      const x = start + 250;
-      state.obstacles.push({
-        id: id(state),
-        x,
-        width: 30 + stage * 2,
-        height: 25 + stage,
-        top,
-      });
-      addPickup(state, x + 15, top + 105, 'scrap');
-      scrapLine(state, start + 480, top);
-      addEquipment(state, start + length - 290, top);
-      state.generatedUntil += length;
-    } else if (state.chunk === 1 || state.chunk % 4 === 1) {
-      addHillPhrase(state);
+      state.generatedUntil = start + 780;
+    } else if (state.chunk % 2 === 0 && !first) {
+      if (state.chunk % 4 === 0) {
+        const bump = boundedHeight(nextTop + 24);
+        addPlatform(state, start, 325, nextTop);
+        addPlatform(state, start + 325, 120, nextTop, bump);
+        addPlatform(state, start + 445, 140, bump);
+        addPlatform(state, start + 585, 120, bump, nextTop);
+        addPlatform(state, start + 705, 195, nextTop);
+      } else addPlatform(state, start, 900, nextTop);
+      equipmentLane(state, start, nextTop);
+      state.generatedUntil = start + 900;
     } else {
-      addPrecisionPhrase(state);
+      const width = first
+        ? 490 + random(state) * 70
+        : 420 + random(state) * 150;
+      addPlatform(state, start, width, nextTop);
+      scrapLine(state, start + 125, nextTop, 4);
+      // Airborne rewards are a choice between holding a jump and staying low.
+      if (state.chunk > 2)
+        addPickup(
+          state,
+          start + 250,
+          nextTop + 88,
+          'weapon',
+          pairWeapon(state.seed, state.chunk),
+        );
+      state.generatedUntil = start + width;
     }
     state.chunk++;
   }
 }
-
 export function createRunner(seed = 1): RunnerState {
   const normalizedSeed = Math.trunc(seed) >>> 0 || 0x6d2b79f5;
   const state: RunnerState = {
@@ -333,6 +308,12 @@ export function createRunner(seed = 1): RunnerState {
       buffer: 0,
       invulnerable: 0,
       squash: 0,
+      holding: false,
+      airHops: 1,
+      lastJumpX: null,
+      lastJumpY: 0,
+      flightJumped: false,
+      flightTarget: null,
     },
     platforms: [],
     obstacles: [],
@@ -340,7 +321,7 @@ export function createRunner(seed = 1): RunnerState {
     rivals: [],
     shots: [],
     effects: [],
-    generatedUntil: 900,
+    generatedUntil: 0,
     chunk: 0,
     jumps: 0,
     scrap: 0,
@@ -350,97 +331,163 @@ export function createRunner(seed = 1): RunnerState {
     magnet: 0,
     weapon: null,
     lastWeapon: null,
+    weaponLevels: {},
+    runLevel: 1,
+    nextScrapLevel: 25,
+    failure: null,
+    deathFeedback: '',
     notice: '',
     noticeTime: 0,
   };
-  addPlatform(state, -500, 1400, 0);
-  scrapLine(state, 200, 0, 4);
-  addPickup(state, 490, 100, 'weapon', 'machine');
-  scrapLine(state, 440, 0, 3);
-  scrapLine(state, 630, 0, 3);
+  // Mix the seed before the opening roll so nearby seeds visibly differ early.
+  random(state);
+  random(state);
+  random(state);
+  state.generatedUntil = 570 + random(state) * 50;
+  addPlatform(state, -500, state.generatedUntil + 500, 0);
+  scrapLine(state, 95, 0, 3);
+  addPickup(state, 260, 24, 'weapon', 'machine');
+  addRival(state, 475, 0);
+  scrapLine(state, 340, 0, 3);
   generateTerrain(state);
   return state;
 }
-
+export function clearJumpInput(state: RunnerState): void {
+  state.player.holding = false;
+  state.player.buffer = 0;
+  if (!state.player.grounded && state.player.vy > RELEASE_VELOCITY)
+    state.player.vy = RELEASE_VELOCITY;
+}
 export function startRunner(state: RunnerState): void {
   if (state.status !== 'ready') return;
   state.status = 'running';
-  state.player.buffer = 0;
-  notice(state, '空中の武器へジャンプ');
-  state.noticeTime = 4;
+  clearJumpInput(state);
+  notice(state, '長押しで遠くへ · 空中でもう一度でリカバリー');
+  state.noticeTime = 3.5;
 }
-
 export function pauseRunner(state: RunnerState): void {
   if (state.status === 'running') state.status = 'paused';
-  state.player.buffer = 0;
+  clearJumpInput(state);
 }
-
 export function resumeRunner(state: RunnerState): void {
   if (state.status !== 'paused') return;
   state.status = 'running';
-  state.player.buffer = 0;
+  clearJumpInput(state);
 }
-
-function jump(state: RunnerState): void {
+function nextLanding(state: RunnerState, x: number): Platform | null {
+  let support = state.platforms.find(
+    (road) =>
+      x >= road.x - PLAYER_HALF_HITBOX &&
+      x < road.x + road.width + PLAYER_HALF_HITBOX,
+  );
+  if (!support) return state.platforms.find((road) => road.x > x) ?? null;
+  let index = state.platforms.indexOf(support);
+  while (
+    state.platforms[index + 1] &&
+    platformsJoin(support, state.platforms[index + 1]!)
+  )
+    support = state.platforms[++index]!;
+  return state.platforms[index + 1] ?? null;
+}
+function jump(state: RunnerState, recovery = false): void {
   const player = state.player;
-  player.vy = JUMP_VELOCITY;
+  if (!recovery) {
+    player.lastJumpX = state.distance;
+    player.lastJumpY = player.y;
+    player.flightTarget = nextLanding(state, state.distance);
+  }
+  player.flightJumped = true;
+  player.vy = recovery
+    ? RECOVERY_VELOCITY
+    : player.holding
+      ? JUMP_VELOCITY
+      : RELEASE_VELOCITY;
+  if (recovery) player.airHops = 0;
   player.grounded = false;
   player.coyote = 0;
   player.buffer = 0;
-  player.squash = -0.16;
+  player.squash = -0.32;
   state.jumps++;
-  addEffect(state, 'jump', state.distance, player.y);
+  addEffect(
+    state,
+    recovery ? 'recover' : 'jump',
+    state.distance,
+    player.y,
+    recovery ? 'リカバリー' : undefined,
+  );
 }
-
-/** One press is one fixed jump. Airborne presses buffer, never double-jump. */
+/** A physical press is consumed once. A second airborne press is one recovery. */
 export function requestJump(state: RunnerState): boolean {
-  if (state.status !== 'running') return false;
-  state.player.buffer = JUMP_BUFFER_TIME;
+  if (state.status !== 'running' || state.player.holding) return false;
+  state.player.holding = true;
   if (state.player.grounded || state.player.coyote > 0) {
     jump(state);
     return true;
   }
+  if (state.player.airHops > 0) {
+    jump(state, true);
+    return true;
+  }
+  state.player.buffer = JUMP_BUFFER_TIME;
   return false;
 }
-
-export function collectPickup(state: RunnerState, pickup: Pickup): void {
-  if (pickup.taken) return;
-  pickup.taken = true;
-  if (pickup.kind === 'scrap') {
-    state.scrap++;
-    addEffect(state, 'pickup', pickup.x, pickup.y);
-    return;
-  }
-  if (pickup.kind === 'weapon' && pickup.weapon) {
-    const same = state.weapon?.id === pickup.weapon;
-    const level = same
-      ? Math.min(MAX_WEAPON_LEVEL, (state.weapon?.level ?? 0) + 1)
-      : 1;
-    state.weapon = {
-      id: pickup.weapon,
-      level,
-      remaining: WEAPON_DISTANCE,
-      cooldown: 0,
-    };
-    state.lastWeapon = pickup.weapon;
-    notice(
-      state,
-      `${WEAPONS[pickup.weapon].label} ${same ? `LV ${level}` : '装備！'}`,
-    );
-  } else if (pickup.kind === 'shield') {
-    state.shield = 1;
-    notice(state, 'シールド獲得');
-  } else if (pickup.kind === 'magnet') {
-    state.magnet = MAGNET_DISTANCE;
-    notice(state, 'スクラップ磁石！');
-  }
-  addEffect(state, 'pickup', pickup.x, pickup.y, state.notice);
+export function releaseJump(state: RunnerState): void {
+  state.player.holding = false;
+  if (state.player.vy > RELEASE_VELOCITY) state.player.vy = RELEASE_VELOCITY;
 }
-
-function endRun(state: RunnerState, reason: RunnerState['reason']): void {
+function recordFailure(state: RunnerState, impact?: Platform): void {
+  if (state.failure) return;
+  const player = state.player;
+  const passedTarget =
+    player.flightTarget &&
+    state.distance - PLAYER_HALF_HITBOX >
+      player.flightTarget.x + player.flightTarget.width &&
+    player.y < platformTopAt(player.flightTarget, state.distance);
+  const target = passedTarget
+    ? player.flightTarget
+    : (impact ?? player.flightTarget);
+  let kind: NonNullable<RunnerState['failure']>['kind'] = 'fall';
+  if (state.reason === 'obstacle' || state.reason === 'rival')
+    kind = 'collision';
+  else if (!player.flightJumped) kind = 'no-input';
+  else if (passedTarget) kind = 'overshot';
+  else if (impact && player.y < impact.top) kind = 'short';
+  else if (
+    target &&
+    state.distance - PLAYER_HALF_HITBOX > target.x + target.width &&
+    player.y < platformTopAt(target, state.distance)
+  )
+    kind = 'overshot';
+  state.failure = {
+    kind,
+    x: state.distance,
+    y: player.y,
+    takeoffX: player.lastJumpX,
+    takeoffY: player.lastJumpY,
+    targetX: target?.x ?? null,
+    targetY: target?.top ?? null,
+    targetEnd: target ? target.x + target.width : null,
+  };
+  state.deathFeedback = {
+    'no-input': 'ジャンプせずに足場を離れた · 崖の手前で押そう',
+    short: '着地点の側面に接触 · 長押しか空中のもう一押しで距離を調整',
+    overshot: '着地点の先まで飛び越えた · 早めに離すと低く跳べる',
+    collision:
+      state.reason === 'rival'
+        ? 'ライバルに接触 · 撃つか、跳び越えよう'
+        : '障害物に接触 · 武器で壊すか、跳び越えよう',
+    fall: '足場に着地できなかった · 長押しと空中の一押しで調整',
+  }[kind];
+}
+function endRun(
+  state: RunnerState,
+  reason: RunnerState['reason'],
+  impact?: Platform,
+): void {
   state.status = 'over';
   state.reason = reason;
-  state.player.buffer = 0;
+  recordFailure(state, impact);
+  clearJumpInput(state);
   addEffect(state, 'burst', state.distance, state.player.y + 18);
 }
 
@@ -588,6 +635,7 @@ function stepPhysics(state: RunnerState, dt: number, oldX: number): void {
               : 0)
             ? 'wall'
             : 'gap',
+          platform,
         );
         return;
       }
@@ -600,6 +648,12 @@ function stepPhysics(state: RunnerState, dt: number, oldX: number): void {
     player.coyote = COYOTE_TIME;
   } else {
     player.grounded = false;
+    if (wasGrounded) {
+      player.lastJumpX = null;
+      player.lastJumpY = freeY;
+      player.flightJumped = false;
+      player.flightTarget = nextLanding(state, oldX);
+    }
     player.coyote = wasGrounded ? COYOTE_TIME : Math.max(0, player.coyote - dt);
     const duration = dt - freeStart;
     player.y = feetAt(dt);
@@ -619,129 +673,19 @@ function stepPhysics(state: RunnerState, dt: number, oldX: number): void {
       player.y = platformTopAt(road, state.distance);
       player.vy = 0;
       player.grounded = true;
+      player.airHops = 1;
+      player.flightTarget = null;
+      player.flightJumped = false;
+      player.lastJumpX = null;
+      player.lastJumpY = player.y;
       player.coyote = COYOTE_TIME;
-      player.squash = 0.17;
+      player.squash = 0.65;
       addEffect(state, 'land', state.distance, player.y);
       if (player.buffer > 0) jump(state);
     }
   }
 
-  for (const obstacle of state.obstacles) {
-    if (
-      state.distance + PLAYER_HALF_HITBOX > obstacle.x - obstacle.width / 2 &&
-      state.distance - PLAYER_HALF_HITBOX < obstacle.x + obstacle.width / 2 &&
-      player.y < obstacle.top + obstacle.height - 1 &&
-      player.y + PLAYER_HEIGHT > obstacle.top + 2
-    ) {
-      endRun(state, 'obstacle');
-      return;
-    }
-  }
   if (player.y < TERRAIN_DEATH_HEIGHT) endRun(state, 'gap');
-}
-
-function damageRival(state: RunnerState, rival: Rival, damage: number): void {
-  if (rival.defeated) return;
-  rival.hp = Math.max(0, rival.hp - damage);
-  rival.hit = 0.15;
-  if (rival.hp === 0) {
-    rival.defeated = true;
-    state.defeated++;
-    state.scrap += 3;
-    addEffect(state, 'burst', rival.x, rival.y + 20, '+3');
-  } else {
-    addEffect(state, 'hit', rival.x, rival.y + 20);
-  }
-}
-
-function fireWeapon(state: RunnerState, dt: number): void {
-  const weapon = state.weapon;
-  if (!weapon) return;
-  weapon.cooldown = Math.max(0, weapon.cooldown - dt);
-  if (weapon.cooldown > 0) return;
-  const definition = WEAPONS[weapon.id];
-  const targets = state.rivals
-    .filter(
-      (rival) =>
-        !rival.defeated &&
-        rival.x >= state.distance - (weapon.id === 'mine' ? 95 : 12) &&
-        rival.x - state.distance <= definition.range,
-    )
-    .sort((a, b) => a.x - b.x);
-  const first = targets[0];
-  if (!first) return;
-  const scale = 1 + (weapon.level - 1) * 0.45;
-  weapon.cooldown = definition.cadence / (1 + (weapon.level - 1) * 0.12);
-  let hits = [first];
-  if (weapon.id === 'rail' || weapon.id === 'flame') hits = targets;
-  if (weapon.id === 'scatter')
-    hits = targets.filter((target) => target.x - first.x <= 110).slice(0, 3);
-  if (weapon.id === 'rocket' || weapon.id === 'mine') {
-    hits = state.rivals.filter(
-      (target) => !target.defeated && Math.abs(target.x - first.x) < 125,
-    );
-  }
-  for (const target of hits)
-    damageRival(state, target, definition.damage * scale);
-  const muzzle = playerMuzzle(state);
-  state.shots.push({
-    id: id(state),
-    x: muzzle.x,
-    y: muzzle.y,
-    endX: weapon.id === 'rail' ? state.distance + definition.range : first.x,
-    endY: first.y + RIVALS[first.kind].height / 2,
-    life: weapon.id === 'flame' ? 0.11 : 0.16,
-    weapon: weapon.id,
-  });
-  if (state.shots.length > 24) state.shots.splice(0, state.shots.length - 24);
-}
-
-function stepRivals(state: RunnerState, dt: number): void {
-  for (const rival of state.rivals) {
-    // Warnings begin in the shared portrait/landscape visible reaction window.
-    if (rival.x - state.distance <= 500) rival.age += dt;
-    rival.hit = Math.max(0, rival.hit - dt);
-    if (rival.defeated) continue;
-    const road = state.platforms.find(
-      (platform) =>
-        rival.x >= platform.x && rival.x <= platform.x + platform.width,
-    );
-    // Generated rivals stay on their recovery straight, far from the next hole.
-    if (road)
-      rival.x = Math.min(rival.x + rival.speed * dt, road.x + road.width - 360);
-  }
-  fireWeapon(state, dt);
-  for (const rival of state.rivals) {
-    if (
-      rival.defeated ||
-      rival.age < RIVAL_WARNING_TIME ||
-      state.player.invulnerable > 0
-    )
-      continue;
-    const definition = RIVALS[rival.kind];
-    if (
-      Math.abs(rival.x - state.distance) <
-        definition.width / 2 + PLAYER_HALF_HITBOX &&
-      state.player.y < rival.y + definition.height - 2 &&
-      state.player.y + PLAYER_HEIGHT > rival.y + 3
-    ) {
-      if (state.shield > 0) {
-        state.shield = 0;
-        state.player.invulnerable = 1.25;
-        notice(state, 'シールドが守った！');
-        addEffect(
-          state,
-          'burst',
-          state.distance,
-          state.player.y + 20,
-          'ガード',
-        );
-      } else {
-        endRun(state, 'rival');
-        return;
-      }
-    }
-  }
 }
 
 function prune(state: RunnerState): void {
@@ -775,8 +719,8 @@ function prune(state: RunnerState): void {
 function stepFixed(state: RunnerState, dt: number): void {
   state.time += dt;
   state.speed = getSpeed(state.distance);
-  const travel = state.speed * dt;
-  const oldX = state.distance;
+  const travel = state.speed * dt,
+    oldX = state.distance;
   state.distance += travel;
   state.noticeTime = Math.max(0, state.noticeTime - dt);
   state.magnet = Math.max(0, state.magnet - travel);
@@ -784,19 +728,12 @@ function stepFixed(state: RunnerState, dt: number): void {
   state.effects = state.effects.filter((effect) => effect.life > 0);
   for (const shot of state.shots) shot.life -= dt;
   state.shots = state.shots.filter((shot) => shot.life > 0);
-  if (state.weapon) {
-    state.weapon.remaining = Math.max(0, state.weapon.remaining - travel);
-    if (state.weapon.remaining === 0) {
-      state.weapon = null;
-      notice(state, '武器終了 · 走り続けよう');
-    }
-  }
   generateTerrain(state);
   stepPhysics(state, dt, oldX);
   if (state.status !== 'running') return;
   for (const pickup of state.pickups) {
-    const dx = pickup.x - state.distance;
-    const dy = pickup.y - (state.player.y + PLAYER_HEIGHT / 2);
+    const dx = pickup.x - state.distance,
+      dy = pickup.y - (state.player.y + PLAYER_HEIGHT / 2);
     const magnet =
       pickup.kind === 'scrap' &&
       state.magnet > 0 &&
@@ -804,7 +741,11 @@ function stepFixed(state: RunnerState, dt: number): void {
     if (!pickup.taken && (magnet || (Math.abs(dx) < 32 && Math.abs(dy) < 28)))
       collectPickup(state, pickup);
   }
-  stepRivals(state, dt);
+  stepCombat(state, dt);
+  if ((state.status as RunnerState['status']) === 'over') {
+    recordFailure(state);
+    clearJumpInput(state);
+  }
   prune(state);
 }
 

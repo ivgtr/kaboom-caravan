@@ -16,6 +16,7 @@ export default defineConfig({
     baseURL: playwrightBaseUrl,
     trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video: process.env.CAPTURE_UI_REVIEW ? 'on' : 'retain-on-failure',
   },
   projects: [
     {

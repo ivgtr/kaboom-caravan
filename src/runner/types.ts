@@ -17,6 +17,10 @@ export interface Obstacle {
   width: number;
   height: number;
   top: number;
+  hp: number;
+  maxHp: number;
+  destroyed: boolean;
+  hit: number;
 }
 export interface Pickup {
   id: number;
@@ -51,7 +55,7 @@ export interface Effect {
   id: number;
   x: number;
   y: number;
-  kind: 'jump' | 'land' | 'pickup' | 'hit' | 'burst' | 'pass';
+  kind: 'jump' | 'recover' | 'land' | 'pickup' | 'hit' | 'burst' | 'pass';
   life: number;
   maxLife: number;
   text?: string;
@@ -59,8 +63,17 @@ export interface Effect {
 export interface Weapon {
   id: WeaponId;
   level: number;
-  remaining: number;
   cooldown: number;
+}
+export interface FailureEvidence {
+  kind: 'no-input' | 'short' | 'overshot' | 'collision' | 'fall';
+  x: number;
+  y: number;
+  takeoffX: number | null;
+  takeoffY: number;
+  targetX: number | null;
+  targetY: number | null;
+  targetEnd: number | null;
 }
 export interface RunnerState {
   seed: number;
@@ -79,6 +92,12 @@ export interface RunnerState {
     buffer: number;
     invulnerable: number;
     squash: number;
+    holding: boolean;
+    airHops: 0 | 1;
+    lastJumpX: number | null;
+    lastJumpY: number;
+    flightJumped: boolean;
+    flightTarget: Platform | null;
   };
   platforms: Platform[];
   obstacles: Obstacle[];
@@ -96,10 +115,15 @@ export interface RunnerState {
   magnet: number;
   weapon: Weapon | null;
   lastWeapon: WeaponId | null;
+  weaponLevels: Partial<Record<WeaponId, number>>;
+  runLevel: number;
+  nextScrapLevel: number;
+  failure: FailureEvidence | null;
+  deathFeedback: string;
   notice: string;
   noticeTime: number;
 }
-export const PLAYER_WIDTH = 50;
+export const PLAYER_WIDTH = 44;
 export const PLAYER_HEIGHT = 36;
 export const FIXED_DT = 1 / 120;
 export const PIXELS_PER_METRE = 10;

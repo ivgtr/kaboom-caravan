@@ -20,51 +20,51 @@ export const WEAPON_ORDER: WeaponId[] = [
 
 export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   machine: {
-    label: 'MACHINE',
+    label: '連射銃',
     color: '#ffdc74',
-    description: '前方のライバルへすばやく連射',
+    description: '前方へ連射。ライバルも木箱も素早く削る',
     range: 430,
     cadence: 0.18,
     damage: 1,
   },
   scatter: {
-    label: 'SCATTER',
+    label: '散弾砲',
     color: '#ffa36b',
-    description: '近距離から強い一撃を放つ散弾',
+    description: '5発の散弾。近い敵や広がった群れに強い',
     range: 260,
     cadence: 0.72,
     damage: 3,
   },
   rocket: {
-    label: 'ROCKET',
+    label: 'ロケット',
     color: '#ff7e87',
-    description: '遠くを狙う重い一発',
+    description: '遠くから爆発。近くの敵と木箱を巻き込む',
     range: 570,
-    cadence: 1.5,
+    cadence: 1.12,
     damage: 4,
   },
   rail: {
-    label: 'RAIL',
+    label: '貫通砲',
     color: '#b9a1ff',
-    description: '遠くまで貫く一撃',
+    description: '一直線に貫通。並んだ敵と木箱をまとめて撃つ',
     range: 700,
-    cadence: 1.08,
+    cadence: 0.92,
     damage: 2.5,
   },
   flame: {
-    label: 'FLAME',
+    label: '火炎放射',
     color: '#ffbd63',
-    description: '近距離を連続で焼き払う',
-    range: 170,
+    description: '短い扇形を焼き払う。近くの群れに強い',
+    range: 210,
     cadence: 0.1,
-    damage: 0.65,
+    damage: 0.8,
   },
   mine: {
-    label: 'MINE',
+    label: '近接ボム',
     color: '#8ce8c5',
-    description: 'すれ違う相手に爆弾を投げる',
-    range: 125,
-    cadence: 1.2,
+    description: '前後の近い相手に自動起爆。飛び越した敵にも',
+    range: 135,
+    cadence: 0.85,
     damage: 5,
   },
 };
@@ -80,7 +80,7 @@ export interface RivalDefinition {
 
 export const RIVALS: Record<RivalKind, RivalDefinition> = {
   basic: {
-    label: 'MUDSKIPPER',
+    label: '泥はねバギー',
     color: '#a7cd72',
     width: 40,
     height: 30,
@@ -88,7 +88,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     pace: 0.22,
   },
   rusher: {
-    label: 'ROAD GNASHER',
+    label: '突撃バギー',
     color: '#f1bb6e',
     width: 36,
     height: 30,
@@ -96,7 +96,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     pace: 0.28,
   },
   heavy: {
-    label: 'IRON TOAD',
+    label: '鉄ガエル',
     color: '#9cacc9',
     width: 52,
     height: 40,
@@ -104,7 +104,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     pace: 0.19,
   },
   bomber: {
-    label: 'BOOM BUG',
+    label: 'ボムビートル',
     color: '#f38f81',
     width: 44,
     height: 34,
@@ -112,7 +112,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     pace: 0.2,
   },
   artillery: {
-    label: 'DUST CANNON',
+    label: '砂ぼこり砲',
     color: '#bba1d9',
     width: 50,
     height: 38,
@@ -120,7 +120,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     pace: 0.2,
   },
   fortress: {
-    label: 'TINY TANK',
+    label: '豆タンク',
     color: '#c3c786',
     width: 62,
     height: 44,
