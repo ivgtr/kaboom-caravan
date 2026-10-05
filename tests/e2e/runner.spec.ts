@@ -118,6 +118,10 @@ test('early chest grows score; jackpot freezes the world, then resumes a queued 
   await expect(runner).toHaveAttribute('data-status', 'over');
   await expect(page.getByLabel('ラン結果')).toContainText('最大CHAIN');
   const finalScore = await number(page, 'score');
+  const parts = await page.locator('.runner-score-parts b').allTextContents();
+  expect(
+    parts.reduce((sum, value) => sum + Number(value.replaceAll(',', '')), 0),
+  ).toBe(finalScore);
   expect(
     await page.evaluate(() =>
       Number(localStorage.getItem('kaboom-score-fever-best-v1')),
@@ -302,6 +306,7 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
   await live.keyboard.up('Space');
   await capture(live, info, 'desktop-normal-speed-final');
   const status = await live.getByTestId('runner').getAttribute('data-status');
+  await live.getByRole('button', { name: '一時停止', exact: true }).click();
   const audio = await live.evaluate(async () => {
     const qa = window as unknown as {
       qaRecorder?: MediaRecorder;

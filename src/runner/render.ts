@@ -424,7 +424,10 @@ function renderFeverShow(
   reducedMotion: boolean,
 ) {
   const f = state.fever;
-  if (state.status === 'ready') return;
+  if (state.status === 'ready' || state.status === 'over') return;
+  const rewardCue = f.rewardCue;
+  const rewardAge = rewardCue ? f.clock - rewardCue.clock : 10;
+  const showingAward = rewardCue !== null && rewardAge < 1;
   const reel = f.reel;
   const hyper = f.hyperTime > 0;
   const rush = f.rushTime > 0;
@@ -585,7 +588,7 @@ function renderFeverShow(
       cabinetWidth * 0.275,
       reel.revealed > 0 ? '#c6fff0' : '#fff4bd',
     );
-    if (reel.revealed > 0) {
+    if (reel.revealed > 0 && !showingAward) {
       const level = f.abilities[latest.kind];
       const rank =
         level >= MAX_ABILITY_LEVEL
@@ -602,7 +605,7 @@ function renderFeverShow(
         cabinetWidth * 0.75,
         '#ffe28b',
       );
-    } else {
+    } else if (!showingAward) {
       fittedText(
         ctx,
         `${count} ${count === 1 ? 'REWARD' : 'REWARDS'} · AUTO OPEN`,
@@ -664,18 +667,16 @@ function renderFeverShow(
       '#fff1c0',
     );
   }
-  const rewardCue = f.rewardCue;
-  const age = rewardCue ? f.clock - rewardCue.clock : 10;
-  if (rewardCue && age < 1) {
+  if (rewardCue && showingAward) {
     const y = top + cabinetHeight + 81;
     ctx.save();
-    ctx.globalAlpha = Math.min(1, (1 - age) * 4);
-    const pop = reducedMotion ? 1 : 1 + Math.max(0, 0.18 - age) * 1.1;
+    ctx.globalAlpha = Math.min(1, (1 - rewardAge) * 4);
+    const pop = reducedMotion ? 1 : 1 + Math.max(0, 0.18 - rewardAge) * 1.1;
     fittedText(
       ctx,
       `+${displayScore(rewardCue.value)}`,
       cx,
-      Math.min(view.ground - 90, y - age * 18),
+      Math.min(view.ground - 90, y - rewardAge * 18),
       Math.min(86, view.width * 0.08) * pop,
       view.width - view.anchor - 65,
       '#fff6b4',

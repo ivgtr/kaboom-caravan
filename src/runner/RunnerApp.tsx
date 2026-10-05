@@ -45,7 +45,17 @@ function snapshot(state: RunnerState) {
   return {
     status: state.status,
     score: Math.floor(state.score),
-    scoreParts: { ...state.scoreParts },
+    scoreParts: {
+      combat: Math.floor(state.scoreParts.combat),
+      loot: Math.floor(state.scoreParts.loot),
+      landing: Math.floor(state.scoreParts.landing),
+      // Put display-rounding remainder in travel so the visible parts add up.
+      travel:
+        Math.floor(state.score) -
+        Math.floor(state.scoreParts.combat) -
+        Math.floor(state.scoreParts.loot) -
+        Math.floor(state.scoreParts.landing),
+    },
     chain: state.fever.chain,
     bestChain: state.bestChain,
     multiplier: state.fever.multiplier,

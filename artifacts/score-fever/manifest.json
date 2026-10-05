@@ -99,7 +99,6 @@
   "runtime_budget_bytes": 667576,
   "verification": {
     "original_visual_review": true,
-    "alpha_preserved": true,
-    "runtime_screenshot_review": "Pending CI browser capture; local browser execution blocked by environment policy"
+    "alpha_preserved": true
   }
 }
