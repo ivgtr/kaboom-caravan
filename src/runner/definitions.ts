@@ -24,7 +24,7 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   machine: {
     label: '連射銃',
     color: '#ffdc74',
-    description: '前方へ連射。ライバルも木箱も素早く削る',
+    description: '前方へ連射。ライバルも補給箱も素早く削る',
     range: 430,
     cadence: 0.18,
     damage: 1,
@@ -41,7 +41,7 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   rocket: {
     label: 'ロケット',
     color: '#ff7e87',
-    description: '遠くから爆発。近くの敵と木箱を巻き込む',
+    description: '遠くから爆発。近くの敵と補給箱を巻き込む',
     range: 570,
     cadence: 1.12,
     damage: 4,
@@ -49,7 +49,7 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   rail: {
     label: '貫通砲',
     color: '#b9a1ff',
-    description: '一直線に貫通。並んだ敵と木箱をまとめて撃つ',
+    description: '一直線に貫通。並んだ敵と補給箱をまとめて撃つ',
     range: 700,
     cadence: 0.92,
     damage: 2.5,

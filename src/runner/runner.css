@@ -122,10 +122,11 @@ button:disabled {
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
-.runner-scrap i {
-  color: #ffe29c;
-  font-size: 19px;
-  font-style: normal;
+.runner-scrap img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  vertical-align: -4px;
 }
 .runner-gear {
   position: absolute;

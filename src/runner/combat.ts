@@ -377,7 +377,9 @@ export function absorbContact(state: RunnerState): boolean {
   state.shield = 0;
   state.player.invulnerable = 1.25;
   notice(state, 'シールドが守った！ スクラップで回復');
-  effect(state, 'burst', state.distance, state.player.y + 20, 'ガード');
+  effect(state, 'guard', state.distance, state.player.y + 24);
+  const flash = state.effects[state.effects.length - 1]!;
+  flash.life = flash.maxLife = 0.22;
   return true;
 }
 

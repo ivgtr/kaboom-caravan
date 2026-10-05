@@ -1,0 +1,8 @@
+{
+  "asset": "public/assets/runner-pickups/scrap-metal_v001.png",
+  "purpose": "Painted salvage pickup replacing the geometric diamond guide",
+  "generator": "OpenAI built-in image generation",
+  "reference": "public/assets/equipment/mod_armor_v001.png",
+  "prompt": "Transform the armor artwork into one compact bent cream-metal salvage plate with a hexagonal bolt, warm brass-orange edge accents, worn painted surfaces and dark hand-painted outline. Keep the original game style. Legible at20px. No backpack, ammo, coin, diamond, frame, glow or text. Transparent background.",
+  "sha256": "25fd0236f1cdfa349eeb65c09c497f1679971b078ce747278ad3b53489a230c3"
+}

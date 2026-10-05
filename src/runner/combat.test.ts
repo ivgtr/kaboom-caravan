@@ -254,6 +254,12 @@ describe('breakable route obstacles and contact', () => {
     expect(first.destroyed).toBe(true);
     expect(state.shield).toBe(0);
     expect(state.status).toBe('running');
+    expect(
+      state.effects.filter((effect) => effect.kind === 'guard'),
+    ).toHaveLength(1);
+    expect(
+      state.effects.find((effect) => effect.kind === 'guard')?.maxLife,
+    ).toBe(0.22);
     state.player.invulnerable = 0;
     crate(state, 15);
     stepCombat(state, FIXED_DT);

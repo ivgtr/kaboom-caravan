@@ -55,7 +55,8 @@ export interface Effect {
   id: number;
   x: number;
   y: number;
-  kind: 'jump' | 'recover' | 'land' | 'pickup' | 'hit' | 'burst' | 'pass';
+  kind:
+    'jump' | 'recover' | 'land' | 'pickup' | 'hit' | 'burst' | 'guard' | 'pass';
   life: number;
   maxLife: number;
   text?: string;

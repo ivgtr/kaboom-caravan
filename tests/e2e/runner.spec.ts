@@ -41,6 +41,7 @@ test('tap, hold and one recovery have distinct responsive results', async ({
   expect(await number(page, 'y')).toBeGreaterThan(tapHeight + 35);
   await expect(page.getByTestId('runner')).toHaveAttribute('data-jumps', '1');
   await capture(page, info, 'desktop-held-jump');
+  await page.clock.runFor(90);
   await page.keyboard.up('Space');
   await page.keyboard.down('Space');
   await page.clock.runFor(80);
@@ -54,6 +55,20 @@ test('tap, hold and one recovery have distinct responsive results', async ({
   await expect(page.getByTestId('runner')).toHaveAttribute('data-jumps', '2');
   await page.keyboard.up('Space');
   await capture(page, info, 'desktop-air-recovery');
+  // This real recovery misses the first gun, then the first rival spends the guard.
+  await page.clock.runFor(930);
+  await expect(page.getByTestId('runner')).toHaveAttribute('data-shield', '0');
+  await expect(page.getByTestId('runner')).toHaveAttribute(
+    'data-guard-flash',
+    'true',
+  );
+  await capture(page, info, 'desktop-guard-contact');
+  await page.clock.runFor(300);
+  await expect(page.getByTestId('runner')).toHaveAttribute(
+    'data-guard-flash',
+    'false',
+  );
+  await capture(page, info, 'desktop-guard-finished');
   expect(errors).toEqual([]);
 });
 

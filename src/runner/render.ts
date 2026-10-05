@@ -476,65 +476,19 @@ export function renderRunner(
   ctx.fillRect(0, ground - 2, width, height - ground + 2);
   const roads = connectedRoads(state.platforms);
   renderTerrain(ctx, roads, art.terrain, view, camera);
-  // World milestones are scenery, not a finish line.
-  const firstMark = Math.floor((camera - 100) / 1000) * 1000;
-  for (
-    let mark = Math.max(1000, firstMark);
-    mark < camera + width + 100;
-    mark += 1000
-  ) {
-    const platform = state.platforms.find(
-      (p) => mark >= p.x + 60 && mark < p.x + p.width - 60,
-    );
-    if (!platform) continue;
-    const x = sx(mark),
-      y = ground - platformTopAt(platform, mark);
-    ctx.fillStyle = '#43675b';
-    ctx.fillRect(x - 2, y - 106, 4, 106);
-    ctx.fillStyle = '#e9e5b7';
-    ctx.beginPath();
-    ctx.roundRect(x - 28, y - 110, 56, 29, 5);
-    ctx.fill();
-    ctx.font = '800 14px system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#3a645c';
-    ctx.fillText(`${mark / 10}m`, x, y - 90);
-  }
   for (const obstacle of state.obstacles) {
     if (obstacle.destroyed) continue;
     const x = sx(obstacle.x),
       y = ground - obstacle.top;
-    ctx.fillStyle = obstacle.hit > 0 ? '#c99458' : '#824f3f';
-    ctx.strokeStyle = '#563d36';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(
+    ellipse(ctx, x, y + 1, obstacle.width * 0.47, 3, '#183e4438');
+    // Keep the painted supply box inside the existing collision bounds.
+    ctx.drawImage(
+      art.crate,
       x - obstacle.width / 2,
       y - obstacle.height,
       obstacle.width,
       obstacle.height,
-      4,
     );
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#edbd75';
-    ctx.fillRect(
-      x - obstacle.width / 2 + 4,
-      y - obstacle.height + 4,
-      obstacle.width - 8,
-      7,
-    );
-    ctx.strokeStyle = '#dd995a';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(x - obstacle.width / 2 + 6, y - 6);
-    ctx.lineTo(x + obstacle.width / 2 - 6, y - obstacle.height + 12);
-    ctx.stroke();
-    ctx.strokeStyle = '#f5d29a';
-    ctx.beginPath();
-    ctx.moveTo(x - obstacle.width / 2 + 6, y - obstacle.height + 12);
-    ctx.lineTo(x + obstacle.width / 2 - 6, y - 6);
-    ctx.stroke();
   }
   for (const pickup of state.pickups) {
     if (pickup.taken) continue;
@@ -543,34 +497,21 @@ export function renderRunner(
     if (x < -80 || x > width + 80) continue;
     const bob = reducedMotion ? 0 : Math.sin(state.time * 3.5 + pickup.id) * 3;
     if (pickup.kind === 'scrap') {
-      ctx.save();
-      ctx.translate(x, y + bob);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = '#ffc45a';
-      ctx.strokeStyle = '#a76b33';
-      ctx.lineWidth = 2;
-      ctx.fillRect(-7, -7, 14, 14);
-      ctx.strokeRect(-7, -7, 14, 14);
-      ctx.fillStyle = '#fff2a6';
-      ctx.fillRect(-4, -4, 5, 5);
-      ctx.restore();
+      // Keep the familiar guide spacing and footprint with actual salvage art.
+      const size = 20;
+      const h = (size * art.scrap.height) / art.scrap.width;
+      ctx.drawImage(art.scrap, x - size / 2, y - h / 2 + bob, size, h);
     } else {
       const color = pickup.weapon ? WEAPONS[pickup.weapon].color : '#9fffe6';
-      ellipse(ctx, x, y + 30, 24, 5, '#244d4738');
-      ctx.fillStyle = '#193d4bdb';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.roundRect(x - 27, y - 28 + bob, 54, 54, 12);
-      ctx.fill();
-      ctx.stroke();
+      ellipse(ctx, x, y + 27, 20, 3, '#244d4730');
       const img = pickup.weapon
         ? art.weapons[pickup.weapon]
         : pickup.kind === 'shield'
           ? art.shield
           : art.magnet;
-      const h = (37 * img.height) / img.width;
-      ctx.drawImage(img, x - 18.5, y - h / 2 + bob, 37, h);
+      const size = 45;
+      const h = (size * img.height) / img.width;
+      ctx.drawImage(img, x - size / 2, y - h / 2 + bob, size, h);
       text(
         ctx,
         pickup.weapon
@@ -603,10 +544,6 @@ export function renderRunner(
       : Math.sin(rival.age * 16) * (rival.kind === 'rusher' ? 4 : 2);
     const pose = rival.defeated ? 3 : Math.floor(rival.age * 6) % 2;
     sprite(ctx, art.rivals[rival.kind][pose]!, x, y + bounce, size, true);
-    if (rival.hit > 0 && !rival.defeated) {
-      ctx.globalAlpha = 0.55;
-      ellipse(ctx, x, y - 20, 24, 25, '#ffda83');
-    }
     ctx.restore();
     if (!rival.defeated) {
       // A high-speed warning may begin just outside portrait view. Keep the
@@ -699,39 +636,7 @@ export function renderRunner(
     renderWheelMotion(ctx, state.distance, reducedMotion);
     if (state.weapon) {
       sprite(ctx, art.weapons[state.weapon.id], 6, -46, 29);
-      for (let level = 0; level < state.weapon.level; level++) {
-        ellipse(
-          ctx,
-          1 + level * 5,
-          -48,
-          1.5,
-          1.5,
-          WEAPONS[state.weapon.id].color,
-        );
-      }
     }
-    if (state.magnet > 0) {
-      ctx.strokeStyle = '#8ce8c599';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(-19, -24, 6, -Math.PI * 0.6, Math.PI * 0.6);
-      ctx.stroke();
-    }
-  }
-  if (state.shield > 0) {
-    ctx.strokeStyle = '#befff18c';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(6, -26, 41, 35, 0, Math.PI, Math.PI * 2);
-    ctx.stroke();
-  }
-  if (
-    !state.player.grounded &&
-    state.player.airHops > 0 &&
-    state.status === 'running'
-  ) {
-    // A single spare-boost pip stays readable without a tutorial over the road.
-    ellipse(ctx, -24, -38, 3, 3, '#d0fff0');
   }
   ctx.restore();
   for (const effect of state.effects) {
@@ -740,17 +645,30 @@ export function renderRunner(
       y = ground - effect.y;
     ctx.save();
     ctx.globalAlpha = fraction;
-    // Equipment already has one HUD notice; a second label would cover the
-    // mounted weapon during high jumps on a short landscape screen.
-    if (effect.text && effect.kind !== 'pickup' && effect.kind !== 'recover')
-      text(
-        ctx,
-        effect.text,
-        x,
-        y - (1 - fraction) * 30 - 45,
-        16,
-        effect.kind === 'hit' ? '#ffb58d' : '#fff0aa',
-      );
+    // Equipment already has one HUD notice; another label here would cover
+    // the mounted weapon during high jumps on a short landscape screen.
+    if (effect.kind === 'guard') {
+      // A directional flash only when contact consumes a guard, never an aura.
+      const size = reducedMotion ? 32 : 44;
+      ctx.globalAlpha = Math.min(1, fraction * 1.8);
+      sprite(ctx, art.effects.guard, x + 27, y + 17, size);
+    } else if (effect.kind === 'hit' || effect.kind === 'burst') {
+      const image = art.effects[effect.kind];
+      const size =
+        (effect.kind === 'hit' ? 24 : 42) *
+        (reducedMotion ? 1 : 0.85 + (1 - fraction) * 0.15);
+      ctx.globalAlpha = fraction * fraction;
+      sprite(ctx, image, x, y + (size * image.height) / image.width / 2, size);
+      if (effect.text) {
+        ctx.globalAlpha = fraction;
+        text(ctx, effect.text, x, y - (1 - fraction) * 30 - 35, 16, '#fff0aa');
+      }
+    } else if (
+      effect.text &&
+      effect.kind !== 'pickup' &&
+      effect.kind !== 'recover'
+    )
+      text(ctx, effect.text, x, y - (1 - fraction) * 30 - 45, 16, '#fff0aa');
     else if (effect.kind === 'jump' || effect.kind === 'land') {
       const landing = effect.kind === 'land';
       const count = reducedMotion ? 1 : landing ? 3 : 2;
@@ -765,22 +683,7 @@ export function renderRunner(
           '#fff0bb',
         );
       }
-    } else if (effect.kind === 'recover') {
-      // One concise ignition ring identifies the deliberate second air press.
-      ctx.strokeStyle = '#b8fff0';
-      ctx.lineWidth = 2 * fraction;
-      ctx.beginPath();
-      ctx.ellipse(
-        x,
-        y - 8,
-        8 + (1 - fraction) * 18,
-        3 + (1 - fraction) * 6,
-        0,
-        0,
-        Math.PI * 2,
-      );
-      ctx.stroke();
-    } else {
+    } else if (effect.kind !== 'recover') {
       const count = reducedMotion ? 2 : 4;
       for (let i = 0; i < count; i++) {
         const angle = (i * Math.PI * 2) / count;
@@ -791,7 +694,7 @@ export function renderRunner(
           y + Math.sin(angle) * spread,
           fraction * 3.5,
           fraction * 3.5,
-          effect.kind === 'hit' ? '#ffab69' : '#ffdc79',
+          '#ffdc79',
         );
       }
     }

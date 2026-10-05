@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadRunnerArt, WEAPON_ART } from './assets';
+import { loadRunnerArt, SCRAP_ART, WEAPON_ART } from './assets';
 import { RunnerAudio } from './audio';
 import { WEAPONS } from './definitions';
 import { renderRunner, runnerViewport } from './render';
@@ -51,6 +51,7 @@ function snapshot(state: RunnerState) {
     speed: state.speed,
     scrap: state.scrap,
     shield: state.shield,
+    guardFlash: state.effects.some((effect) => effect.kind === 'guard'),
     jumps: state.jumps,
     passed: state.passed,
     defeated: state.defeated,
@@ -364,6 +365,8 @@ export function RunnerApp() {
       data-air-hops={view.airHops}
       data-run-level={view.runLevel}
       data-scrap={view.scrap}
+      data-shield={view.shield}
+      data-guard-flash={view.guardFlash}
       data-defeated={view.defeated}
       data-art-ready={playable}
     >
@@ -388,7 +391,7 @@ export function RunnerApp() {
             className="runner-scrap"
             aria-label={`スクラップ ${view.scrap}、次の改造まで ${view.nextScrapLevel - view.scrap}`}
           >
-            <i aria-hidden="true">◆</i> {view.scrap}
+            <img src={SCRAP_ART} alt="" /> {view.scrap}
             <small>あと{view.nextScrapLevel - view.scrap}で改造</small>
           </span>
           <button
@@ -432,9 +435,9 @@ export function RunnerApp() {
           </div>
           <div className="runner-protection">
             <span className={view.shield ? 'charged' : ''}>
-              ◇ {view.shield ? 'ガード 1' : 'ガード 0'}
+              {view.shield ? 'ガード 1' : 'ガード 0'}
             </span>
-            {view.magnet > 0 && <span>◆ 磁石</span>}
+            {view.magnet > 0 && <span>磁石</span>}
             <span>改造 {view.runLevel} 段階</span>
             <span className={view.airHops ? 'charged' : ''}>
               ↑ 空中 {view.airHops} 回
