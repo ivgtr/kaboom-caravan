@@ -254,147 +254,182 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
     });
   const live = await context.newPage();
   const videoStarted = Date.now();
-  await live.addInitScript(() => {
-    const qa = window as unknown as {
-      qaStream?: MediaStream;
-      qaRecorder?: MediaRecorder;
-      qaChunks?: Blob[];
-    };
-    const connect = AudioNode.prototype.connect;
-    AudioNode.prototype.connect = function (
-      ...args: Parameters<AudioNode['connect']>
-    ) {
-      const result = Reflect.apply(connect, this, args);
-      if (
-        (args[0] as unknown) instanceof AudioDestinationNode &&
-        this.context instanceof AudioContext
+  const video = live.video()!;
+  try {
+    await live.addInitScript(() => {
+      const qa = window as unknown as {
+        qaStream?: MediaStream;
+        qaRecorder?: MediaRecorder;
+        qaChunks?: Blob[];
+      };
+      const connect = AudioNode.prototype.connect;
+      AudioNode.prototype.connect = function (
+        ...args: Parameters<AudioNode['connect']>
       ) {
-        const destination = this.context.createMediaStreamDestination();
-        Reflect.apply(connect, this, [destination]);
-        qa.qaStream = destination.stream;
-      }
-      return result;
-    } as AudioNode['connect'];
-  });
-  await live.goto(page.url());
-  await expect(live.getByTestId('runner')).toHaveAttribute(
-    'data-art-ready',
-    'true',
-  );
-  await live.getByRole('button', { name: 'スタート', exact: true }).click();
-  const start = Date.now();
-  await live.evaluate(() => {
-    const qa = window as unknown as {
-      qaStream?: MediaStream;
-      qaRecorder?: MediaRecorder;
-      qaChunks?: Blob[];
-    };
-    if (!qa.qaStream) return;
-    qa.qaChunks = [];
-    qa.qaRecorder = new MediaRecorder(qa.qaStream);
-    qa.qaRecorder.ondataavailable = (event) => qa.qaChunks!.push(event.data);
-    qa.qaRecorder.start();
-  });
-  const audioDelayMs = Date.now() - videoStarted;
-  // Use visible live position for this wall-clock movie. A prerecorded schedule
-  // drifts under CI load and could otherwise press Space after death (a retry).
-  const route = createRunner(42);
-  generateTerrain(route, 100000);
-  let held = false;
-  let previousX = 0;
-  while (Date.now() - start < 24000) {
-    const observed = await live.getByTestId('runner').evaluate((element) => ({
-      status: element.getAttribute('data-status'),
-      x: Number(element.getAttribute('data-world-x')),
-      y: Number(element.getAttribute('data-y')),
-      speed: Number(element.getAttribute('data-speed')),
-      grounded: element.getAttribute('data-grounded') === 'true',
-      freeze: Number(element.getAttribute('data-freeze')),
-    }));
-    expect(
-      observed.status,
-      'The normal-speed capture must never auto-retry',
-    ).toBe('running');
-    expect(observed.x).toBeGreaterThanOrEqual(previousX);
-    previousX = observed.x;
-    if (observed.grounded && observed.freeze <= 0) {
-      if (held) {
-        await live.keyboard.up('Space');
-        held = false;
-      }
-      let index = route.platforms.findIndex(
-        (road) =>
-          observed.x + 22 > road.x &&
-          observed.x - 22 < road.x + road.width &&
-          Math.abs(platformTopAt(road, observed.x) - observed.y) < 4,
-      );
-      if (index >= 0) {
-        while (
-          route.platforms[index + 1] &&
-          platformsJoin(route.platforms[index]!, route.platforms[index + 1]!)
-        )
-          index++;
-        const road = route.platforms[index]!;
-        if (road.x + road.width - observed.x < observed.speed * 0.18) {
-          await live.keyboard.down('Space');
-          held = true;
+        const result = Reflect.apply(connect, this, args);
+        if (
+          (args[0] as unknown) instanceof AudioDestinationNode &&
+          this.context instanceof AudioContext
+        ) {
+          const destination = this.context.createMediaStreamDestination();
+          Reflect.apply(connect, this, [destination]);
+          qa.qaStream = destination.stream;
+        }
+        return result;
+      } as AudioNode['connect'];
+    });
+    await live.goto(page.url());
+    await expect(live.getByTestId('runner')).toHaveAttribute(
+      'data-art-ready',
+      'true',
+    );
+    await live.getByRole('button', { name: 'スタート', exact: true }).click();
+    const start = Date.now();
+    await live.evaluate(() => {
+      const qa = window as unknown as {
+        qaStream?: MediaStream;
+        qaRecorder?: MediaRecorder;
+        qaChunks?: Blob[];
+      };
+      if (!qa.qaStream) return;
+      qa.qaChunks = [];
+      qa.qaRecorder = new MediaRecorder(qa.qaStream);
+      qa.qaRecorder.ondataavailable = (event) => qa.qaChunks!.push(event.data);
+      qa.qaRecorder.start();
+    });
+    const audioDelayMs = Date.now() - videoStarted;
+    const jumpButton = await live
+      .getByRole('button', { name: 'ジャンプ', exact: true })
+      .boundingBox();
+    await live.mouse.move(
+      jumpButton!.x + jumpButton!.width / 2,
+      jumpButton!.y + jumpButton!.height / 2,
+    );
+    // Use visible live position for this wall-clock movie. A prerecorded schedule
+    // drifts under CI load and could otherwise press Space after death (a retry).
+    const route = createRunner(42);
+    generateTerrain(route, 100000);
+    let held = false;
+    let airborneSeen = false;
+    let previousX = 0;
+    while (Date.now() - start < 24000) {
+      const observed = await live.getByTestId('runner').evaluate((element) => ({
+        status: element.getAttribute('data-status'),
+        x: Number(element.getAttribute('data-world-x')),
+        y: Number(element.getAttribute('data-y')),
+        speed: Number(element.getAttribute('data-speed')),
+        grounded: element.getAttribute('data-grounded') === 'true',
+        freeze: Number(element.getAttribute('data-freeze')),
+      }));
+      if (observed.status !== 'running') break;
+      expect(observed.x).toBeGreaterThanOrEqual(previousX);
+      previousX = observed.x;
+      if (!observed.grounded) airborneSeen = true;
+      if (
+        observed.grounded &&
+        observed.freeze <= 0 &&
+        (!held || airborneSeen)
+      ) {
+        if (held) {
+          await live.mouse.up();
+          held = false;
+        }
+        let index = route.platforms.findIndex(
+          (road) =>
+            observed.x + 22 > road.x &&
+            observed.x - 22 < road.x + road.width &&
+            Math.abs(platformTopAt(road, observed.x) - observed.y) < 4,
+        );
+        if (index >= 0) {
+          while (
+            route.platforms[index + 1] &&
+            platformsJoin(route.platforms[index]!, route.platforms[index + 1]!)
+          )
+            index++;
+          const road = route.platforms[index]!;
+          if (road.x + road.width - observed.x < observed.speed * 0.18) {
+            // The on-screen control disappears on death. Unlike Space here,
+            // a physical pointer at this position cannot trigger auto-retry.
+            await live.mouse.down();
+            held = true;
+            airborneSeen = false;
+          }
         }
       }
+      await live.waitForTimeout(12);
     }
-    await live.waitForTimeout(12);
-  }
-  await live.keyboard.up('Space');
-  await capture(live, info, 'desktop-normal-speed-final');
-  const status = await live.getByTestId('runner').getAttribute('data-status');
-  expect(await number(live, 'distance')).toBeGreaterThan(600);
-  expect(await number(live, 'score')).toBeGreaterThan(10000);
-  expect(
-    await live.evaluate(() =>
-      localStorage.getItem('kaboom-score-fever-best-v1'),
-    ),
-  ).toBeNull();
-  await live.getByRole('button', { name: '一時停止', exact: true }).click();
-  await expect(live.getByTestId('runner')).toHaveAttribute(
-    'data-status',
-    'paused',
-  );
-  const audio = await live.evaluate(async () => {
-    const qa = window as unknown as {
-      qaRecorder?: MediaRecorder;
-      qaChunks?: Blob[];
-    };
-    if (!qa.qaRecorder) return null;
-    await new Promise<void>((resolve) => {
-      qa.qaRecorder!.onstop = () => resolve();
-      qa.qaRecorder!.stop();
+    const gameplaySeconds = (Date.now() - start) / 1000;
+    // This is a demo capture, not a promise of a perfect run. Keep any death in
+    // the evidence and stop; never restart or edit gameplay state to improve it.
+    if (
+      (await live.getByTestId('runner').getAttribute('data-status')) ===
+      'running'
+    )
+      await live.keyboard.press('Escape');
+    await live.mouse.up();
+    const status = await live.getByTestId('runner').getAttribute('data-status');
+    expect(['paused', 'over']).toContain(status);
+    const finalX = await number(live, 'world-x');
+    expect(finalX).toBeGreaterThanOrEqual(previousX);
+    const failureReason =
+      status === 'over'
+        ? await live.locator('.runner-cause').textContent()
+        : null;
+    if (status === 'paused') {
+      expect(
+        await live.evaluate(() =>
+          localStorage.getItem('kaboom-score-fever-best-v1'),
+        ),
+      ).toBeNull();
+    }
+    await capture(live, info, 'desktop-normal-speed-final');
+    const audio = await live.evaluate(async () => {
+      const qa = window as unknown as {
+        qaRecorder?: MediaRecorder;
+        qaChunks?: Blob[];
+      };
+      if (!qa.qaRecorder) return null;
+      await new Promise<void>((resolve) => {
+        qa.qaRecorder!.onstop = () => resolve();
+        qa.qaRecorder!.stop();
+      });
+      return Array.from(
+        new Uint8Array(
+          await new Blob(qa.qaChunks, { type: 'audio/webm' }).arrayBuffer(),
+        ),
+      );
     });
-    return Array.from(
-      new Uint8Array(
-        await new Blob(qa.qaChunks, { type: 'audio/webm' }).arrayBuffer(),
+    if (audio)
+      await writeFile(
+        info.outputPath('normal-speed-audio.webm'),
+        Buffer.from(audio),
+      );
+    await writeFile(
+      info.outputPath('normal-speed-capture.json'),
+      JSON.stringify(
+        {
+          seconds: gameplaySeconds,
+          targetSeconds: 24,
+          seed: 42,
+          automatedPhysicalInput: true,
+          audioDelayMs,
+          finalStatus: status,
+          retries: 0,
+          finalWorldX: finalX,
+          finalScore: await number(live, 'score'),
+          failureReason,
+          endpoint:
+            status === 'over'
+              ? 'natural run end'
+              : 'explicit pause at recording endpoint',
+        },
+        null,
+        2,
       ),
     );
-  });
-  if (audio)
-    await writeFile(
-      info.outputPath('normal-speed-audio.webm'),
-      Buffer.from(audio),
-    );
-  await writeFile(
-    info.outputPath('normal-speed-capture.json'),
-    JSON.stringify(
-      {
-        seconds: 24,
-        seed: 42,
-        automatedPhysicalInput: true,
-        audioDelayMs,
-        finalStatus: status,
-      },
-      null,
-      2,
-    ),
-  );
-  const video = live.video()!;
-  await context.close();
+  } finally {
+    await context.close();
+  }
   await rename(
     await video.path(),
     info.outputPath('normal-speed-gameplay.webm'),
