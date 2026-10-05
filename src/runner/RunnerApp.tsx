@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadRunnerArt, WEAPON_ART } from './assets';
+import { loadRunnerArt, SCRAP_ART, WEAPON_ART } from './assets';
 import { RunnerAudio } from './audio';
 import { WEAPONS } from './definitions';
 import { renderRunner, runnerViewport } from './render';
 import {
+  clearJumpInput,
   createRunner,
   pauseRunner,
+  releaseJump,
   requestJump,
   resumeRunner,
   startRunner,
@@ -49,6 +51,7 @@ function snapshot(state: RunnerState) {
     speed: state.speed,
     scrap: state.scrap,
     shield: state.shield,
+    guardFlash: state.effects.some((effect) => effect.kind === 'guard'),
     jumps: state.jumps,
     passed: state.passed,
     defeated: state.defeated,
@@ -56,12 +59,20 @@ function snapshot(state: RunnerState) {
     magnet: state.magnet,
     notice: state.noticeTime > 0 ? state.notice : '',
     reason: state.reason,
+    deathFeedback: state.deathFeedback,
+    holding: state.player.holding,
+    airHops: state.player.airHops,
+    runLevel: state.runLevel,
+    nextScrapLevel: state.nextScrapLevel,
     time: state.time,
     seed: state.seed,
   };
 }
 interface Controls {
   jump(): void;
+  start(): void;
+  tap(): void;
+  pointerDown(id: number): void;
   pause(): void;
   resume(): void;
   retry(fresh?: boolean): void;
@@ -69,6 +80,9 @@ interface Controls {
 }
 const EMPTY: Controls = {
   jump() {},
+  start() {},
+  tap() {},
+  pointerDown() {},
   pause() {},
   resume() {},
   retry() {},
@@ -121,11 +135,12 @@ export function RunnerApp() {
     const clearInput = () => {
       keys.clear();
       pointers.clear();
-      stateRef.current!.player.buffer = 0;
+      clearJumpInput(stateRef.current!);
     };
     const focusGame = () => canvas.focus({ preventScroll: true });
     const pause = () => {
       pauseRunner(stateRef.current!);
+      audio.update(stateRef.current!);
       clearInput();
       accumulator = 0;
       sync();
@@ -153,6 +168,22 @@ export function RunnerApp() {
     };
     controls.current = {
       jump,
+      start() {
+        audio.unlock();
+        startRunner(stateRef.current!);
+        clearInput();
+        sync();
+        focusGame();
+      },
+      tap() {
+        jump();
+        releaseJump(stateRef.current!);
+      },
+      pointerDown(id) {
+        if (pointers.size || keys.size) return;
+        pointers.add(id);
+        jump();
+      },
       pause,
       retry,
       resume() {
@@ -166,6 +197,7 @@ export function RunnerApp() {
       },
       sound() {
         audio.enabled = !audio.enabled;
+        audio.update(stateRef.current!);
         save(SOUND_KEY, audio.enabled ? 'on' : 'off');
         setSound(audio.enabled);
         audio.unlock();
@@ -182,30 +214,35 @@ export function RunnerApp() {
         return;
       }
       if (!['Space', 'ArrowUp', 'KeyW', 'Enter'].includes(event.code)) return;
-      if (event.target instanceof HTMLButtonElement) return;
+      if (
+        event.target instanceof HTMLButtonElement &&
+        event.target.getAttribute('aria-label') !== 'ジャンプ'
+      )
+        return;
       event.preventDefault();
       if (event.repeat || keys.has(event.code)) return;
+      const alreadyHeld = keys.size > 0 || pointers.size > 0;
       keys.add(event.code);
+      if (alreadyHeld) return;
       const status = stateRef.current!.status;
       if (status === 'over') retry();
       else if (status !== 'paused') jump();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      keys.delete(event.code);
+      const released = keys.delete(event.code);
+      if (released && !keys.size && !pointers.size)
+        releaseJump(stateRef.current!);
     };
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || !event.isPrimary) return;
       event.preventDefault();
-      if (pointers.size) return;
-      pointers.add(event.pointerId);
-      if (
-        stateRef.current!.status === 'ready' ||
-        stateRef.current!.status === 'running'
-      )
-        jump();
+      canvas.setPointerCapture(event.pointerId);
+      controls.current.pointerDown(event.pointerId);
     };
     const onPointerUp = (event: PointerEvent) => {
-      pointers.delete(event.pointerId);
+      const released = pointers.delete(event.pointerId);
+      if (released && !keys.size && !pointers.size)
+        releaseJump(stateRef.current!);
     };
     const onBlur = () => {
       if (stateRef.current!.status === 'running') pause();
@@ -254,6 +291,7 @@ export function RunnerApp() {
               accumulator -= FIXED_DT;
             }
           } else accumulator = 0;
+          audio.update(state);
           for (const effect of state.effects) {
             if (effect.id > lastEffect) {
               audio.play(effect.kind);
@@ -319,9 +357,17 @@ export function RunnerApp() {
       data-status={view.status}
       data-distance={view.distance}
       data-world-x={view.worldX.toFixed(2)}
+      data-speed={view.speed.toFixed(2)}
       data-y={view.y.toFixed(1)}
       data-grounded={view.grounded}
       data-jumps={view.jumps}
+      data-holding={view.holding}
+      data-air-hops={view.airHops}
+      data-run-level={view.runLevel}
+      data-scrap={view.scrap}
+      data-shield={view.shield}
+      data-guard-flash={view.guardFlash}
+      data-defeated={view.defeated}
       data-art-ready={playable}
     >
       <canvas
@@ -333,19 +379,20 @@ export function RunnerApp() {
       />
       <header className="runner-hud">
         <div className="runner-distance">
-          <span className="runner-eyebrow">ENDLESS RUN</span>
+          <span className="runner-eyebrow">走行距離</span>
           <strong>
             {view.distance.toLocaleString()}
             <small>m</small>
           </strong>
-          <span className="runner-best">BEST {best.toLocaleString()} m</span>
+          <span className="runner-best">最高 {best.toLocaleString()} m</span>
         </div>
         <div className="runner-top-right">
           <span
             className="runner-scrap"
-            aria-label={`スクラップ ${view.scrap}`}
+            aria-label={`スクラップ ${view.scrap}、次の改造まで ${view.nextScrapLevel - view.scrap}`}
           >
-            <i aria-hidden="true">◆</i> {view.scrap}
+            <img src={SCRAP_ART} alt="" /> {view.scrap}
+            <small>あと{view.nextScrapLevel - view.scrap}で改造</small>
           </span>
           <button
             className="runner-icon"
@@ -376,31 +423,25 @@ export function RunnerApp() {
                     {weapon.label} <em>Lv.{view.weapon.level}</em>
                   </strong>
                   <span>{weapon.description}</span>
-                  <div className="runner-meter">
-                    <i
-                      style={{
-                        width: `${Math.min(100, view.weapon.remaining / 16)}%`,
-                      }}
-                    />
-                  </div>
-                  <small>
-                    あと {Math.ceil(view.weapon.remaining / PIXELS_PER_METRE)} m
-                    ・ 同じ武器で強化
-                  </small>
+                  <small>拾った強化はこのラン中ずっと有効</small>
                 </div>
               </>
             ) : (
               <div className="runner-unarmed">
-                <strong>KEEP JUMPING</strong>
-                <span>空中の武器を拾うと自動攻撃</span>
+                <strong>まずは走ろう</strong>
+                <span>武器を拾うと自動攻撃</span>
               </div>
             )}
           </div>
           <div className="runner-protection">
             <span className={view.shield ? 'charged' : ''}>
-              ◇ {view.shield ? 'ガード 1' : 'ガード 0'}
+              {view.shield ? 'ガード 1' : 'ガード 0'}
             </span>
-            {view.magnet > 0 && <span>◆ MAGNET</span>}
+            {view.magnet > 0 && <span>磁石</span>}
+            <span>改造 {view.runLevel} 段階</span>
+            <span className={view.airHops ? 'charged' : ''}>
+              ↑ 空中 {view.airHops} 回
+            </span>
           </div>
           {view.notice && (
             <p className="runner-notice" role="status">
@@ -412,9 +453,9 @@ export function RunnerApp() {
               <p
                 className={view.time > 12 ? 'runner-hint faded' : 'runner-hint'}
               >
-                坂を走って、足場を跳びつなぐ
+                短押しで低く、長押しで高く
                 <br />
-                <span>タップ / SPACE / ↑</span>
+                <span>空中でもう一度で立て直す</span>
               </p>
               <button
                 className="runner-jump"
@@ -422,13 +463,14 @@ export function RunnerApp() {
                 onPointerDown={(event) => {
                   if (!event.isPrimary || event.button !== 0) return;
                   event.preventDefault();
-                  controls.current.jump();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  controls.current.pointerDown(event.pointerId);
                 }}
                 onClick={(event) => {
-                  if (event.detail === 0) controls.current.jump();
+                  if (event.detail === 0) controls.current.tap();
                 }}
               >
-                <span>↑</span>JUMP
+                <span>↑</span>ジャンプ
               </button>
             </div>
           )}
@@ -472,14 +514,16 @@ export function RunnerApp() {
           <button
             className="runner-primary"
             aria-label="スタート"
-            onClick={() => controls.current.jump()}
+            onClick={() => controls.current.start()}
           >
             スタート <span>→</span>
           </button>
           <p className="runner-instructions">
-            画面タップ / SPACE / ↑ でジャンプ
+            タップ / SPACE / ↑ ・ 長押しで高く
             <br />
-            武器は自動。細い足場は着地前のタップで次へ。
+            離すと低く、空中でもう一度で立て直す。
+            <br />
+            武器は自動。スクラップで火力とガードを育てる。
           </p>
         </section>
       )}
@@ -488,7 +532,7 @@ export function RunnerApp() {
           className="runner-overlay runner-modal"
           aria-label="一時停止中"
         >
-          <p className="runner-kicker">TAKE A BREATH</p>
+          <p className="runner-kicker">ひと息ついたら、続きへ</p>
           <h2>ひと休み</h2>
           <p>道は、ここで待っています</p>
           <button
@@ -514,22 +558,14 @@ export function RunnerApp() {
         >
           <p className="runner-kicker">
             {view.distance >= best && view.distance > 0
-              ? 'PERSONAL BEST'
-              : 'ONE MORE RUN?'}
+              ? '自己ベスト更新'
+              : '次は、もう少し先へ'}
           </p>
           <h2>
             {view.distance.toLocaleString()}
             <small>m</small>
           </h2>
-          <p className="runner-cause">
-            {view.reason === 'gap'
-              ? 'あと少し、届かなかった。'
-              : view.reason === 'rival'
-                ? 'ライバルとぶつかった。'
-                : view.reason === 'wall'
-                  ? '上り段差は、少し早めにジャンプ。'
-                  : '木箱は、跳び越えよう。'}
-          </p>
+          <p className="runner-cause">{view.deathFeedback}</p>
           <div className="runner-stats">
             <span>
               <b>{view.scrap}</b>スクラップ
@@ -554,7 +590,7 @@ export function RunnerApp() {
           >
             新しい道
           </button>
-          <small>同じ道でもう一度 ・ SEED {view.seed}</small>
+          <small>同じ道でもう一度 ・ 道の番号 {view.seed}</small>
         </section>
       )}
     </main>

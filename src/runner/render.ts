@@ -1,4 +1,6 @@
-import { WEAPONS } from './definitions';
+import { START_SPEED, MAX_SPEED } from './pacing';
+import { RIVALS, WEAPONS } from './definitions';
+import { RIVAL_WARNING_TIME } from './combat';
 import type { RunnerArt } from './assets';
 import {
   platformSlope,
@@ -223,6 +225,206 @@ function renderTerrain(
   }
 }
 
+/** Marks the actual last failed edge, without inventing a recommended arc. */
+function renderFailure(
+  ctx: CanvasRenderingContext2D,
+  state: RunnerState,
+  view: Viewport,
+  camera: number,
+) {
+  if (state.status !== 'over' || !state.failure) return;
+  const failure = state.failure;
+  const sx = (x: number) => x - camera;
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ffc38e';
+  ctx.fillStyle = '#ffc38e';
+  if (failure.takeoffX !== null && failure.kind !== 'collision') {
+    const x = sx(failure.takeoffX);
+    const y = view.ground - failure.takeoffY;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.arc(x, y - 3, 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (
+    failure.targetX !== null &&
+    failure.targetY !== null &&
+    failure.kind !== 'collision'
+  ) {
+    const x = sx(failure.targetX);
+    const y = view.ground - failure.targetY;
+    ctx.globalAlpha = 0.85;
+    // A corner bracket highlights the real near edge, above the painted cap.
+    ctx.beginPath();
+    ctx.moveTo(x - 7, y + 17);
+    ctx.lineTo(x - 7, y - 7);
+    ctx.lineTo(x + 23, y - 7);
+    ctx.stroke();
+    if (failure.kind === 'overshot' && failure.targetEnd !== null) {
+      const end = sx(failure.targetEnd);
+      const target = state.platforms.find(
+        (platform) =>
+          Math.abs(platform.x + platform.width - failure.targetEnd!) < 1,
+      );
+      const endY = target
+        ? view.ground - platformTopAt(target, failure.targetEnd)
+        : y;
+      ctx.beginPath();
+      ctx.moveTo(end - 23, endY - 7);
+      ctx.lineTo(end + 7, endY - 7);
+      ctx.lineTo(end + 7, endY + 17);
+      ctx.stroke();
+    }
+  }
+  const impactX = sx(failure.x);
+  const impactY = view.ground - failure.y;
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.arc(impactX, impactY, 10, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A few near-camera dust flecks establish speed while leaving landings clear. */
+function renderForeground(
+  ctx: CanvasRenderingContext2D,
+  state: RunnerState,
+  view: Viewport,
+  reducedMotion: boolean,
+) {
+  if (reducedMotion || state.status !== 'running') return;
+  const pace = Math.max(
+    0,
+    Math.min(1, (state.speed - START_SPEED) / (MAX_SPEED - START_SPEED)),
+  );
+  const span = view.width + 180;
+  ctx.save();
+  ctx.strokeStyle = '#f8df9a';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 7; i++) {
+    const x =
+      ((((i * 173.3 - state.distance * (1.15 + i * 0.027)) % span) + span) %
+        span) -
+      90;
+    const y =
+      view.ground +
+      88 +
+      ((i * 53) % Math.max(70, view.height - view.ground - 70));
+    ctx.globalAlpha = 0.09 + (i % 3) * 0.025;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 9 + pace * 10, y - 1);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Painted wheel positions, measured from the trimmed 897 × 667 chassis art. */
+function renderWheelMotion(
+  ctx: CanvasRenderingContext2D,
+  distance: number,
+  reducedMotion: boolean,
+) {
+  const angle = reducedMotion ? 0 : distance / 5.9;
+  for (const x of [-13.54, 13.53]) {
+    ctx.save();
+    ctx.translate(x, -5.99);
+    ctx.rotate(angle);
+    ctx.strokeStyle = '#f9dea1bb';
+    ctx.lineWidth = 0.85;
+    // Draw only on the existing painted hub. No replacement wheels or chassis.
+    for (let i = 0; i < 3; i++) {
+      ctx.rotate((Math.PI * 2) / 3);
+      ctx.beginPath();
+      ctx.moveTo(1.2, 0);
+      ctx.lineTo(3.1, 0);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function renderExhaust(
+  ctx: CanvasRenderingContext2D,
+  state: RunnerState,
+  reducedMotion: boolean,
+) {
+  if (state.status !== 'running' || reducedMotion) return;
+  const lifting = !state.player.grounded && state.player.vy > 0;
+  const held = lifting && state.player.holding;
+  const pulse = 0.7 + Math.sin(state.time * 37) * 0.3;
+  const length = held ? 21 : lifting ? 14 : 8;
+  ctx.save();
+  ctx.globalAlpha = held ? 0.8 : 0.45;
+  const plume = ctx.createLinearGradient(-23, -24, -23 - length, -24);
+  plume.addColorStop(0, held ? '#fff2bb' : '#acede3');
+  plume.addColorStop(0.4, held ? '#ffa65f' : '#79bfc0');
+  plume.addColorStop(1, '#79bfc000');
+  ctx.fillStyle = plume;
+  ctx.beginPath();
+  ctx.moveTo(-23, -28);
+  ctx.quadraticCurveTo(-29, -29, -23 - length * pulse, -25);
+  ctx.quadraticCurveTo(-30, -22, -23, -23);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderShot(
+  ctx: CanvasRenderingContext2D,
+  shot: RunnerState['shots'][number],
+  ground: number,
+  camera: number,
+  reducedMotion: boolean,
+) {
+  const x = shot.x - camera;
+  const y = ground - shot.y;
+  const endX = shot.endX - camera;
+  const endY = ground - shot.endY;
+  const color = WEAPONS[shot.weapon].color;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, shot.life * 8);
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  if (shot.weapon === 'flame') {
+    const gradient = ctx.createLinearGradient(x, y, endX, endY);
+    gradient.addColorStop(0, '#fff1ad');
+    gradient.addColorStop(0.6, '#ffb75fa8');
+    gradient.addColorStop(1, '#ee744000');
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = reducedMotion ? 6 : 10;
+  } else {
+    ctx.lineWidth =
+      shot.weapon === 'rail' ? 4 : shot.weapon === 'scatter' ? 2.5 : 2;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  if (shot.weapon === 'mine') {
+    ctx.setLineDash([3, 5]);
+    ctx.quadraticCurveTo((x + endX) / 2, Math.min(y, endY) - 32, endX, endY);
+  } else if (shot.weapon === 'rocket') {
+    ctx.setLineDash([8, 5]);
+    ctx.lineTo(endX, endY);
+  } else {
+    ctx.lineTo(endX, endY);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (shot.weapon === 'rail') {
+    ctx.strokeStyle = '#fff7ff';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  } else if (shot.weapon === 'rocket' || shot.weapon === 'mine') {
+    ellipse(ctx, endX, endY, shot.weapon === 'rocket' ? 5 : 4, 4, color);
+    ellipse(ctx, endX, endY, 2, 2, '#fff2c6');
+  }
+  // A tiny flash locates the muzzle, including when the body leans on a ramp.
+  ellipse(ctx, x, y, shot.weapon === 'scatter' ? 4 : 2.5, 2.5, '#fff4cb');
+  ctx.restore();
+}
+
 export function renderRunner(
   ctx: CanvasRenderingContext2D,
   state: RunnerState,
@@ -242,7 +444,8 @@ export function renderRunner(
   const bgHeight = ground + 2;
   const sourceHeight = art.background.height * 0.65;
   const bgWidth = (bgHeight * art.background.width) / sourceHeight;
-  const bgOffset = (state.distance * 0.075) % (bgWidth * 2);
+  const bgOffset =
+    (state.distance * (reducedMotion ? 0.075 : 0.13)) % (bgWidth * 2);
   ctx.save();
   ctx.globalAlpha = 0.78;
   for (let i = -1; i < 4; i++) {
@@ -273,64 +476,19 @@ export function renderRunner(
   ctx.fillRect(0, ground - 2, width, height - ground + 2);
   const roads = connectedRoads(state.platforms);
   renderTerrain(ctx, roads, art.terrain, view, camera);
-  // World milestones are scenery, not a finish line.
-  const firstMark = Math.floor((camera - 100) / 1000) * 1000;
-  for (
-    let mark = Math.max(1000, firstMark);
-    mark < camera + width + 100;
-    mark += 1000
-  ) {
-    const platform = state.platforms.find(
-      (p) => mark >= p.x + 60 && mark < p.x + p.width - 60,
-    );
-    if (!platform) continue;
-    const x = sx(mark),
-      y = ground - platformTopAt(platform, mark);
-    ctx.fillStyle = '#43675b';
-    ctx.fillRect(x - 2, y - 106, 4, 106);
-    ctx.fillStyle = '#e9e5b7';
-    ctx.beginPath();
-    ctx.roundRect(x - 28, y - 110, 56, 29, 5);
-    ctx.fill();
-    ctx.font = '800 14px system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#3a645c';
-    ctx.fillText(`${mark / 10}m`, x, y - 90);
-  }
   for (const obstacle of state.obstacles) {
+    if (obstacle.destroyed) continue;
     const x = sx(obstacle.x),
       y = ground - obstacle.top;
-    ctx.fillStyle = '#824f3f';
-    ctx.strokeStyle = '#563d36';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(
+    ellipse(ctx, x, y + 1, obstacle.width * 0.47, 3, '#183e4438');
+    // Keep the painted supply box inside the existing collision bounds.
+    ctx.drawImage(
+      art.crate,
       x - obstacle.width / 2,
       y - obstacle.height,
       obstacle.width,
       obstacle.height,
-      4,
     );
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#edbd75';
-    ctx.fillRect(
-      x - obstacle.width / 2 + 4,
-      y - obstacle.height + 4,
-      obstacle.width - 8,
-      7,
-    );
-    ctx.strokeStyle = '#dd995a';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(x - obstacle.width / 2 + 6, y - 6);
-    ctx.lineTo(x + obstacle.width / 2 - 6, y - obstacle.height + 12);
-    ctx.stroke();
-    ctx.strokeStyle = '#f5d29a';
-    ctx.beginPath();
-    ctx.moveTo(x - obstacle.width / 2 + 6, y - obstacle.height + 12);
-    ctx.lineTo(x + obstacle.width / 2 - 6, y - 6);
-    ctx.stroke();
   }
   for (const pickup of state.pickups) {
     if (pickup.taken) continue;
@@ -339,41 +497,28 @@ export function renderRunner(
     if (x < -80 || x > width + 80) continue;
     const bob = reducedMotion ? 0 : Math.sin(state.time * 3.5 + pickup.id) * 3;
     if (pickup.kind === 'scrap') {
-      ctx.save();
-      ctx.translate(x, y + bob);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = '#ffc45a';
-      ctx.strokeStyle = '#a76b33';
-      ctx.lineWidth = 2;
-      ctx.fillRect(-7, -7, 14, 14);
-      ctx.strokeRect(-7, -7, 14, 14);
-      ctx.fillStyle = '#fff2a6';
-      ctx.fillRect(-4, -4, 5, 5);
-      ctx.restore();
+      // Keep the familiar guide spacing and footprint with actual salvage art.
+      const size = 20;
+      const h = (size * art.scrap.height) / art.scrap.width;
+      ctx.drawImage(art.scrap, x - size / 2, y - h / 2 + bob, size, h);
     } else {
       const color = pickup.weapon ? WEAPONS[pickup.weapon].color : '#9fffe6';
-      ellipse(ctx, x, y + 30, 24, 5, '#244d4738');
-      ctx.fillStyle = '#193d4bdb';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.roundRect(x - 27, y - 28 + bob, 54, 54, 12);
-      ctx.fill();
-      ctx.stroke();
+      ellipse(ctx, x, y + 27, 20, 3, '#244d4730');
       const img = pickup.weapon
         ? art.weapons[pickup.weapon]
         : pickup.kind === 'shield'
           ? art.shield
           : art.magnet;
-      const h = (37 * img.height) / img.width;
-      ctx.drawImage(img, x - 18.5, y - h / 2 + bob, 37, h);
+      const size = 45;
+      const h = (size * img.height) / img.width;
+      ctx.drawImage(img, x - size / 2, y - h / 2 + bob, size, h);
       text(
         ctx,
         pickup.weapon
           ? `${WEAPONS[pickup.weapon].label}${state.weapon?.id === pickup.weapon ? (state.weapon.level === 3 ? ' ↻' : ' ↑') : ''}`
           : pickup.kind === 'shield'
             ? '+1'
-            : 'MAG',
+            : '磁石',
         x,
         y - 36 + bob,
         18,
@@ -385,7 +530,7 @@ export function renderRunner(
     const x = sx(rival.x),
       y = ground - rival.y;
     if (x < -120 || x > width + 120) continue;
-    const telegraph = rival.age < 1;
+    const telegraph = rival.age < RIVAL_WARNING_TIME;
     const size = rival.kind === 'heavy' || rival.kind === 'fortress' ? 82 : 67;
     ellipse(ctx, x, y + 2, size * 0.4, 6, '#183e4438');
     ctx.save();
@@ -399,20 +544,19 @@ export function renderRunner(
       : Math.sin(rival.age * 16) * (rival.kind === 'rusher' ? 4 : 2);
     const pose = rival.defeated ? 3 : Math.floor(rival.age * 6) % 2;
     sprite(ctx, art.rivals[rival.kind][pose]!, x, y + bounce, size, true);
-    if (rival.hit > 0 && !rival.defeated) {
-      ctx.globalAlpha = 0.55;
-      ellipse(ctx, x, y - 20, 24, 25, '#ffda83');
-    }
     ctx.restore();
     if (!rival.defeated) {
-      text(
-        ctx,
-        telegraph ? '!' : 'RIVAL',
-        x,
-        y - size - 13,
-        telegraph ? 27 : 11,
-        '#ffe097',
-      );
+      // A high-speed warning may begin just outside portrait view. Keep the
+      // active cue visible at the edge instead of counting unseen warning time.
+      if (telegraph && rival.age > 0)
+        text(
+          ctx,
+          '!',
+          Math.min(x, width - 16),
+          y - size - 13,
+          27,
+          RIVALS[rival.kind].color,
+        );
       if (rival.hp < rival.maxHp) {
         ctx.fillStyle = '#244a48';
         ctx.fillRect(x - 17, y - size - 2, 34, 4);
@@ -421,21 +565,8 @@ export function renderRunner(
       }
     }
   }
-  for (const shot of state.shots) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, shot.life * 6);
-    ctx.strokeStyle = WEAPONS[shot.weapon].color;
-    ctx.lineWidth =
-      shot.weapon === 'rail' ? 5 : shot.weapon === 'flame' ? 12 : 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(sx(shot.x), ground - shot.y);
-    ctx.lineTo(sx(shot.endX), ground - shot.endY);
-    ctx.stroke();
-    if (shot.weapon !== 'rail')
-      ellipse(ctx, sx(shot.endX), ground - shot.endY, 7, 7, '#fff4bd');
-    ctx.restore();
-  }
+  for (const shot of state.shots)
+    renderShot(ctx, shot, ground, camera, reducedMotion);
   const foot = ground - state.player.y;
   const support = state.player.grounded
     ? supportingPlatform(state)
@@ -468,25 +599,44 @@ export function renderRunner(
     ctx.clip();
     ctx.translate(anchor, ground - top + 3);
     ctx.rotate(-Math.atan(platformSlope(support)));
-    ellipse(ctx, 0, 0, 42 - Math.min(15, clearance * 0.08), 7, '#163e4447');
+    ellipse(ctx, 0, 0, 23 - Math.min(9, clearance * 0.06), 4, '#163e4438');
+    ctx.restore();
+  }
+  if (!reducedMotion && state.status === 'running' && state.player.grounded) {
+    // Three short-lived contact wisps, behind the tires and above the surface.
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const phase = (state.distance / 31 + i / 3) % 1;
+      ctx.globalAlpha = (1 - phase) * 0.24;
+      ellipse(
+        ctx,
+        anchor - 18 - phase * 31,
+        foot - 2 - phase * 5,
+        3 + phase * 5,
+        1.5 + phase * 2,
+        '#f9e2b4',
+      );
+    }
     ctx.restore();
   }
   ctx.save();
   ctx.translate(anchor, foot);
-  // Even reduced-motion mode retains the necessary ground angle. The wheels,
-  // roof mount, shield and simulation's muzzle share this exact transform.
+  // Contact, body, roof mount and the simulation muzzle share this transform.
   ctx.rotate(playerTilt(state));
-  const squash = state.player.squash;
+  const squash = reducedMotion ? 0 : state.player.squash;
   ctx.scale(1 + squash * 0.07, 1 - squash * 0.1);
-  if (state.player.invulnerable <= 0 || Math.floor(state.time * 16) % 2 === 0)
-    sprite(ctx, art.player, 0, 0, 100);
-  if (state.weapon) sprite(ctx, art.weapons[state.weapon.id], -12, -64, 38);
-  if (state.shield > 0) {
-    ctx.strokeStyle = '#befff1a6';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(0, -36, 59, 47, 0, Math.PI, Math.PI * 2);
-    ctx.stroke();
+  renderExhaust(ctx, state, reducedMotion);
+  // A soft grace-period pulse keeps the body and wheel contact legible.
+  // The guard spark and HUD already communicate the hit; never hide the car.
+  ctx.globalAlpha =
+    state.player.invulnerable > 0 && !reducedMotion
+      ? 0.875 + Math.sin(state.time * Math.PI * 12) * 0.125
+      : 1;
+  // Wheelbase, rather than the long front overhang, is centred on collision.
+  sprite(ctx, art.player, 10, 0, 68);
+  renderWheelMotion(ctx, state.distance, reducedMotion);
+  if (state.weapon) {
+    sprite(ctx, art.weapons[state.weapon.id], 6, -46, 29);
   }
   ctx.restore();
   for (const effect of state.effects) {
@@ -495,42 +645,63 @@ export function renderRunner(
       y = ground - effect.y;
     ctx.save();
     ctx.globalAlpha = fraction;
-    // Equipment already has one HUD notice; a second label would cover the
-    // mounted weapon during high jumps on a short landscape screen.
-    if (effect.text && effect.kind !== 'pickup')
-      text(
-        ctx,
-        effect.text,
-        x,
-        y - (1 - fraction) * 30 - 45,
-        16,
-        effect.kind === 'hit' ? '#ffb58d' : '#fff0aa',
-      );
+    // Equipment already has one HUD notice; another label here would cover
+    // the mounted weapon during high jumps on a short landscape screen.
+    if (effect.kind === 'guard') {
+      // A directional flash only when contact consumes a guard, never an aura.
+      const size = reducedMotion ? 32 : 44;
+      ctx.globalAlpha = Math.min(1, fraction * 1.8);
+      sprite(ctx, art.effects.guard, x + 27, y + 17, size);
+    } else if (effect.kind === 'hit' || effect.kind === 'burst') {
+      const image = art.effects[effect.kind];
+      const size =
+        (effect.kind === 'hit' ? 24 : 42) *
+        (reducedMotion ? 1 : 0.85 + (1 - fraction) * 0.15);
+      ctx.globalAlpha = fraction * fraction;
+      sprite(ctx, image, x, y + (size * image.height) / image.width / 2, size);
+      if (effect.text) {
+        ctx.globalAlpha = fraction;
+        text(ctx, effect.text, x, y - (1 - fraction) * 30 - 35, 16, '#fff0aa');
+      }
+    } else if (
+      effect.text &&
+      effect.kind !== 'pickup' &&
+      effect.kind !== 'recover'
+    )
+      text(ctx, effect.text, x, y - (1 - fraction) * 30 - 45, 16, '#fff0aa');
     else if (effect.kind === 'jump' || effect.kind === 'land') {
-      for (let i = 0; i < 5; i++)
+      const landing = effect.kind === 'land';
+      const count = reducedMotion ? 1 : landing ? 3 : 2;
+      for (let i = 0; i < count; i++) {
+        const offset = i - (count - 1) / 2;
         ellipse(
           ctx,
-          x + (i - 2) * (10 + (1 - fraction) * 20),
-          y - (1 - fraction) * 12,
-          8 * fraction,
-          5 * fraction,
+          x + offset * (12 + (1 - fraction) * 17),
+          y - 2 - (reducedMotion ? 0 : (1 - fraction) * 6),
+          (landing ? 7 : 4) * fraction,
+          2.5 * fraction,
           '#fff0bb',
         );
-    } else {
-      for (let i = 0; i < 7; i++) {
-        const angle = (i * Math.PI * 2) / 7;
+      }
+    } else if (effect.kind !== 'recover') {
+      const count = reducedMotion ? 2 : 4;
+      for (let i = 0; i < count; i++) {
+        const angle = (i * Math.PI * 2) / count;
+        const spread = reducedMotion ? 5 : (1 - fraction) * 27;
         ellipse(
           ctx,
-          x + Math.cos(angle) * (1 - fraction) * 45,
-          y + Math.sin(angle) * (1 - fraction) * 45,
-          fraction * 5,
-          fraction * 5,
-          effect.kind === 'hit' ? '#ffab69' : '#ffdc79',
+          x + Math.cos(angle) * spread,
+          y + Math.sin(angle) * spread,
+          fraction * 3.5,
+          fraction * 3.5,
+          '#ffdc79',
         );
       }
     }
     ctx.restore();
   }
+  renderFailure(ctx, state, view, camera);
+  renderForeground(ctx, state, view, reducedMotion);
   // A subtle vignette grounds the composition without covering the jump path.
   const bottom = ctx.createLinearGradient(0, height - 110, 0, height);
   bottom.addColorStop(0, '#12334200');

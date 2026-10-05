@@ -122,10 +122,11 @@ button:disabled {
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
-.runner-scrap i {
-  color: #ffe29c;
-  font-size: 19px;
-  font-style: normal;
+.runner-scrap img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  vertical-align: -4px;
 }
 .runner-gear {
   position: absolute;
@@ -237,6 +238,9 @@ button:disabled {
   pointer-events: none;
 }
 .runner-hint {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #153d487a;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.8;
@@ -250,7 +254,7 @@ button:disabled {
   color: #cde4d8;
 }
 .runner-hint.faded {
-  opacity: 0.42;
+  opacity: 0;
 }
 .runner-jump {
   pointer-events: auto;
@@ -486,7 +490,7 @@ h1 span {
     height: 96px;
   }
   .runner-hint {
-    max-width: 190px;
+    max-width: 200px;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {
@@ -605,5 +609,78 @@ h1 span {
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
+  }
+}
+
+.runner-scrap small {
+  display: block;
+  font-size: 9px;
+  color: #e7efd0;
+  font-weight: 700;
+}
+.runner-protection {
+  flex-wrap: wrap;
+  max-width: 360px;
+}
+.runner-result {
+  background: linear-gradient(
+    90deg,
+    #11374430,
+    #113744bd 38%,
+    #113744c9 68%,
+    #11374450
+  );
+  backdrop-filter: none;
+}
+.runner-result .runner-cause {
+  max-width: 350px;
+  line-height: 1.8;
+}
+.runner-jump {
+  touch-action: none;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+@media (max-width: 650px) and (orientation: portrait) {
+  .runner-protection {
+    max-width: 350px;
+    gap: 5px;
+  }
+  .runner-protection span {
+    font-size: 9px;
+    padding: 5px 6px;
+  }
+  .runner-gear {
+    top: 151px;
+  }
+  .runner-result {
+    background: #1137449e;
+    padding-bottom: 26vh;
+  }
+  .runner-result .runner-cause {
+    max-width: 310px;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .runner-protection {
+    max-width: 205px;
+    justify-content: flex-end;
+  }
+  .runner-gear {
+    max-width: 250px;
+  }
+  .runner-gear small {
+    display: none;
+  }
+  .runner-gear span {
+    max-width: 155px;
+    font-size: 8px;
+  }
+  .runner-scrap {
+    margin-right: 0;
+    font-size: 16px;
+  }
+  .runner-scrap small {
+    font-size: 8px;
   }
 }

@@ -2,6 +2,7 @@ import { runtimeAssetUrl } from '../runtimeAssets';
 import type { RivalKind, WeaponId } from './types';
 
 const root = (path: string) => runtimeAssetUrl(`assets/${path}`);
+export const SCRAP_ART = root('runner-pickups/scrap-metal_v001.png');
 export const WEAPON_ART: Record<WeaponId, string> = {
   machine: root('equipment/wpn_machine_cannon_v001.png'),
   scatter: root('equipment/wpn_scatter_cannon_v001.png'),
@@ -29,6 +30,13 @@ export interface RunnerArt {
   weapons: Record<WeaponId, HTMLCanvasElement>;
   shield: HTMLCanvasElement;
   magnet: HTMLCanvasElement;
+  scrap: HTMLCanvasElement;
+  crate: HTMLCanvasElement;
+  effects: {
+    guard: HTMLCanvasElement;
+    hit: HTMLCanvasElement;
+    burst: HTMLCanvasElement;
+  };
 }
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
@@ -44,9 +52,10 @@ function trim(
   column = 0,
   row = 0,
   cells = 1,
+  rows = cells,
 ): HTMLCanvasElement {
   const width = image.width / cells;
-  const height = image.height / cells;
+  const height = image.height / rows;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -96,44 +105,82 @@ function trim(
   return cropped;
 }
 
+/** Cache a high-density pickup once, rather than resampling its large source every frame. */
+function compact(image: HTMLCanvasElement, maxEdge = 96): HTMLCanvasElement {
+  const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext('2d')!;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 export async function loadRunnerArt(): Promise<RunnerArt> {
-  const [player, background, rivals, weapons, shield, magnet, body, cap] =
-    await Promise.all([
-      loadImage(root('animation/veh_player_chassis_v005.png')).then((image) =>
-        trim(image),
-      ),
-      loadImage(root('world/env_background_integrated_2x1_v005.webp')),
-      Promise.all(
-        Object.entries(rivalNames).map(async ([kind, name]) => {
-          const image = await loadImage(
-            root(`animation/enm_${name}_motion_v002.png`),
-          );
-          return [
-            kind,
-            [
-              trim(image, 0, 0, 2),
-              trim(image, 1, 0, 2),
-              trim(image, 0, 1, 2),
-              trim(image, 1, 1, 2),
-            ],
-          ];
-        }),
-      ).then((entries) => Object.fromEntries(entries) as RunnerArt['rivals']),
-      Promise.all(
-        Object.entries(WEAPON_ART).map(async ([id, url]) => [
-          id,
-          trim(await loadImage(url)),
-        ]),
-      ).then((entries) => Object.fromEntries(entries) as RunnerArt['weapons']),
-      loadImage(root('equipment/mod_shield_generator_v001.png')).then((image) =>
-        trim(image),
-      ),
-      loadImage(root('equipment/mod_magnetic_armor_v001.png')).then((image) =>
-        trim(image),
-      ),
-      loadImage(root('runner-terrain/rock-body.webp')),
-      loadImage(root('runner-terrain/road-cap.webp')),
-    ]);
+  const [
+    player,
+    background,
+    rivals,
+    weapons,
+    shield,
+    magnet,
+    scrap,
+    crate,
+    guard,
+    hit,
+    burst,
+    body,
+    cap,
+  ] = await Promise.all([
+    loadImage(root('animation/veh_player_chassis_v005.png')).then((image) =>
+      trim(image),
+    ),
+    loadImage(root('world/env_background_integrated_2x1_v005.webp')),
+    Promise.all(
+      Object.entries(rivalNames).map(async ([kind, name]) => {
+        const image = await loadImage(
+          root(`animation/enm_${name}_motion_v002.png`),
+        );
+        return [
+          kind,
+          [
+            trim(image, 0, 0, 2),
+            trim(image, 1, 0, 2),
+            trim(image, 0, 1, 2),
+            trim(image, 1, 1, 2),
+          ],
+        ];
+      }),
+    ).then((entries) => Object.fromEntries(entries) as RunnerArt['rivals']),
+    Promise.all(
+      Object.entries(WEAPON_ART).map(async ([id, url]) => [
+        id,
+        trim(await loadImage(url)),
+      ]),
+    ).then((entries) => Object.fromEntries(entries) as RunnerArt['weapons']),
+    loadImage(root('equipment/mod_shield_generator_v001.png')).then((image) =>
+      trim(image),
+    ),
+    loadImage(root('equipment/mod_magnetic_armor_v001.png')).then((image) =>
+      trim(image),
+    ),
+    loadImage(SCRAP_ART).then((image) => compact(trim(image))),
+    loadImage(root('supply/supply_ammo_crate_v001.png')).then((image) =>
+      trim(image),
+    ),
+    loadImage(root('vfx/vfx_parry_deflect_success_v002.png')).then((image) =>
+      trim(image),
+    ),
+    loadImage(root('vfx/vfx_ballistic_pair_v001.png')).then((image) =>
+      trim(image, 1, 0, 2, 1),
+    ),
+    loadImage(root('vfx/vfx_explosive_pair_v001.png')).then((image) =>
+      trim(image, 1, 0, 2, 1),
+    ),
+    loadImage(root('runner-terrain/rock-body.webp')),
+    loadImage(root('runner-terrain/road-cap.webp')),
+  ]);
   return {
     player,
     background,
@@ -142,5 +189,8 @@ export async function loadRunnerArt(): Promise<RunnerArt> {
     weapons,
     shield,
     magnet,
+    scrap,
+    crate,
+    effects: { guard, hit, burst },
   };
 }
