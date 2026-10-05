@@ -626,17 +626,17 @@ export function renderRunner(
   const squash = reducedMotion ? 0 : state.player.squash;
   ctx.scale(1 + squash * 0.07, 1 - squash * 0.1);
   renderExhaust(ctx, state, reducedMotion);
-  const visible =
-    state.player.invulnerable <= 0 ||
-    reducedMotion ||
-    Math.floor(state.time * 12) % 2 === 0;
-  if (visible) {
-    // Wheelbase, rather than the long front overhang, is centred on collision.
-    sprite(ctx, art.player, 10, 0, 68);
-    renderWheelMotion(ctx, state.distance, reducedMotion);
-    if (state.weapon) {
-      sprite(ctx, art.weapons[state.weapon.id], 6, -46, 29);
-    }
+  // A soft grace-period pulse keeps the body and wheel contact legible.
+  // The guard spark and HUD already communicate the hit; never hide the car.
+  ctx.globalAlpha =
+    state.player.invulnerable > 0 && !reducedMotion
+      ? 0.875 + Math.sin(state.time * Math.PI * 12) * 0.125
+      : 1;
+  // Wheelbase, rather than the long front overhang, is centred on collision.
+  sprite(ctx, art.player, 10, 0, 68);
+  renderWheelMotion(ctx, state.distance, reducedMotion);
+  if (state.weapon) {
+    sprite(ctx, art.weapons[state.weapon.id], 6, -46, 29);
   }
   ctx.restore();
   for (const effect of state.effects) {
