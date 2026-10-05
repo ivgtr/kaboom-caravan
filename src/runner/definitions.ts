@@ -6,6 +6,8 @@ export interface WeaponDefinition {
   description: string;
   range: number;
   cadence: number;
+  /** A successful scatter breach earns one faster follow-up volley. */
+  breachCadence?: number;
   damage: number;
 }
 
@@ -30,9 +32,10 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   scatter: {
     label: '散弾砲',
     color: '#ffa36b',
-    description: '5発の散弾。近い敵や広がった群れに強い',
+    description: '近距離の5発散弾。撃破すると素早く次弾',
     range: 260,
     cadence: 0.72,
+    breachCadence: 0.46,
     damage: 3,
   },
   rocket: {

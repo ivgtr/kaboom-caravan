@@ -356,6 +356,7 @@ export function RunnerApp() {
       data-status={view.status}
       data-distance={view.distance}
       data-world-x={view.worldX.toFixed(2)}
+      data-speed={view.speed.toFixed(2)}
       data-y={view.y.toFixed(1)}
       data-grounded={view.grounded}
       data-jumps={view.jumps}

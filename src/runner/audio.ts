@@ -1,3 +1,4 @@
+import { START_SPEED, MAX_SPEED } from './pacing';
 import type { RunnerState, WeaponId } from './types';
 
 /** Quiet mechanical movement under the short, readable action sounds. */
@@ -57,7 +58,10 @@ export class RunnerAudio {
     if (!running && !this.motor) return;
     this.startMotor(context);
     const now = context.currentTime;
-    const pace = Math.max(0, Math.min(1, (state.speed - 330) / 110));
+    const pace = Math.max(
+      0,
+      Math.min(1, (state.speed - START_SPEED) / (MAX_SPEED - START_SPEED)),
+    );
     const airborne = !state.player.grounded;
     const rev = 47 + pace * 21 + (airborne ? 10 : 0);
     this.motor!.frequency.setTargetAtTime(rev, now, 0.09);

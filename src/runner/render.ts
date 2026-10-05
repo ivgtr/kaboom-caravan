@@ -1,4 +1,6 @@
+import { START_SPEED, MAX_SPEED } from './pacing';
 import { RIVALS, WEAPONS } from './definitions';
+import { RIVAL_WARNING_TIME } from './combat';
 import type { RunnerArt } from './assets';
 import {
   platformSlope,
@@ -292,7 +294,10 @@ function renderForeground(
   reducedMotion: boolean,
 ) {
   if (reducedMotion || state.status !== 'running') return;
-  const pace = Math.max(0, Math.min(1, (state.speed - 330) / 110));
+  const pace = Math.max(
+    0,
+    Math.min(1, (state.speed - START_SPEED) / (MAX_SPEED - START_SPEED)),
+  );
   const span = view.width + 180;
   ctx.save();
   ctx.strokeStyle = '#f8df9a';
@@ -584,7 +589,7 @@ export function renderRunner(
     const x = sx(rival.x),
       y = ground - rival.y;
     if (x < -120 || x > width + 120) continue;
-    const telegraph = rival.age < 1;
+    const telegraph = rival.age < RIVAL_WARNING_TIME;
     const size = rival.kind === 'heavy' || rival.kind === 'fortress' ? 82 : 67;
     ellipse(ctx, x, y + 2, size * 0.4, 6, '#183e4438');
     ctx.save();
@@ -604,8 +609,17 @@ export function renderRunner(
     }
     ctx.restore();
     if (!rival.defeated) {
-      if (telegraph)
-        text(ctx, '!', x, y - size - 13, 27, RIVALS[rival.kind].color);
+      // A high-speed warning may begin just outside portrait view. Keep the
+      // active cue visible at the edge instead of counting unseen warning time.
+      if (telegraph && rival.age > 0)
+        text(
+          ctx,
+          '!',
+          Math.min(x, width - 16),
+          y - size - 13,
+          27,
+          RIVALS[rival.kind].color,
+        );
       if (rival.hp < rival.maxHp) {
         ctx.fillStyle = '#244a48';
         ctx.fillRect(x - 17, y - size - 2, 34, 4);

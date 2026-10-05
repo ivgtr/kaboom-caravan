@@ -114,12 +114,13 @@ export function buildReplay(
   seed = 42,
   seconds = 45,
   collectWeapons = true,
-): { inputs: ReplayInput[]; state: RunnerState } {
+): { inputs: ReplayInput[]; state: RunnerState; minimumLandingRunway: number } {
   const state = createRunner(seed),
     inputs: ReplayInput[] = [];
   startRunner(state);
   let elapsed = 0,
-    accumulator = 0;
+    accumulator = 0,
+    minimumLandingRunway = Infinity;
   while (state.time < seconds && state.status === 'running') {
     for (const action of replayInputs(state, collectWeapons)) {
       inputs.push({ time: elapsed, action });
@@ -129,9 +130,47 @@ export function buildReplay(
     elapsed = Math.round((elapsed + 0.016) * 1000) / 1000;
     accumulator += 0.016;
     while (accumulator >= FIXED_DT) {
+      const airborne = !state.player.grounded;
       stepRunner(state);
+      if (airborne && state.player.grounded)
+        minimumLandingRunway = Math.min(
+          minimumLandingRunway,
+          (roadEnd(state) - state.distance) / getSpeed(state.distance),
+        );
       accumulator -= FIXED_DT;
     }
   }
-  return { inputs, state };
+  return { inputs, state, minimumLandingRunway };
+}
+
+/** Deliver the same physical inputs at frame boundaries, then use the app's
+ * 120Hz accumulator. Different refresh rates may add up to one frame of latency.
+ */
+export function replayAtRefresh(
+  inputs: ReplayInput[],
+  seconds: number,
+  hz: number,
+  seed = 42,
+): RunnerState {
+  const state = createRunner(seed);
+  startRunner(state);
+  let elapsed = 0,
+    accumulator = 0,
+    input = 0,
+    ticks = 0;
+  const totalTicks = Math.ceil(seconds / FIXED_DT);
+  while (ticks < totalTicks && state.status === 'running') {
+    while (inputs[input] && inputs[input]!.time <= elapsed + 1e-9) {
+      if (inputs[input++]!.action === 'press') requestJump(state);
+      else releaseJump(state);
+    }
+    elapsed += 1 / hz;
+    accumulator += 1 / hz;
+    while (accumulator + 1e-12 >= FIXED_DT && ticks < totalTicks) {
+      stepRunner(state);
+      accumulator -= FIXED_DT;
+      ticks++;
+    }
+  }
+  return state;
 }

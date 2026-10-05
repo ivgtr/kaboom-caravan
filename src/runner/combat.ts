@@ -15,7 +15,15 @@ export const MAX_WEAPON_LEVEL = 3;
 export const SCRAP_PER_LEVEL = 25;
 export const MAGNET_DISTANCE = 1100;
 export const RIVAL_WARNING_TIME = 0.8;
+export const RIVAL_WARNING_LEAD_TIME = 1.05;
 const HALF_PLAYER = PLAYER_WIDTH / 2;
+const MAX_CONTACT_DISTANCE =
+  HALF_PLAYER +
+  Math.max(...Object.values(RIVALS).map((rival) => rival.width / 2));
+/** Give every body a real-time approach window as the road accelerates. */
+export function rivalWarningDistance(speed: number): number {
+  return Math.max(500, speed * RIVAL_WARNING_LEAD_TIME + MAX_CONTACT_DISTANCE);
+}
 
 function effect(
   state: RunnerState,
@@ -206,11 +214,13 @@ function aimAt(
   if (dx < 0) return undefined;
   const heading = -playerTilt(state);
   const alongRoad = muzzle.y + Math.tan(heading) * dx;
-  const padding = weapon === 'rail' ? 5 : -2;
-  const aimY = Math.max(
-    target.y - target.height / 2 - padding,
-    Math.min(target.y + target.height / 2 + padding, alongRoad),
-  );
+  const bottom = target.y - target.height / 2;
+  // Rail sights follow a shared chassis line, not a tall target's roof. Keep
+  // the real beam shallow enough to pierce the shorter body behind it, too.
+  const aimTop =
+    bottom +
+    (weapon === 'rail' ? Math.min(26, target.height - 4) : target.height - 2);
+  const aimY = Math.max(bottom + 2, Math.min(aimTop, alongRoad));
   const angle = Math.atan2(aimY - muzzle.y, Math.max(1, dx));
   const assist = state.player.grounded
     ? weapon === 'flame'
@@ -247,7 +257,9 @@ function fireWeapon(state: RunnerState, dt: number): void {
   const weapon = state.weapon;
   if (!weapon) return;
   weapon.cooldown = Math.max(0, weapon.cooldown - dt);
-  if (weapon.cooldown > 0) return;
+  // Exact cadence multiples (notably 0.1s flame at 120Hz) must not lose a
+  // whole tick to a floating-point remainder. Timers still use real seconds.
+  if (weapon.cooldown > 1e-9) return;
   const definition = WEAPONS[weapon.id];
   const muzzle = playerMuzzle(state);
   const targets = activeTargets(state);
@@ -278,9 +290,9 @@ function fireWeapon(state: RunnerState, dt: number): void {
     definition.damage *
     (1 + (weapon.level - 1) * 0.45) *
     (1 + (state.runLevel - 1) * 0.18);
-  weapon.cooldown =
-    definition.cadence /
-    (1 + (weapon.level - 1) * 0.13 + Math.min(12, state.runLevel - 1) * 0.08);
+  const fireRate =
+    1 + (weapon.level - 1) * 0.13 + Math.min(12, state.runLevel - 1) * 0.08;
+  weapon.cooldown = definition.cadence / fireRate;
 
   if (weapon.id === 'scatter') {
     // Five independent pellets: a close target catches more; a staggered cluster
@@ -305,8 +317,15 @@ function fireWeapon(state: RunnerState, dt: number): void {
       );
       if (hit) hits.set(hit.target, (hits.get(hit.target) ?? 0) + damage / 3);
     }
-    for (const [target, pelletDamage] of hits)
+    let breached = false;
+    for (const [target, pelletDamage] of hits) {
       damageTarget(state, target, pelletDamage);
+      breached ||= !!(target.rival?.defeated || target.obstacle?.destroyed);
+    }
+    // One earned follow-up after the entire volley, never a refund per pellet.
+    // Armored survivors keep the ordinary, deliberate shotgun reload.
+    if (breached && definition.breachCadence !== undefined)
+      weapon.cooldown = definition.breachCadence / fireRate;
   } else if (weapon.id === 'rail') {
     // A single consistent beam; targets above/below the beam are not pierced.
     for (const target of inRange)
@@ -375,7 +394,8 @@ export function stepCombat(state: RunnerState, dt: number): void {
   for (const obstacle of state.obstacles)
     obstacle.hit = Math.max(0, obstacle.hit - dt);
   for (const rival of state.rivals) {
-    if (rival.x - state.distance <= 500) rival.age += dt;
+    if (rival.x - state.distance <= rivalWarningDistance(state.speed))
+      rival.age += dt;
     rival.hit = Math.max(0, rival.hit - dt);
     if (rival.defeated) continue;
     const road = state.platforms.find(

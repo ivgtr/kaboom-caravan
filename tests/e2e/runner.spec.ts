@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { buildReplay } from '../runner-replay';
+import { MAX_SPEED, SPEED_RAMP_DISTANCE } from '../../src/runner/pacing';
 
 async function openRun(page: Page) {
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
@@ -147,7 +148,7 @@ async function replay(
     y: button!.y + button!.height / 2,
   };
   const checkpoints = (
-    seconds > 60 ? [2.8, 7.6, 15, 35, 58, 74] : [2.8, 7.6, 15, 30]
+    seconds > 60 ? [2.8, 15, 32, 52, 76, 89] : [2.8, 7.6, 15, 30]
   ).filter((t) => t < seconds);
   const events = [
     ...plan.inputs.map((input) => ({
@@ -181,6 +182,12 @@ async function replay(
         'data-status',
         'running',
       );
+      if (event.checkpoint === 2.8)
+        expect(await number(page, 'speed')).toBeLessThan(360);
+      if (event.checkpoint === 32)
+        expect(await number(page, 'speed')).toBeGreaterThan(440);
+      if (event.checkpoint === 89)
+        expect(await number(page, 'speed')).toBe(MAX_SPEED);
       await capture(page, info, `${name}-${event.checkpoint}s`);
     }
   }
@@ -206,10 +213,10 @@ async function replay(
 test('real keyboard replay crosses hills, gear encounters and late capped-speed accents', async ({
   page,
 }, info) => {
-  test.setTimeout(150000);
+  test.setTimeout(180000);
   await openRun(page);
-  await replay(page, info, 'desktop-course', 75);
-  expect(await number(page, 'world-x')).toBeGreaterThan(22000);
+  await replay(page, info, 'desktop-course', 90);
+  expect(await number(page, 'world-x')).toBeGreaterThan(SPEED_RAMP_DISTANCE);
 });
 
 for (const viewport of [
@@ -221,9 +228,9 @@ for (const viewport of [
     test('press, hold, release and cancellation work while the full play area fits', async ({
       page,
     }, info) => {
-      test.setTimeout(120000);
+      test.setTimeout(180000);
       await openRun(page);
-      await replay(page, info, `touch-${viewport.name}`, 32, true);
+      await replay(page, info, `touch-${viewport.name}`, 90, true);
       const runner = page.getByTestId('runner');
       await page.getByRole('button', { name: '一時停止', exact: true }).tap();
       await page.getByRole('button', { name: '最初から', exact: true }).tap();

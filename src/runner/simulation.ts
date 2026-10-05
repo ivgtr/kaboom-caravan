@@ -1,6 +1,8 @@
 import { RIVALS, WEAPON_ORDER } from './definitions';
 import { collectPickup, stepCombat } from './combat';
 import { platformTopAt, platformsJoin } from './terrain';
+import { DOUBLE_BEAT_DISTANCE, getSpeed } from './pacing';
+export { getSpeed } from './pacing';
 import {
   FIXED_DT,
   PLAYER_HEIGHT,
@@ -38,9 +40,6 @@ export function jumpLandingTime(rise: number): number {
   return discriminant < 0
     ? Infinity
     : (JUMP_VELOCITY + Math.sqrt(discriminant)) / GRAVITY;
-}
-export function getSpeed(distance: number): number {
-  return 330 + 110 * Math.min(1, Math.max(0, distance) / 22000);
 }
 function random(state: RunnerState): number {
   let value = state.random | 0;
@@ -111,15 +110,25 @@ function scrapLine(
   for (let i = 0; i < count; i++)
     addPickup(state, x + 52 * i, top + 22, 'scrap');
 }
-function jumpArc(state: RunnerState, edge: number, top: number): void {
+function jumpArc(
+  state: RunnerState,
+  edge: number,
+  top: number,
+  low = false,
+): void {
   const speed = getSpeed(edge);
-  for (const time of [0.2, 0.38, 0.56])
-    addPickup(
-      state,
-      edge + speed * (time - 0.12),
-      top + JUMP_VELOCITY * time - 0.5 * GRAVITY * time * time + 17,
-      'scrap',
-    );
+  // The low trail follows a 50ms tap; a longer trail invites a held descent.
+  const times = low ? [0.17, 0.3, 0.43] : [0.24, 0.43, 0.62];
+  for (const time of times) {
+    const afterRelease = time - 0.05;
+    const height = low
+      ? JUMP_VELOCITY * 0.05 -
+        0.5 * GRAVITY * 0.05 ** 2 +
+        RELEASE_VELOCITY * afterRelease -
+        0.5 * GRAVITY * afterRelease ** 2
+      : JUMP_VELOCITY * time - 0.5 * GRAVITY * time * time;
+    addPickup(state, edge + speed * (time - 0.12), top + height + 17, 'scrap');
+  }
 }
 function pairWeapon(seed: number, chunk: number): WeaponId {
   // A repeated pair makes upgrades discoverable, but a new route changes loadouts.
@@ -164,10 +173,16 @@ function addCrate(state: RunnerState, x: number, top: number): void {
     hit: 0,
   });
 }
-function equipmentLane(state: RunnerState, start: number, top: number): void {
+function equipmentLane(
+  state: RunnerState,
+  start: number,
+  top: number,
+  speed: number,
+  raised = false,
+): void {
   const weapon = pairWeapon(state.seed, state.chunk);
-  addPickup(state, start + 145, top + 88, 'weapon', weapon);
-  // Every gun immediately has something useful to do; all targets can be hopped.
+  addPickup(state, start + speed * 0.78, top + 88, 'weapon', weapon);
+  // Leave time to land after selecting a gun, then fire or hop the cluster.
   const kinds: RivalKind[] = [
     'basic',
     'rusher',
@@ -176,26 +191,26 @@ function equipmentLane(state: RunnerState, start: number, top: number): void {
     'artillery',
     'fortress',
   ];
-  const kind = kinds[Math.min(kinds.length - 1, Math.floor(state.chunk / 3))]!;
-  const raised = state.chunk % 4 === 0;
-  addCrate(state, start + 385, raised ? boundedHeight(top + 12) : top);
-  addRival(state, start + 465, raised ? boundedHeight(top + 24) : top, kind);
+  const encounter =
+    Math.floor(state.chunk / 6) * 2 + (state.chunk % 6 === 4 ? 1 : 0);
+  const kind = kinds[encounter % kinds.length]!;
+  const targetTop = raised ? boundedHeight(top + 24) : top;
+  addCrate(state, start + speed * 1.48, targetTop);
+  addRival(state, start + speed * 1.48 + 80, targetTop, kind);
   if (state.chunk > 4)
-    addRival(
-      state,
-      start + 535,
-      raised ? boundedHeight(top + 24) : top,
-      'basic',
-    );
-  scrapLine(state, start + 225, top, 3);
-  if (state.chunk % 6 === 4) addPickup(state, start + 630, top + 25, 'shield');
-  if (state.chunk % 10 === 8) addPickup(state, start + 620, top + 25, 'magnet');
+    addRival(state, start + speed * 1.48 + 150, targetTop, 'basic');
+  scrapLine(state, start + speed * 0.36, top, 3);
+  scrapLine(state, start + speed * 2.5, top, 3);
+  if (state.chunk % 6 === 4)
+    addPickup(state, start + speed * 2.55, top + 25, 'shield');
+  if (state.chunk % 10 === 8)
+    addPickup(state, start + speed * 2.55, top + 25, 'magnet');
 }
 function boundedHeight(value: number): number {
   return Math.max(TERRAIN_MIN_HEIGHT, Math.min(TERRAIN_MAX_HEIGHT, value));
 }
 
-/** Short, complete phrases: a readable gap, a wide landing, then the next beat. */
+/** Time-shaped phrases alternate low hops, held drops, battles and a double beat. */
 export function generateTerrain(
   state: RunnerState,
   target = state.distance + GENERATION_AHEAD,
@@ -207,79 +222,97 @@ export function generateTerrain(
     const speed = getSpeed(edge);
     const roll = random(state);
     const first = state.chunk === 0;
-    const narrow = edge > 12500 && state.chunk % 13 === 11;
-    const gap = speed * (first ? 0.34 + roll * 0.04 : 0.36 + roll * 0.1);
-    const rise = first ? 0 : [-32, 0, 32, 48][Math.floor(random(state) * 4)]!;
+    const phrase = state.chunk % 6;
+    const double = phrase === 5 && edge >= DOUBLE_BEAT_DISTANCE;
+    const descending = phrase === 3;
+    const low = first || phrase === 0 || phrase === 1 || double;
+    const gapTime = low
+      ? 0.28 + roll * 0.035
+      : descending
+        ? 0.53 + roll * 0.04
+        : 0.37 + roll * 0.055;
+    const rise = low
+      ? 0
+      : descending
+        ? roll < 0.5
+          ? -40
+          : -24
+        : [0, 24, 32][Math.floor(random(state) * 3)]!;
     const nextTop = boundedHeight(top + rise);
-    const start = edge + gap;
-    jumpArc(state, edge, top);
-    if (narrow) {
-      // One late-run accent, never a chain. A wide exit is part of this phrase.
-      addPlatform(state, start, 160, nextTop);
-      addPickup(state, start + 80, nextTop + 22, 'scrap');
-      const exit = start + 160 + speed * 0.32;
-      addPlatform(state, exit, 620, nextTop);
-      jumpArc(state, start + 160, nextTop);
-      scrapLine(state, exit + 170, nextTop, 4);
-      state.generatedUntil = exit + 620;
-    } else if (state.chunk % 3 === 1) {
-      // A generous landing flows through a short climb or dip and a clear ramp lip.
-      addPlatform(state, start, 300, nextTop);
+    const start = edge + speed * gapTime;
+    const laneSpeed = getSpeed(start);
+    jumpArc(state, edge, top, low);
+    if (double) {
+      // A deliberate second beat after learning. Both full holds and low taps
+      // leave a real grounded decision window; recovery is never compulsory.
+      const landing = Math.max(330, laneSpeed * 0.96);
+      addPlatform(state, start, landing, nextTop);
+      scrapLine(state, start + laneSpeed * 0.3, nextTop, 3);
+      const nextEdge = start + landing;
+      const exit = nextEdge + getSpeed(nextEdge) * 0.3;
+      const exitWidth = Math.max(620, getSpeed(exit) * 1.5);
+      addPlatform(state, exit, exitWidth, nextTop);
+      jumpArc(state, nextEdge, nextTop, true);
+      scrapLine(state, exit + laneSpeed * 0.35, nextTop, 4);
+      state.generatedUntil = exit + exitWidth;
+    } else if (phrase === 1) {
+      // A breathing hill keeps its physical slope. No enemy stacks on its crest.
+      const landing = Math.max(300, laneSpeed * 0.8);
+      const rampWidth = 200;
       const rampEnd = boundedHeight(nextTop + (roll < 0.5 ? 64 : -48));
-      addPlatform(state, start + 300, 200, nextTop, rampEnd);
-      addPlatform(state, start + 500, 280, rampEnd);
-      scrapLine(state, start + 135, nextTop, 3);
+      const exitWidth = Math.max(330, laneSpeed * 0.85);
+      addPlatform(state, start, landing, nextTop);
+      addPlatform(state, start + landing, rampWidth, nextTop, rampEnd);
+      addPlatform(state, start + landing + rampWidth, exitWidth, rampEnd);
+      scrapLine(state, start + laneSpeed * 0.3, nextTop, 3);
       for (let i = 0; i < 3; i++)
         addPickup(
           state,
-          start + 345 + 55 * i,
-          nextTop + ((rampEnd - nextTop) * (45 + 55 * i)) / 200 + 24,
+          start + landing + 45 + 55 * i,
+          nextTop + ((rampEnd - nextTop) * (45 + 55 * i)) / rampWidth + 24,
           'scrap',
         );
-      if (state.chunk >= 4) {
-        addPickup(
-          state,
-          start + 125,
-          nextTop + 88,
-          'weapon',
-          pairWeapon(state.seed, state.chunk),
-        );
-        addRival(
-          state,
-          start + 365,
-          nextTop + (rampEnd - nextTop) * 0.325,
-          'rusher',
-        );
-        addRival(
-          state,
-          start + 445,
-          nextTop + (rampEnd - nextTop) * 0.725,
-          state.chunk > 9 ? 'artillery' : 'basic',
-        );
-      }
-      state.generatedUntil = start + 780;
-    } else if (state.chunk % 2 === 0 && !first) {
-      if (state.chunk % 4 === 0) {
+      scrapLine(state, start + landing + rampWidth + 100, rampEnd, 3);
+      state.generatedUntil = start + landing + rampWidth + exitWidth;
+    } else if (phrase === 2 || phrase === 4) {
+      const width = laneSpeed * 3.1;
+      const raised = phrase === 4;
+      if (raised) {
         const bump = boundedHeight(nextTop + 24);
-        addPlatform(state, start, 325, nextTop);
-        addPlatform(state, start + 325, 120, nextTop, bump);
-        addPlatform(state, start + 445, 140, bump);
-        addPlatform(state, start + 585, 120, bump, nextTop);
-        addPlatform(state, start + 705, 195, nextTop);
-      } else addPlatform(state, start, 900, nextTop);
-      equipmentLane(state, start, nextTop);
-      state.generatedUntil = start + 900;
+        const upStart = laneSpeed * 1.02;
+        const downStart = laneSpeed * 1.99;
+        addPlatform(state, start, upStart, nextTop);
+        addPlatform(state, start + upStart, 120, nextTop, bump);
+        addPlatform(
+          state,
+          start + upStart + 120,
+          downStart - upStart - 120,
+          bump,
+        );
+        addPlatform(state, start + downStart, 120, bump, nextTop);
+        addPlatform(
+          state,
+          start + downStart + 120,
+          width - downStart - 120,
+          nextTop,
+        );
+      } else addPlatform(state, start, width, nextTop);
+      equipmentLane(state, start, nextTop, laneSpeed, raised);
+      state.generatedUntil = start + width;
     } else {
       const width = first
         ? 490 + random(state) * 70
-        : 420 + random(state) * 150;
+        : laneSpeed *
+          (descending
+            ? 1.82 + random(state) * 0.18
+            : 1.48 + random(state) * 0.2);
       addPlatform(state, start, width, nextTop);
-      scrapLine(state, start + 125, nextTop, 4);
-      // Airborne rewards are a choice between holding a jump and staying low.
-      if (state.chunk > 2)
+      scrapLine(state, start + laneSpeed * 0.35, nextTop, 4);
+      // Holding is required for the longer drop, then the high pickup is optional.
+      if (descending)
         addPickup(
           state,
-          start + 250,
+          start + laneSpeed * 0.72,
           nextTop + 88,
           'weapon',
           pairWeapon(state.seed, state.chunk),
