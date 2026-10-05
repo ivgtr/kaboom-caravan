@@ -162,10 +162,12 @@ async function replay(
     })),
   ].sort((a, b) => a.at - b.at);
   let time = 0;
+  let held = false;
   for (const event of events) {
     await page.clock.runFor(event.at - time);
     time = event.at;
     if (event.action) {
+      held = event.action === 'press';
       if (session)
         await session.send('Input.dispatchTouchEvent', {
           type: event.action === 'press' ? 'touchStart' : 'touchEnd',
@@ -192,7 +194,7 @@ async function replay(
   ).toBeLessThan(45);
   expect(await number(page, 'run-level')).toBeGreaterThan(1);
   expect(await number(page, 'defeated')).toBeGreaterThan(0);
-  if (session)
+  if (session && held)
     await session.send('Input.dispatchTouchEvent', {
       type: 'touchEnd',
       touchPoints: [],
