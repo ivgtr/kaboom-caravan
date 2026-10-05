@@ -53,8 +53,14 @@ export function playerTilt(state: RunnerState): number {
 /** Transform the local roof muzzle through the same lean/squash as the sprite. */
 export function playerMuzzle(state: RunnerState): { x: number; y: number } {
   const angle = playerTilt(state);
-  const x = 19 * (1 + state.player.squash * 0.07);
-  const y = 60 * (1 - state.player.squash * 0.1);
+  const growth =
+    1 +
+    Math.min(
+      0.2,
+      Object.values(state.fever.abilities).reduce((a, b) => a + b, 0) * 0.008,
+    );
+  const x = 19 * (1 + state.player.squash * 0.07) * growth;
+  const y = 60 * (1 - state.player.squash * 0.1) * growth;
   return {
     x: state.distance + x * Math.cos(angle) + y * Math.sin(angle),
     y: state.player.y + y * Math.cos(angle) - x * Math.sin(angle),

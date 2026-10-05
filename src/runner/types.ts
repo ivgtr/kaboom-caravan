@@ -1,6 +1,55 @@
 export type WeaponId =
   'machine' | 'scatter' | 'rocket' | 'rail' | 'flame' | 'mine';
-export type PickupKind = 'scrap' | 'weapon' | 'shield' | 'magnet';
+export type PickupKind = 'scrap' | 'weapon' | 'shield' | 'magnet' | 'chest';
+export type AbilityId = 'boost' | 'slam' | 'gold' | 'magnet';
+export interface FeverReward {
+  kind: AbilityId;
+  count: number;
+}
+export interface FeverReel {
+  id: number;
+  rewards: FeverReward[];
+  revealed: number;
+  elapsed: number;
+  /** Locked when activated; late queue changes cannot skip a reveal. */
+  revealInterval: number;
+  jackpot: boolean;
+  merged: number;
+}
+export interface FeverEvent {
+  id: number;
+  kind:
+    | 'chest'
+    | 'reward'
+    | 'chain'
+    | 'rush'
+    | 'hyper'
+    | 'jackpot'
+    | 'slam'
+    | 'gold';
+  text: string;
+  clock: number;
+  value: number;
+}
+export interface FeverState {
+  random: number;
+  clock: number;
+  freeze: number;
+  rushTime: number;
+  hyperTime: number;
+  chain: number;
+  chainTime: number;
+  multiplier: number;
+  goldCharge: number;
+  abilities: Record<AbilityId, number>;
+  reel: FeverReel | null;
+  queue: FeverReel[];
+  event: FeverEvent | null;
+  /** Reward points survive unrelated combat/event notifications. */
+  rewardCue: { id: number; value: number; clock: number; text: string } | null;
+  queuedJump: boolean;
+  queuedRelease: boolean;
+}
 export type RivalKind =
   'basic' | 'rusher' | 'heavy' | 'bomber' | 'artillery' | 'fortress';
 export interface Platform {
@@ -20,6 +69,7 @@ export interface Obstacle {
   hp: number;
   maxHp: number;
   destroyed: boolean;
+  golden?: boolean;
   hit: number;
 }
 export interface Pickup {
@@ -29,6 +79,7 @@ export interface Pickup {
   kind: PickupKind;
   weapon?: WeaponId;
   taken: boolean;
+  earned?: boolean;
 }
 export interface Rival {
   id: number;
@@ -40,6 +91,7 @@ export interface Rival {
   speed: number;
   age: number;
   defeated: boolean;
+  golden?: boolean;
   hit: number;
 }
 export interface Shot {
@@ -56,9 +108,21 @@ export interface Effect {
   x: number;
   y: number;
   kind:
-    'jump' | 'recover' | 'land' | 'pickup' | 'hit' | 'burst' | 'guard' | 'pass';
+    | 'jump'
+    | 'recover'
+    | 'land'
+    | 'pickup'
+    | 'hit'
+    | 'burst'
+    | 'guard'
+    | 'pass'
+    | 'slam'
+    | 'gold'
+    | 'chest';
   life: number;
   maxLife: number;
+  /** Physical radius captured at emission, for matching area-attack art. */
+  radius?: number;
   text?: string;
 }
 export interface Weapon {
@@ -83,6 +147,13 @@ export interface RunnerState {
   time: number;
   distance: number;
   speed: number;
+  score: number;
+  scoreParts: { travel: number; combat: number; loot: number; landing: number };
+  bestChain: number;
+  maxMultiplier: number;
+  peakSpeed: number;
+  chestsOpened: number;
+  fever: FeverState;
   status: 'ready' | 'running' | 'paused' | 'over';
   reason: 'gap' | 'wall' | 'obstacle' | 'rival' | null;
   player: {
@@ -94,6 +165,8 @@ export interface RunnerState {
     invulnerable: number;
     squash: number;
     holding: boolean;
+    /** Tempo is captured at takeoff; upgrades never alter an existing arc. */
+    jumpTempo: number;
     airHops: 0 | 1;
     lastJumpX: number | null;
     lastJumpY: number;

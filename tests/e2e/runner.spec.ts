@@ -1,10 +1,10 @@
+import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { buildReplay } from '../runner-replay';
-import { MAX_SPEED, SPEED_RAMP_DISTANCE } from '../../src/runner/pacing';
 
-async function openRun(page: Page) {
+async function openRun(page: Page, seed = 42) {
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
-  await page.goto('/?seed=42');
+  await page.goto(`/?seed=${seed}`);
   await expect(page.getByTestId('runner')).toHaveAttribute(
     'data-status',
     'ready',
@@ -55,20 +55,6 @@ test('tap, hold and one recovery have distinct responsive results', async ({
   await expect(page.getByTestId('runner')).toHaveAttribute('data-jumps', '2');
   await page.keyboard.up('Space');
   await capture(page, info, 'desktop-air-recovery');
-  // This real recovery misses the first gun, then the first rival spends the guard.
-  await page.clock.runFor(930);
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-shield', '0');
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-guard-flash',
-    'true',
-  );
-  await capture(page, info, 'desktop-guard-contact');
-  await page.clock.runFor(300);
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-guard-flash',
-    'false',
-  );
-  await capture(page, info, 'desktop-guard-finished');
   expect(errors).toEqual([]);
 });
 
@@ -106,31 +92,56 @@ test('pause, pointer release outside and focus loss clear hold and require expli
   await expect(runner).toHaveAttribute('data-status', 'paused');
 });
 
-test('starter gun pays off before first gap; death explains missed input and retry is immediate', async ({
+test('early chest grows score; jackpot freezes the world, then resumes a queued tap and preserves score record', async ({
   page,
 }, info) => {
-  await openRun(page);
+  await openRun(page, 1);
+  const runner = page.getByTestId('runner');
   await page.getByRole('button', { name: 'スタート', exact: true }).click();
-  await page.clock.runFor(1200);
-  await expect(page.getByLabel('現在の装備')).toContainText('連射');
-  expect(await number(page, 'defeated')).toBeGreaterThan(0);
-  await capture(page, info, 'desktop-first-payoff');
-  await page.clock.runFor(1500);
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-status',
-    'over',
-  );
-  await expect(page.locator('.runner-cause')).toContainText('ジャンプせず');
-  await capture(page, info, 'desktop-death-context');
-  const finalDistance = await number(page, 'distance');
+  await page.clock.runFor(1880);
+  expect(await number(page, 'chests')).toBe(1);
+  expect(await number(page, 'freeze')).toBeGreaterThan(0.4);
+  const frozenX = await number(page, 'world-x');
+  await capture(page, info, 'desktop-jackpot-freeze');
+  await page.keyboard.down('Space');
+  await page.keyboard.up('Space');
+  await page.clock.runFor(180);
+  expect(await number(page, 'world-x')).toBe(frozenX);
+  await expect(runner).toHaveAttribute('data-holding', 'false');
+  await page.clock.runFor(650);
+  expect(await number(page, 'freeze')).toBe(0);
+  expect(await number(page, 'world-x')).toBeGreaterThan(frozenX);
+  expect(await number(page, 'jumps')).toBe(1);
+  expect(await number(page, 'score')).toBeGreaterThan(100);
+  await capture(page, info, 'desktop-jackpot-release');
+  await page.clock.runFor(5000);
+  await expect(runner).toHaveAttribute('data-status', 'over');
+  await expect(page.getByLabel('ラン結果')).toContainText('最大CHAIN');
+  const finalScore = await number(page, 'score');
+  expect(
+    await page.evaluate(() =>
+      Number(localStorage.getItem('kaboom-score-fever-best-v1')),
+    ),
+  ).toBe(finalScore);
+  await capture(page, info, 'desktop-score-result');
   await page.getByRole('button', { name: 'もう一度', exact: true }).click();
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-status',
-    'running',
-  );
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-jumps', '0');
-  await page.clock.runFor(100);
-  expect(await number(page, 'distance')).toBeLessThan(finalDistance);
+  await expect(runner).toHaveAttribute('data-status', 'running');
+  await expect(runner).toHaveAttribute('data-jumps', '0');
+  await expect(runner).toHaveAttribute('data-score', '0');
+  await page.clock.runFor(1880);
+  await page.getByRole('button', { name: '一時停止', exact: true }).click();
+  const frozenClock = await number(page, 'fever-clock');
+  const remaining = await number(page, 'freeze');
+  await page.keyboard.down('Space');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.keyboard.up('Space');
+  await page.clock.runFor(1000);
+  expect(await number(page, 'fever-clock')).toBe(frozenClock);
+  expect(await number(page, 'freeze')).toBe(remaining);
+  await page.getByRole('button', { name: '再開', exact: true }).click();
+  await page.clock.runFor(800);
+  await expect(runner).toHaveAttribute('data-holding', 'false');
+  await expect(runner).toHaveAttribute('data-jumps', '0');
 });
 
 /** The browser receives only physical input and elapsed time, never game-state edits. */
@@ -162,9 +173,9 @@ async function replay(
     x: button!.x + button!.width / 2,
     y: button!.y + button!.height / 2,
   };
-  const checkpoints = (
-    seconds > 60 ? [2.8, 15, 32, 52, 76, 89] : [2.8, 7.6, 15, 30]
-  ).filter((t) => t < seconds);
+  const checkpoints = [2.2, 2.8, 7.6, 15, 24, 32, 39].filter(
+    (t) => t < seconds,
+  );
   const events = [
     ...plan.inputs.map((input) => ({
       at: Math.round(input.time * 1000),
@@ -197,12 +208,11 @@ async function replay(
         'data-status',
         'running',
       );
-      if (event.checkpoint === 2.8)
-        expect(await number(page, 'speed')).toBeLessThan(360);
-      if (event.checkpoint === 32)
-        expect(await number(page, 'speed')).toBeGreaterThan(440);
-      if (event.checkpoint === 89)
-        expect(await number(page, 'speed')).toBe(MAX_SPEED);
+      if (event.checkpoint === 32) {
+        expect(await number(page, 'speed')).toBeGreaterThan(800);
+        expect(await number(page, 'score')).toBeGreaterThan(10000);
+        expect(await number(page, 'chests')).toBeGreaterThan(5);
+      }
       await capture(page, info, `${name}-${event.checkpoint}s`);
     }
   }
@@ -225,13 +235,124 @@ async function replay(
   await session?.detach();
 }
 
-test('real keyboard replay crosses hills, gear encounters and late capped-speed accents', async ({
+/** A separate wall-clock recording, with physical inputs and the real audio graph. */
+async function captureNormalSpeed(page: Page, info: TestInfo) {
+  const dir = info.outputPath('normal-speed');
+  await mkdir(dir, { recursive: true });
+  const context = await page
+    .context()
+    .browser()!
+    .newContext({
+      viewport: { width: 1280, height: 720 },
+      recordVideo: { dir, size: { width: 1280, height: 720 } },
+    });
+  const live = await context.newPage();
+  const videoStarted = Date.now();
+  await live.addInitScript(() => {
+    const qa = window as unknown as {
+      qaStream?: MediaStream;
+      qaRecorder?: MediaRecorder;
+      qaChunks?: Blob[];
+    };
+    const connect = AudioNode.prototype.connect;
+    AudioNode.prototype.connect = function (
+      ...args: Parameters<AudioNode['connect']>
+    ) {
+      const result = Reflect.apply(connect, this, args);
+      if (
+        (args[0] as unknown) instanceof AudioDestinationNode &&
+        this.context instanceof AudioContext
+      ) {
+        const destination = this.context.createMediaStreamDestination();
+        Reflect.apply(connect, this, [destination]);
+        qa.qaStream = destination.stream;
+      }
+      return result;
+    } as AudioNode['connect'];
+  });
+  await live.goto(page.url());
+  await expect(live.getByTestId('runner')).toHaveAttribute(
+    'data-art-ready',
+    'true',
+  );
+  await live.getByRole('button', { name: 'スタート', exact: true }).click();
+  const start = Date.now();
+  await live.evaluate(() => {
+    const qa = window as unknown as {
+      qaStream?: MediaStream;
+      qaRecorder?: MediaRecorder;
+      qaChunks?: Blob[];
+    };
+    if (!qa.qaStream) return;
+    qa.qaChunks = [];
+    qa.qaRecorder = new MediaRecorder(qa.qaStream);
+    qa.qaRecorder.ondataavailable = (event) => qa.qaChunks!.push(event.data);
+    qa.qaRecorder.start();
+  });
+  const audioDelayMs = Date.now() - videoStarted;
+  const plan = buildReplay(42, 24);
+  for (const input of plan.inputs) {
+    const remaining = start + input.time * 1000 - Date.now();
+    if (remaining > 0) await live.waitForTimeout(remaining);
+    if (input.action === 'press') await live.keyboard.down('Space');
+    else await live.keyboard.up('Space');
+  }
+  const remaining = start + 24000 - Date.now();
+  if (remaining > 0) await live.waitForTimeout(remaining);
+  await live.keyboard.up('Space');
+  await capture(live, info, 'desktop-normal-speed-final');
+  const status = await live.getByTestId('runner').getAttribute('data-status');
+  const audio = await live.evaluate(async () => {
+    const qa = window as unknown as {
+      qaRecorder?: MediaRecorder;
+      qaChunks?: Blob[];
+    };
+    if (!qa.qaRecorder) return null;
+    await new Promise<void>((resolve) => {
+      qa.qaRecorder!.onstop = () => resolve();
+      qa.qaRecorder!.stop();
+    });
+    return Array.from(
+      new Uint8Array(
+        await new Blob(qa.qaChunks, { type: 'audio/webm' }).arrayBuffer(),
+      ),
+    );
+  });
+  if (audio)
+    await writeFile(
+      info.outputPath('normal-speed-audio.webm'),
+      Buffer.from(audio),
+    );
+  await writeFile(
+    info.outputPath('normal-speed-capture.json'),
+    JSON.stringify(
+      {
+        seconds: 24,
+        seed: 42,
+        automatedPhysicalInput: true,
+        audioDelayMs,
+        finalStatus: status,
+      },
+      null,
+      2,
+    ),
+  );
+  const video = live.video()!;
+  await context.close();
+  await rename(
+    await video.path(),
+    info.outputPath('normal-speed-gameplay.webm'),
+  );
+}
+
+test('real keyboard replay chains chests, inflation and high-speed landing destruction', async ({
   page,
 }, info) => {
   test.setTimeout(180000);
   await openRun(page);
-  await replay(page, info, 'desktop-course', 90);
-  expect(await number(page, 'world-x')).toBeGreaterThan(SPEED_RAMP_DISTANCE);
+  await replay(page, info, 'desktop-course', 40);
+  expect(await number(page, 'multiplier')).toBeGreaterThan(10);
+  if (process.env.CAPTURE_UI_REVIEW) await captureNormalSpeed(page, info);
 });
 
 for (const viewport of [
@@ -245,7 +366,7 @@ for (const viewport of [
     }, info) => {
       test.setTimeout(180000);
       await openRun(page);
-      await replay(page, info, `touch-${viewport.name}`, 90, true);
+      await replay(page, info, `touch-${viewport.name}`, 40, true);
       const runner = page.getByTestId('runner');
       await page.getByRole('button', { name: '一時停止', exact: true }).tap();
       await page.getByRole('button', { name: '最初から', exact: true }).tap();

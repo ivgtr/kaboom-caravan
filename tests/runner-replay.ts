@@ -3,7 +3,6 @@ import { RIVALS } from '../src/runner/definitions';
 import {
   GRAVITY,
   createRunner,
-  getSpeed,
   PLAYER_HALF_HITBOX,
   releaseJump,
   requestJump,
@@ -38,6 +37,11 @@ export function replayInputs(
   collectWeapons = true,
 ): ReplayInput['action'][] {
   const actions: ReplayInput['action'][] = [];
+  // This pilot watches the actual build. A boosted ram already destroys bodies;
+  // hopping over those harmless targets can waste the next gap's takeoff window.
+  // Dedicated interaction tests still cover presses/releases during FREEZE.
+  if (state.fever.freeze > 0) return actions;
+  const ramming = state.fever.abilities.boost > 0 && state.speed >= 480;
   const threats = [
     ...state.obstacles
       .filter((o) => !o.destroyed)
@@ -52,15 +56,15 @@ export function replayInputs(
   ]
     .filter((o) => o.x + o.width / 2 > state.distance - PLAYER_HALF_HITBOX)
     .sort((a, b) => a.x - b.x);
-  const threat = threats[0],
-    speed = getSpeed(state.distance);
+  const threat = ramming ? undefined : threats[0],
+    speed = state.speed;
   if (state.player.grounded) {
     if (state.player.holding) actions.push('release');
     const weapon =
       collectWeapons &&
       state.pickups.find(
         (p) =>
-          p.kind === 'weapon' &&
+          (p.kind === 'weapon' || p.kind === 'chest') &&
           !p.taken &&
           p.x > state.distance &&
           p.y - state.player.y > 60 &&
@@ -68,7 +72,7 @@ export function replayInputs(
       );
     if (
       weapon ||
-      roadEnd(state) - state.distance <= speed * 0.12 ||
+      roadEnd(state) - state.distance <= speed * 0.09 ||
       (threat && threat.x - state.distance < speed * 0.24)
     )
       actions.push('press');
@@ -90,18 +94,28 @@ export function replayInputs(
       collisionTime < 0.24 &&
       state.player.y +
         state.player.vy * collisionTime -
-        0.5 * GRAVITY * collisionTime ** 2 <
+        0.5 * GRAVITY * state.player.jumpTempo ** 2 * collisionTime ** 2 <
         threat.top + 5;
     const faceTime = nextRoad
       ? Math.max(0, (nextRoad.x - PLAYER_HALF_HITBOX - state.distance) / speed)
       : Infinity;
+    // Do not predict a fall through a deck already under the cart. Its landing
+    // resets the arc before the following gap; recovering now would launch a
+    // second unnecessary arc and can overshoot that otherwise safe deck.
+    const deckBelow = state.platforms.some(
+      (p) =>
+        state.distance >= p.x &&
+        state.distance < p.x + p.width &&
+        state.player.y >= platformTopAt(p, state.distance),
+    );
     const landingTooLow =
+      !deckBelow &&
       nextRoad &&
       faceTime > 0 &&
       faceTime < 0.42 &&
       state.player.y +
         state.player.vy * faceTime -
-        0.5 * GRAVITY * faceTime ** 2 <
+        0.5 * GRAVITY * state.player.jumpTempo ** 2 * faceTime ** 2 <
         nextRoad.top + 3;
     if (dangerAhead || landingTooLow) {
       if (state.player.holding) actions.push('release');
@@ -121,7 +135,7 @@ export function buildReplay(
   let elapsed = 0,
     accumulator = 0,
     minimumLandingRunway = Infinity;
-  while (state.time < seconds && state.status === 'running') {
+  while (elapsed < seconds && state.status === 'running') {
     for (const action of replayInputs(state, collectWeapons)) {
       inputs.push({ time: elapsed, action });
       if (action === 'press') requestJump(state);
@@ -135,7 +149,7 @@ export function buildReplay(
       if (airborne && state.player.grounded)
         minimumLandingRunway = Math.min(
           minimumLandingRunway,
-          (roadEnd(state) - state.distance) / getSpeed(state.distance),
+          (roadEnd(state) - state.distance) / state.speed,
         );
       accumulator -= FIXED_DT;
     }

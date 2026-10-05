@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadRunnerArt, SCRAP_ART, WEAPON_ART } from './assets';
+import { loadRunnerArt, WEAPON_ART } from './assets';
 import { RunnerAudio } from './audio';
 import { WEAPONS } from './definitions';
 import { renderRunner, runnerViewport } from './render';
@@ -16,7 +16,7 @@ import {
 import { FIXED_DT, PIXELS_PER_METRE, type RunnerState } from './types';
 import './runner.css';
 
-const RECORD_KEY = 'kaboom-runner-best-v1';
+const RECORD_KEY = 'kaboom-score-fever-best-v1';
 const SOUND_KEY = 'kaboom-runner-sound-v1';
 function stored(key: string) {
   try {
@@ -44,6 +44,26 @@ function initialSeed() {
 function snapshot(state: RunnerState) {
   return {
     status: state.status,
+    score: Math.floor(state.score),
+    scoreParts: { ...state.scoreParts },
+    chain: state.fever.chain,
+    bestChain: state.bestChain,
+    multiplier: state.fever.multiplier,
+    maxMultiplier: state.maxMultiplier,
+    peakSpeed: state.peakSpeed,
+    chestsOpened: state.chestsOpened,
+    abilities: { ...state.fever.abilities },
+    freeze: state.fever.freeze,
+    rushTime: state.fever.rushTime,
+    hyperTime: state.fever.hyperTime,
+    reel: state.fever.reel
+      ? {
+          id: state.fever.reel.id,
+          revealed: state.fever.reel.revealed,
+          count: state.fever.reel.rewards.length,
+        }
+      : null,
+    feverClock: state.fever.clock,
     distance: Math.floor(state.distance / PIXELS_PER_METRE),
     worldX: state.distance,
     y: state.player.y,
@@ -299,14 +319,14 @@ export function RunnerApp() {
             }
           }
           if (state.status === 'over') {
-            const distance = Math.floor(state.distance / PIXELS_PER_METRE);
-            if (distance > bestValue) {
-              bestValue = distance;
-              save(RECORD_KEY, String(distance));
-              setBest(distance);
+            const score = Math.floor(state.score);
+            if (score > bestValue) {
+              bestValue = score;
+              save(RECORD_KEY, String(score));
+              setBest(score);
             }
           }
-          const viewport = runnerViewport(width, height);
+          const viewport = runnerViewport(width, height, state.speed);
           context.setTransform(
             canvas.width / viewport.width,
             0,
@@ -356,6 +376,21 @@ export function RunnerApp() {
       data-testid="runner"
       data-status={view.status}
       data-distance={view.distance}
+      data-score={view.score}
+      data-chain={view.chain}
+      data-multiplier={view.multiplier.toFixed(2)}
+      data-chests={view.chestsOpened}
+      data-freeze={view.freeze.toFixed(3)}
+      data-rush={view.rushTime.toFixed(2)}
+      data-hyper={view.hyperTime.toFixed(2)}
+      data-reel-id={view.reel?.id ?? 0}
+      data-reel-revealed={view.reel?.revealed ?? 0}
+      data-reel-count={view.reel?.count ?? 0}
+      data-fever-clock={view.feverClock.toFixed(3)}
+      data-boost={view.abilities.boost}
+      data-slam={view.abilities.slam}
+      data-gold={view.abilities.gold}
+      data-magnet={view.abilities.magnet}
       data-world-x={view.worldX.toFixed(2)}
       data-speed={view.speed.toFixed(2)}
       data-y={view.y.toFixed(1)}
@@ -378,21 +413,26 @@ export function RunnerApp() {
         onContextMenu={(event) => event.preventDefault()}
       />
       <header className="runner-hud">
-        <div className="runner-distance">
-          <span className="runner-eyebrow">走行距離</span>
-          <strong>
-            {view.distance.toLocaleString()}
-            <small>m</small>
+        <div className="runner-distance runner-score" aria-label="スコア">
+          <span className="runner-eyebrow">SCORE</span>
+          <strong
+            style={{
+              fontSize: `clamp(${Math.max(20, 48 - String(view.score).length * 2)}px, ${Math.min(5, 40 / String(view.score).length)}vw, 72px)`,
+            }}
+          >
+            {view.score.toLocaleString()}
           </strong>
-          <span className="runner-best">最高 {best.toLocaleString()} m</span>
+          <span className="runner-best">BEST {best.toLocaleString()}</span>
+          <div className="runner-chain" data-active={view.chain > 0}>
+            <b>×{view.multiplier.toFixed(1)}</b>
+            <span>
+              {view.chain > 0 ? `${view.chain} CHAIN` : '壊して、つなげ！'}
+            </span>
+          </div>
         </div>
         <div className="runner-top-right">
-          <span
-            className="runner-scrap"
-            aria-label={`スクラップ ${view.scrap}、次の改造まで ${view.nextScrapLevel - view.scrap}`}
-          >
-            <img src={SCRAP_ART} alt="" /> {view.scrap}
-            <small>あと{view.nextScrapLevel - view.scrap}で改造</small>
+          <span className="runner-distance-secondary">
+            {view.distance.toLocaleString()}m
           </span>
           <button
             className="runner-icon"
@@ -414,36 +454,36 @@ export function RunnerApp() {
       </header>
       {playable && (view.status === 'running' || view.status === 'paused') && (
         <>
-          <div className="runner-gear" aria-label="現在の装備">
-            {view.weapon && weapon ? (
-              <>
-                <img src={WEAPON_ART[view.weapon.id]} alt="" />
-                <div>
-                  <strong>
-                    {weapon.label} <em>Lv.{view.weapon.level}</em>
-                  </strong>
-                  <span>{weapon.description}</span>
-                  <small>拾った強化はこのラン中ずっと有効</small>
-                </div>
-              </>
-            ) : (
-              <div className="runner-unarmed">
-                <strong>まずは走ろう</strong>
-                <span>武器を拾うと自動攻撃</span>
-              </div>
-            )}
+          <div className="runner-loadout" aria-label="現在の装備">
+            <div className="runner-abilities" aria-label="重ねた能力">
+              {(
+                [
+                  ['boost', '加速'],
+                  ['slam', '着地爆弾'],
+                  ['gold', '黄金感染'],
+                  ['magnet', '宝箱磁石'],
+                ] as const
+              ).map(([key, label]) => (
+                <span key={key} data-active={view.abilities[key] > 0}>
+                  {label} <b>{view.abilities[key]}</b>
+                </span>
+              ))}
+            </div>
+            <div className="runner-equipment-line">
+              {view.weapon && weapon && (
+                <>
+                  <img src={WEAPON_ART[view.weapon.id]} alt="" />
+                  <span>
+                    {weapon.label} Lv.{view.weapon.level}
+                  </span>
+                </>
+              )}
+              <span>{view.shield ? 'ガード 1' : 'ガード 0'}</span>
+              <span>↑ 空中 {view.airHops} 回</span>
+              <span>{Math.round(view.speed)} px/s</span>
+            </div>
           </div>
-          <div className="runner-protection">
-            <span className={view.shield ? 'charged' : ''}>
-              {view.shield ? 'ガード 1' : 'ガード 0'}
-            </span>
-            {view.magnet > 0 && <span>磁石</span>}
-            <span>改造 {view.runLevel} 段階</span>
-            <span className={view.airHops ? 'charged' : ''}>
-              ↑ 空中 {view.airHops} 回
-            </span>
-          </div>
-          {view.notice && (
+          {view.notice && !view.reel && (
             <p className="runner-notice" role="status">
               {view.notice}
             </p>
@@ -453,9 +493,9 @@ export function RunnerApp() {
               <p
                 className={view.time > 12 ? 'runner-hint faded' : 'runner-hint'}
               >
-                短押しで低く、長押しで高く
+                跳んで、宝箱をつなげ！
                 <br />
-                <span>空中でもう一度で立て直す</span>
+                <span>短押し・長押し・空中でもう一度</span>
               </p>
               <button
                 className="runner-jump"
@@ -504,13 +544,15 @@ export function RunnerApp() {
       )}
       {playable && view.status === 'ready' && (
         <section className="runner-overlay runner-title">
-          <p className="runner-kicker">ひと跳び、もう少し先へ。</p>
+          <p className="runner-kicker">その当たりで、記録を壊せ。</p>
           <h1>
             KABOOM
             <br />
             <span>CARAVAN</span>
           </h1>
-          <p className="runner-title-copy">跳んで。拾って。どこまでも。</p>
+          <p className="runner-title-copy">
+            跳ぶ。壊す。当てる。スコアが暴れ出す。
+          </p>
           <button
             className="runner-primary"
             aria-label="スタート"
@@ -523,7 +565,7 @@ export function RunnerApp() {
             <br />
             離すと低く、空中でもう一度で立て直す。
             <br />
-            武器は自動。スクラップで火力とガードを育てる。
+            宝箱は自動で1〜3抽選。加速 × 破壊連鎖でスコア爆増。
           </p>
         </section>
       )}
@@ -534,7 +576,7 @@ export function RunnerApp() {
         >
           <p className="runner-kicker">ひと息ついたら、続きへ</p>
           <h2>ひと休み</h2>
-          <p>道は、ここで待っています</p>
+          <p>再開するまで、走行も演出も止まっています</p>
           <button
             className="runner-primary"
             aria-label="再開"
@@ -557,26 +599,51 @@ export function RunnerApp() {
           aria-label="ラン結果"
         >
           <p className="runner-kicker">
-            {view.distance >= best && view.distance > 0
+            {view.score >= best && view.score > 0
               ? '自己ベスト更新'
-              : '次は、もう少し先へ'}
+              : '次は、このスコアを超えろ'}
           </p>
           <h2>
-            {view.distance.toLocaleString()}
-            <small>m</small>
+            {view.score.toLocaleString()}
+            <small>pts</small>
           </h2>
           <p className="runner-cause">{view.deathFeedback}</p>
           <div className="runner-stats">
             <span>
-              <b>{view.scrap}</b>スクラップ
+              <b>{view.bestChain}</b>最大CHAIN
             </span>
             <span>
-              <b>{view.passed + view.defeated}</b>ライバル突破
+              <b>×{view.maxMultiplier.toFixed(1)}</b>最大倍率
             </span>
             <span>
-              <b>{view.jumps}</b>ジャンプ
+              <b>{view.chestsOpened}</b>宝箱
+            </span>
+            <span>
+              <b>{Math.round(view.peakSpeed)}</b>最高px/s
             </span>
           </div>
+          <p className="runner-score-recipe">
+            加速 × 破壊連鎖 × 能力の組み合わせ × RUSH / HYPER
+          </p>
+          <div className="runner-score-parts" aria-label="スコア内訳">
+            {(
+              [
+                ['combat', '破壊'],
+                ['loot', '宝箱・回収'],
+                ['landing', '着地'],
+                ['travel', '走行'],
+              ] as const
+            ).map(([key, label]) => (
+              <span key={key}>
+                {label}{' '}
+                <b>{Math.floor(view.scoreParts[key]).toLocaleString()}</b>
+              </span>
+            ))}
+          </div>
+          <p className="runner-result-secondary">
+            {view.distance.toLocaleString()}m 走行 ・ {view.defeated} 撃破 ・{' '}
+            {view.jumps} ジャンプ
+          </p>
           <button
             className="runner-primary"
             aria-label="もう一度"

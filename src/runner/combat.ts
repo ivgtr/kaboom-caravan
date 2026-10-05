@@ -1,4 +1,11 @@
 import { RIVALS, WEAPONS } from './definitions';
+import { START_SPEED } from './pacing';
+import {
+  awardScore,
+  feverEvent,
+  openChest,
+  registerDestruction,
+} from './fever';
 import { platformTopAt, playerMuzzle, playerTilt } from './terrain';
 import {
   PLAYER_HEIGHT,
@@ -52,9 +59,11 @@ function notice(state: RunnerState, text: string): void {
 
 /** Scrap is cumulative. Every source advances the same visible run-level meter. */
 export function awardScrap(state: RunnerState, amount: number): void {
-  state.scrap += amount;
+  if (!Number.isFinite(amount) || amount <= 0) return;
+  state.scrap = Math.min(1_000_000, state.scrap + amount);
+  awardScore(state, amount * 12, 'loot');
   let grew = false;
-  while (state.scrap >= state.nextScrapLevel) {
+  while (state.scrap >= state.nextScrapLevel && state.runLevel < 100) {
     state.runLevel++;
     state.nextScrapLevel += SCRAP_PER_LEVEL + (state.runLevel - 1) * 10;
     state.shield = 1;
@@ -76,6 +85,11 @@ export function awardScrap(state: RunnerState, amount: number): void {
 export function collectPickup(state: RunnerState, pickup: Pickup): void {
   if (pickup.taken) return;
   pickup.taken = true;
+  if (pickup.kind === 'chest') {
+    openChest(state);
+    effect(state, 'chest', pickup.x, pickup.y, 'CHEST!');
+    return;
+  }
   if (pickup.kind === 'scrap') {
     awardScrap(state, 1);
     effect(state, 'pickup', pickup.x, pickup.y);
@@ -162,7 +176,26 @@ function damageTarget(
   }
   const reward = target.rival ? 3 : 2;
   awardScrap(state, reward);
-  effect(state, 'burst', target.x, target.y, `+${reward}`);
+  registerDestruction(state, target.x, target.y, entity.golden);
+  effect(
+    state,
+    entity.golden ? 'gold' : 'burst',
+    target.x,
+    target.y,
+    `+${Math.round(80 * state.fever.multiplier)}`,
+  );
+  if (entity.golden && state.fever.abilities.gold > 0) {
+    // Infection visits existing bodies only. Destruction never creates another body.
+    for (const next of activeTargets(state)) {
+      if (
+        Math.hypot(next.x - target.x, next.y - target.y) <=
+        260 + state.fever.abilities.gold * 35
+      ) {
+        const body = next.rival ?? next.obstacle;
+        if (body) body.golden = true;
+      }
+    }
+  }
 }
 
 /** Distance along a ray to an expanded target rectangle, or no intersection. */
@@ -370,6 +403,32 @@ function fireWeapon(state: RunnerState, dt: number): void {
   }
 }
 
+/** Landing, not a timer, triggers the build's area attack. */
+export function landingBlast(state: RunnerState): void {
+  const level = state.fever.abilities.slam;
+  const speedFactor = Math.max(0, Math.min(4, state.speed / START_SPEED - 1));
+  const radius =
+    level > 0 ? 235 + Math.min(12, level) * 32 + speedFactor * 35 : 68;
+  const damage = level > 0 ? (6 + level * 2) * (1 + speedFactor * 0.12) : 2;
+  if (level > 0) {
+    effect(
+      state,
+      'slam',
+      state.distance,
+      state.player.y,
+      `LANDING BOMB ×${level}`,
+    );
+    state.effects[state.effects.length - 1]!.radius = radius;
+    feverEvent(state, 'slam', 'LANDING BOMB', radius);
+  }
+  for (const target of activeTargets(state)) {
+    if (
+      Math.hypot(target.x - state.distance, target.y - state.player.y) <= radius
+    )
+      damageTarget(state, target, damage);
+  }
+}
+
 /** Shields guard physical bodies only. Terrain falls/walls remain physics-owned. */
 export function absorbContact(state: RunnerState): boolean {
   if (state.player.invulnerable > 0) return true;
@@ -391,8 +450,43 @@ function endRun(state: RunnerState, reason: 'rival' | 'obstacle'): void {
 }
 
 /** Called after movement and pickups. Fire before contact lets a gun save a lane. */
-export function stepCombat(state: RunnerState, dt: number): void {
-  if (state.status !== 'running') return;
+export function stepCombat(
+  state: RunnerState,
+  dt: number,
+  oldX = state.distance,
+  oldY = state.player.y,
+): void {
+  if (state.status !== 'running' || state.fever.freeze > 0) return;
+  if (state.fever.abilities.gold > 0) {
+    for (const target of activeTargets(state)) {
+      if (
+        Math.hypot(target.x - state.distance, target.y - state.player.y) <
+        600 + state.fever.abilities.gold * 70
+      ) {
+        const body = target.rival ?? target.obstacle;
+        if (body) body.golden = true;
+      }
+    }
+  }
+  const sweptBody = (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): boolean => {
+    const min = x - width / 2 - HALF_PLAYER;
+    const max = x + width / 2 + HALF_PLAYER;
+    const travel = state.distance - oldX;
+    const enter = travel > 0 ? Math.max(0, (min - oldX) / travel) : 0;
+    const leave = travel > 0 ? Math.min(1, (max - oldX) / travel) : 1;
+    if (enter > leave || state.distance < min || oldX > max) return false;
+    const feet = oldY + (state.player.y - oldY) * enter;
+    const endFeet = oldY + (state.player.y - oldY) * leave;
+    return (
+      Math.min(feet, endFeet) < y + height - 1 &&
+      Math.max(feet, endFeet) + PLAYER_HEIGHT > y + 2
+    );
+  };
   for (const obstacle of state.obstacles)
     obstacle.hit = Math.max(0, obstacle.hit - dt);
   for (const rival of state.rivals) {
@@ -416,16 +510,23 @@ export function stepCombat(state: RunnerState, dt: number): void {
   fireWeapon(state, dt);
   for (const obstacle of state.obstacles) {
     if (obstacle.destroyed) continue;
-    if (
-      Math.abs(state.distance - obstacle.x) <
-        HALF_PLAYER + obstacle.width / 2 &&
-      state.player.y < obstacle.top + obstacle.height - 1 &&
-      state.player.y + PLAYER_HEIGHT > obstacle.top + 2
-    ) {
-      if (absorbContact(state)) {
-        obstacle.destroyed = true;
-        obstacle.hp = 0;
-        effect(state, 'burst', obstacle.x, obstacle.top + obstacle.height / 2);
+    if (sweptBody(obstacle.x, obstacle.top, obstacle.width, obstacle.height)) {
+      if (
+        (state.fever.abilities.boost > 0 && state.speed >= 480) ||
+        absorbContact(state)
+      ) {
+        damageTarget(
+          state,
+          {
+            id: obstacle.id,
+            x: obstacle.x,
+            y: obstacle.top + obstacle.height / 2,
+            width: obstacle.width,
+            height: obstacle.height,
+            obstacle,
+          },
+          obstacle.hp,
+        );
       } else {
         endRun(state, 'obstacle');
         return;
@@ -435,12 +536,22 @@ export function stepCombat(state: RunnerState, dt: number): void {
   for (const rival of state.rivals) {
     if (rival.defeated || rival.age < RIVAL_WARNING_TIME) continue;
     const definition = RIVALS[rival.kind];
-    if (
-      Math.abs(rival.x - state.distance) < definition.width / 2 + HALF_PLAYER &&
-      state.player.y < rival.y + definition.height - 2 &&
-      state.player.y + PLAYER_HEIGHT > rival.y + 3 &&
-      !absorbContact(state)
-    ) {
+    if (!sweptBody(rival.x, rival.y, definition.width, definition.height))
+      continue;
+    if (state.fever.abilities.boost > 0 && state.speed >= 480) {
+      damageTarget(
+        state,
+        {
+          id: rival.id,
+          x: rival.x,
+          y: rival.y + definition.height / 2,
+          width: definition.width,
+          height: definition.height,
+          rival,
+        },
+        rival.hp,
+      );
+    } else if (!absorbContact(state)) {
       endRun(state, 'rival');
       return;
     }
