@@ -247,11 +247,6 @@ async function replay(
     'data-status',
     'running',
   );
-  expect(
-    Math.abs((await number(page, 'world-x')) - plan.state.distance),
-  ).toBeLessThan(45);
-  expect(await number(page, 'run-level')).toBeGreaterThan(1);
-  expect(await number(page, 'defeated')).toBeGreaterThan(0);
   if (session && held)
     await session.send('Input.dispatchTouchEvent', {
       type: 'touchEnd',
@@ -259,6 +254,26 @@ async function replay(
     });
   else await page.keyboard.up('Space');
   await session?.detach();
+  // A physical pause publishes the exact endpoint. The running HUD is sampled
+  // every60ms, and a FREEZE edge may publish an extra frame between samples.
+  const pauseButton = page.getByRole('button', {
+    name: '一時停止',
+    exact: true,
+  });
+  if (touch) await pauseButton.tap();
+  else await pauseButton.click();
+  await expect(page.getByTestId('runner')).toHaveAttribute(
+    'data-status',
+    'paused',
+  );
+  expect(
+    Math.abs((await number(page, 'world-x')) - plan.state.distance),
+  ).toBeLessThan(45);
+  expect(await number(page, 'run-level')).toBeGreaterThan(1);
+  expect(await number(page, 'defeated')).toBeGreaterThan(0);
+  const resumeButton = page.getByRole('button', { name: '再開', exact: true });
+  if (touch) await resumeButton.tap();
+  else await resumeButton.click();
 }
 
 /** A separate wall-clock recording, with physical inputs and the real audio graph. */
