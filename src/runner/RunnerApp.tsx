@@ -449,7 +449,7 @@ export function RunnerApp() {
               <p
                 className={view.time > 12 ? 'runner-hint faded' : 'runner-hint'}
               >
-                短く押すと低く、長く押すと高く
+                短押しで低く、長押しで高く
                 <br />
                 <span>空中でもう一度で立て直す</span>
               </p>
