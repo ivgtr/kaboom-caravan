@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/game/**/*.ts'],
+      include: ['src/runner/simulation.ts'],
     },
   },
 });

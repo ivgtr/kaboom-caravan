@@ -1,0 +1,63 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "date_utc": "2026-10-04",
+  "style_references_inspected": [
+    "public/assets/world/env_background_integrated_2x1_v005.webp",
+    "public/assets/animation/veh_player_chassis_v005.png"
+  ],
+  "assets": [
+    {
+      "file": "public/assets/runner-terrain/rock-body.webp",
+      "master": "rock-body-master-v1.png",
+      "master_size": [1254, 1254],
+      "crop": null,
+      "runtime_size": [512, 512],
+      "world_repeat": [256, 256],
+      "encoding": {
+        "format": "WebP",
+        "quality": 88,
+        "method": 6,
+        "resample": "LANCZOS"
+      },
+      "sha256": "b9a75bdb62deebe1764049c0be92fbc3e1d0f5d9b459ca762d5cdea2f4c3737b"
+    },
+    {
+      "file": "public/assets/runner-terrain/road-cap.webp",
+      "master": "road-cap-master-v2.png",
+      "master_size": [2172, 724],
+      "crop": [0, 0, 2172, 384],
+      "runtime_size": [1024, 128],
+      "world_repeat": [512, 48],
+      "encoding": {
+        "format": "WebP",
+        "quality": 90,
+        "method": 6,
+        "resample": "LANCZOS"
+      },
+      "sha256": "d3f52a4255c5651e1fad24f6cf71aa877e318e3c188e286db9f65dea90c14886"
+    }
+  ],
+  "generation": [
+    {
+      "output": "rock-body-master-v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: production 2D side-scrolling game terrain texture, ONE opaque square seamless repeating CLIFF-FACE FILL tile, 1024x1024. Primary request: create a beautiful hand-painted, lightly outlined cartoon cliff material for a sunny, lush abandoned-world caravan platformer. The visual language is a polished illustrated game: softly painterly faceted stone, warm daylight, gentle dark olive outlines, restrained fine grain, ochre/taupe gray bedrock, small desaturated moss-green patches in crevices. It must complement old overgrown stone viaducts and a warmly outlined cream-and-coral camper van. Composition: orthographic straight-on flat material sample completely filling the canvas; no perspective, horizon, sky, top surface or silhouette. Broad irregular chipped rock masses and stratified compact earth, varied roughly 70–180px rocks, a few small earthy fissures. Midvalue warm gray-olive stone with pale sandstone facets; cracks are muted olive-brown, not deep black. This is solid ground face, not a masonry wall, not orderly bricks, no separate floating pebbles. Spatially consistent brightness and hue across the entire canvas. The LEFT and RIGHT edges MUST wrap perfectly when repeated; TOP and BOTTOM edges must also tile, with every crossing rock contour continuing at its corresponding opposite edge. Avoid conspicuous isolated markings which reveal repetition. No edge darkening, no vignette, no white borders, no transparent margin, no labels, no grid, no arrows, no text, no logos. No photorealism, no PBR render, no vector-flat polygon style. This is a standalone reusable game texture, not a level illustration or mockup.",
+      "transparent_background": false
+    },
+    {
+      "output": "road-cap-master-v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: production 2D side-scrolling game terrain, ONE wide opaque horizontally seamless TOP-CAP texture strip, 1536x512 canvas. Primary request: a reusable long side-view upper edge of a weathered stone-and-earth road in a sunny, lush ruined-world caravan platformer. Hand-painted polished cartoon game art, soft faceted sandstone surfaces, subtle warm olive outlines, ochre/taupe rock, very restrained moss-green crevices, matching a lush abandoned stone viaduct world and cream/coral outlined camper van. IMPORTANT composition contract: texture fills every pixel, no transparency, and THE FLAT COLLISION TOP IS AT THE VERY TOP EDGE OF THE CANVAS, exactly y=0, full width. Do not include any sky or space above the road. No vegetation rises above that edge. Upper 15 percent is one shallow sunlit warm-tan dusty stone running surface with subtle chips and fine cracks, no bright cream stripe or border; below it are irregular softly shaded broken stone ledges and compacted earth with sparse small moss clinging downward. Lower 40 percent transitions smoothly to muted warm olive-gray cliff-face stone. No long decorative horizontal bands. Relative features low and restrained, so this strip stays readable when displayed only 36 to 48 pixels tall. Flat orthographic front view with no perspective. The LEFT and RIGHT edges MUST match seamlessly in color, contour, and stone features to loop in an endless road, both edges flush with the canvas. The uppermost line remains straight and readable, without grass tufts or tall ornaments. Avoid dramatic distinctive center features. NO floating island, no entire landscape, no rounded slab ends, no bevel border, no extra asset rows, no atlas, no labels, no grid, no text, no UI, no watermarks. Opaque flat texture strip only, not a rendered scene. Painterly illustration, never photorealistic or PBR, never plain vector. Production packing: this source will be resized to 1024x128 then rendered at 512x48, so use broad painterly forms rather than tiny high-frequency marks.",
+      "transparent_background": false
+    },
+    {
+      "output": "road-cap-master-v2.png",
+      "prompt": "Use case: precise-object-edit. Input image 1 is the edit target, a hand-painted side-view road-cap texture. Input image 2 is the cliff-body palette reference only. Change ONLY the lower extent and background of image 1: retain the beautiful flat sunlit stone running surface at the exact TOP EDGE y=0 and its chipped supporting stones below. Preserve its painterly ochre/olive style, muted outline detail, full-width flush left/right, and horizontal loop. Remove the deep lower cliff face to genuine transparent alpha. The result must be a SHALLOW long road-edge cutout texture filling the entire width, not a free-floating centered object: upper edge perfectly straight at canvas top with no transparency above or at it; opaque running lip in first 15% of final occupied thickness, irregular chipped ledge below; a softly irregular lower silhouette made from shallow stone teeth and small moss patches, becoming transparent over the lowest 15% of occupied thickness. Keep main opaque occupied strip about one eighth as tall as its width, with the bottommost rocks extending at most one seventh of the width in depth; leave the rest of canvas transparent. Palette at lower stone facets should match image 2 warm sandy ochre rather than a dark gray shadow band. This cap overlays the repeating cliff texture, so no straight edge across the bottom, no cast shadow behind it, no gray matte or checkerboard painted into transparency. Do not add decorations, grass tufts above top, labels, borders, or text. Preserve horizontal seamless tiling: features and alpha silhouette must join across left and right. Production source, not gameplay image.",
+      "transparent_background": true,
+      "references": ["road-cap-master-v1.png", "rock-body-master-v1.png"]
+    }
+  ],
+  "notes": [
+    "Selected masters are preserved separately; runtime files are cropped/resized/encoded only.",
+    "The v1 opaque cap was replaced by the v2 irregular transparent underside.",
+    "Repeats were visually inspected at runtime scale; opposite-edge pixels are approximate, not identical."
+  ]
+}
