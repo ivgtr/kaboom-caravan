@@ -30,7 +30,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Runner interaction checks
-        run: npm run test:e2e -- tests/e2e/runner.spec.ts
+        run: npm run test:e2e
         env:
           CAPTURE_UI_REVIEW: '1'
       - name: Save interaction report and review screenshots

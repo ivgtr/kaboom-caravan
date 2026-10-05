@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "style": "Painted cream/coral/teal salvage machinery with brass treasure accents",
+  "generation": {
+    "tool": "imagegen",
+    "date": "2026-10-05",
+    "atlas": {
+      "layout": "3x3 chest / golden chest / opened chest; booster / landing bomb / gold infection; magnet / coin burst / flame trail",
+      "source_filename": "exec-ebb2dfd7-1e10-48a8-ad17-6112d0a2730b.png",
+      "sha256": "1152887f3d80c1b62441a4df18b5769ae9b5b43f07d83d39c9a0f37f0e9034ae"
+    },
+    "cabinet": {
+      "source_filename": "exec-2cb7245f-fb27-4549-8d96-e2bcb12a82a0.png",
+      "sha256": "f708ca04c0ac62c6a5bb70ac91f0bf802d013b73c3de1f890767f073f989ec17"
+    }
+  },
+  "runtime_assets": [
+    {
+      "path": "public/assets/score-fever/boost.webp",
+      "width": 360,
+      "height": 352,
+      "bytes": 44914,
+      "alpha": true,
+      "sha256": "4d65a342d58ebc52b409a2657dbf1f3ec7b134409aef7bacae181dd06d559b4b"
+    },
+    {
+      "path": "public/assets/score-fever/burst.webp",
+      "width": 360,
+      "height": 359,
+      "bytes": 66840,
+      "alpha": true,
+      "sha256": "4855dafeab8165abef931739e05ea5aed5beaf5e4e9e3d8164a8dd3b18cd379a"
+    },
+    {
+      "path": "public/assets/score-fever/cabinet.webp",
+      "width": 1440,
+      "height": 496,
+      "bytes": 160530,
+      "alpha": true,
+      "sha256": "04816b8f92e844eaef73f7f2472312174f7214eaeab2f0a7c8213684a2ea712f"
+    },
+    {
+      "path": "public/assets/score-fever/chest-gold.webp",
+      "width": 360,
+      "height": 338,
+      "bytes": 50074,
+      "alpha": true,
+      "sha256": "e31df412914333920b2b783f7cd6fa176c819acc5edf84388de0acdf26d95946"
+    },
+    {
+      "path": "public/assets/score-fever/chest-open.webp",
+      "width": 360,
+      "height": 353,
+      "bytes": 66530,
+      "alpha": true,
+      "sha256": "4f55b20a1b306eac72d7ee6add22bc2bed6b87db6bb97ce56aa907baf71083b5"
+    },
+    {
+      "path": "public/assets/score-fever/chest.webp",
+      "width": 360,
+      "height": 318,
+      "bytes": 41460,
+      "alpha": true,
+      "sha256": "0164028b7cf879d15ebb5ac2819bd7653322bcf8c34ef9fffd0d31768582e165"
+    },
+    {
+      "path": "public/assets/score-fever/gold.webp",
+      "width": 355,
+      "height": 360,
+      "bytes": 70362,
+      "alpha": true,
+      "sha256": "13ead65396a6fc6aa72fcb252e9d91d9b4b53f49a417257be9d19ac0a524d93f"
+    },
+    {
+      "path": "public/assets/score-fever/magnet.webp",
+      "width": 360,
+      "height": 359,
+      "bytes": 59274,
+      "alpha": true,
+      "sha256": "981898320c60c1adc93028b7fcad9bbc041d0d20a660181a7043a4c39da28443"
+    },
+    {
+      "path": "public/assets/score-fever/slam.webp",
+      "width": 360,
+      "height": 356,
+      "bytes": 63846,
+      "alpha": true,
+      "sha256": "cd5c7068e5d66e15a465a2308a27e346a099c7f4e371cc22e9c70e8ec47dc13a"
+    },
+    {
+      "path": "public/assets/score-fever/trail.webp",
+      "width": 350,
+      "height": 360,
+      "bytes": 43746,
+      "alpha": true,
+      "sha256": "04ae4815bb2d4784eea3368638e38ceae76fa7a3815463ba81a79c00dc0f1be5"
+    }
+  ],
+  "runtime_budget_bytes": 667576,
+  "verification": {
+    "original_visual_review": true,
+    "alpha_preserved": true
+  }
+}

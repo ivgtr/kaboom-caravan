@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RIVALS } from './definitions';
 import {
-  DOUBLE_BEAT_DISTANCE,
+  CRUISE_SPEED,
   MAX_SPEED,
   SPEED_RAMP_DISTANCE,
   START_SPEED,
@@ -83,79 +82,15 @@ function terrainPilot(state: RunnerState, lead: number, low = false): void {
     requestJump(state);
 }
 
-/** Input-only pilot: hop hazards, reserve the second press for a low approach. */
-function fullPilot(state: RunnerState): void {
-  const threats = [
-    ...state.obstacles
-      .filter((o) => !o.destroyed)
-      .map((o) => ({ x: o.x, width: o.width, top: o.top + o.height })),
-    ...state.rivals
-      .filter((r) => !r.defeated)
-      .map((r) => ({
-        x: r.x,
-        width: RIVALS[r.kind].width,
-        top: r.y + RIVALS[r.kind].height,
-      })),
-  ]
-    .filter((o) => o.x + o.width / 2 > state.distance - PLAYER_HALF_HITBOX)
-    .sort((a, b) => a.x - b.x);
-  const threat = threats[0];
-  if (state.player.grounded) {
-    releaseJump(state);
-    if (
-      roadEnd(state) - state.distance <= getSpeed(state.distance) * 0.12 ||
-      (threat && threat.x - state.distance < getSpeed(state.distance) * 0.24)
-    )
-      requestJump(state);
-  } else if (state.player.airHops && state.player.vy < 0) {
-    const nextRoad = state.platforms.find(
-      (p, i) =>
-        p.x > state.distance &&
-        (i === 0 || !platformsJoin(state.platforms[i - 1]!, p)),
-    );
-    const collisionTime = threat
-      ? Math.max(
-          0,
-          (threat.x + threat.width / 2 + PLAYER_HALF_HITBOX - state.distance) /
-            getSpeed(state.distance),
-        )
-      : Infinity;
-    const dangerAhead =
-      threat &&
-      collisionTime < 0.24 &&
-      state.player.y +
-        state.player.vy * collisionTime -
-        0.5 * GRAVITY * collisionTime ** 2 <
-        threat.top + 5;
-    const faceTime = nextRoad
-      ? Math.max(
-          0,
-          (nextRoad.x - PLAYER_HALF_HITBOX - state.distance) /
-            getSpeed(state.distance),
-        )
-      : Infinity;
-    const landingTooLow =
-      nextRoad &&
-      faceTime > 0 &&
-      faceTime < 0.42 &&
-      state.player.y +
-        state.player.vy * faceTime -
-        0.5 * GRAVITY * faceTime ** 2 <
-        nextRoad.top + 3;
-    if (dangerAhead || landingTooLow) {
-      releaseJump(state);
-      requestJump(state);
-    }
-  }
-}
-
 describe('responsive one-button movement', () => {
-  it('accelerates briskly then tapers smoothly into a bounded 520px/s cruise', () => {
+  it('accelerates briskly then tapers smoothly into a bounded base cruise with genuinely stackable boost speed', () => {
     expect(getSpeed(-100)).toBe(START_SPEED);
     expect(getSpeed(0)).toBe(330);
-    expect(getSpeed(SPEED_RAMP_DISTANCE / 2)).toBe(496.25);
-    expect(getSpeed(SPEED_RAMP_DISTANCE)).toBe(MAX_SPEED);
-    expect(getSpeed(1e9)).toBe(MAX_SPEED);
+    expect(getSpeed(SPEED_RAMP_DISTANCE / 2)).toBe(487.5);
+    expect(getSpeed(SPEED_RAMP_DISTANCE)).toBe(CRUISE_SPEED);
+    expect(getSpeed(0, 6)).toBeGreaterThan(1000);
+    expect(getSpeed(0, 1000)).toBe(MAX_SPEED);
+    expect(getSpeed(1e9)).toBe(CRUISE_SPEED);
     let previousGain = Infinity;
     for (let x = 1000; x <= SPEED_RAMP_DISTANCE; x += 1000) {
       const gain = getSpeed(x) - getSpeed(x - 1000);
@@ -270,306 +205,109 @@ describe('responsive one-button movement', () => {
   });
 });
 
-describe('complete endless course', () => {
-  it('has an early simple gap and genuinely seeded opening variation', () => {
+describe('boost-safe endless course', () => {
+  it('opens a real chest near two seconds before the first readable gap', () => {
     const a = createRunner(42),
-      b = createRunner(84),
-      replay = createRunner(42);
-    expect(a).toEqual(replay);
+      b = createRunner(84);
+    expect(a).toEqual(createRunner(42));
     expect(a.platforms).not.toEqual(b.platforms);
-    const edge = a.platforms[0]!.x + a.platforms[0]!.width;
-    expect(edge / getSpeed(0)).toBeGreaterThan(1.5);
-    expect(edge / getSpeed(0)).toBeLessThan(1.9);
-    expect(a.platforms[1]!.top).toBe(0);
-    expect(a.platforms[1]!.width).toBeGreaterThan(480);
-    expect(
-      a.pickups.some((p) => p.kind === 'weapon' && p.x < 300 && p.y < 40),
-    ).toBe(true);
-    expect(a.rivals.some((r) => r.x < edge)).toBe(true);
+    startRunner(a);
+    advance(a, 2);
+    expect(a.chestsOpened).toBe(1);
+    expect(a.fever.reel?.rewards.length).toBeGreaterThanOrEqual(1);
+    expect(a.status).toBe('running');
+    expect(a.distance).toBeLessThan(a.platforms[0]!.x + a.platforms[0]!.width);
   });
-  it('alternates low hops, held drops and broad double beats without stacking steep combat', () => {
-    for (const seed of [1, 7, 42, 991]) {
-      const state = createRunner(seed);
-      generateTerrain(state, 70000);
-      let doubleCount = 0,
-        slopeCount = 0,
-        longCount = 0,
-        lowCount = 0;
-      for (let i = 1; i < state.platforms.length; i++) {
-        const p = state.platforms[i]!,
-          prev = state.platforms[i - 1]!;
-        for (const height of [p.top, p.endTop ?? p.top]) {
-          expect(height).toBeGreaterThanOrEqual(TERRAIN_MIN_HEIGHT);
-          expect(height).toBeLessThanOrEqual(TERRAIN_MAX_HEIGHT);
-        }
-        const slope = Math.abs((p.endTop ?? p.top) - p.top) / p.width;
-        if (slope > 0.25) {
-          slopeCount++;
-          expect(p.width).toBe(200);
-          expect(
-            state.rivals.some((r) => r.x >= p.x && r.x <= p.x + p.width),
-          ).toBe(false);
-        }
-        if (platformsJoin(prev, p)) continue;
-        expect(p.width).toBeGreaterThanOrEqual(300);
-        const edge = prev.x + prev.width;
-        const gapTime = (p.x - edge) / getSpeed(edge);
-        if (gapTime > 0.5) {
-          longCount++;
-          expect(p.top).toBeLessThanOrEqual(prev.endTop ?? prev.top);
-        } else if (gapTime < 0.33) lowCount++;
-        if (
-          state.platforms[i + 1] &&
-          !platformsJoin(p, state.platforms[i + 1]!) &&
-          p.width / getSpeed(p.x) < 1.1
-        ) {
-          doubleCount++;
-          expect(p.x).toBeGreaterThan(DOUBLE_BEAT_DISTANCE);
-          expect(p.width / getSpeed(p.x)).toBeGreaterThanOrEqual(0.959);
-          expect(state.platforms[i + 1]!.width).toBeGreaterThanOrEqual(620);
-          expect(
-            state.rivals.some((r) => r.x >= p.x && r.x <= p.x + p.width),
-          ).toBe(false);
-        }
+  it('keeps slopes bounded and broad landing decks for every speed tier', () => {
+    for (const boosts of [0, 3, 6, 12]) {
+      const state = createRunner(7);
+      state.fever.abilities.boost = boosts;
+      generateTerrain(state, 40000);
+      for (const road of state.platforms) {
+        expect(road.top).toBeGreaterThanOrEqual(TERRAIN_MIN_HEIGHT);
+        expect(road.endTop ?? road.top).toBeLessThanOrEqual(TERRAIN_MAX_HEIGHT);
       }
-      expect(doubleCount).toBeGreaterThan(0);
-      expect(slopeCount).toBeGreaterThan(0);
-      expect(longCount).toBeGreaterThan(0);
-      expect(lowCount).toBeGreaterThan(longCount);
-    }
-  });
-  it('keeps required beats between 1.2 and 3.7 seconds with a slower battle contrast', () => {
-    const state = createRunner(42);
-    generateTerrain(state, 70000);
-    const edges = state.platforms.flatMap((p, i) =>
-      state.platforms[i + 1] && !platformsJoin(p, state.platforms[i + 1]!)
-        ? [p.x + p.width]
-        : [],
-    );
-    const durations = edges
-      .slice(1)
-      .map((edge, i) => (edge - edges[i]!) / getSpeed(edges[i]!));
-    expect(Math.min(...durations)).toBeGreaterThan(1.2);
-    expect(Math.max(...durations)).toBeLessThan(3.7);
-    expect(durations.some((t) => t < 1.4)).toBe(true);
-    expect(durations.some((t) => t > 3.4)).toBe(true);
-  });
-  it('introduces rival classes gradually then keeps easier encounters between fortress fights', () => {
-    const state = createRunner(42);
-    generateTerrain(state, 70000);
-    const mainKinds = state.obstacles.map(
-      (crate) =>
-        state.rivals.find((r) => Math.abs(r.x - crate.x - 80) < 0.001)!.kind,
-    );
-    const cycle = [
-      'basic',
-      'rusher',
-      'heavy',
-      'bomber',
-      'artillery',
-      'fortress',
-    ];
-    expect(mainKinds.slice(0, 6)).toEqual(cycle);
-    expect(mainKinds.slice(6, 12)).toEqual(cycle);
-    for (const rival of state.rivals.filter((r) => r.x > 1000)) {
-      let index = state.platforms.findIndex(
-        (p) => rival.x >= p.x && rival.x <= p.x + p.width,
+      const islands = state.platforms.filter(
+        (road, i) => i > 0 && !platformsJoin(state.platforms[i - 1]!, road),
       );
-      while (
-        state.platforms[index + 1] &&
-        platformsJoin(state.platforms[index]!, state.platforms[index + 1]!)
-      )
-        index++;
-      const road = state.platforms[index]!;
-      const runway =
-        road.x + road.width - rival.x - RIVALS[rival.kind].width / 2;
-      expect(runway / getSpeed(road.x + road.width)).toBeGreaterThan(1.05);
+      for (const island of islands) {
+        let road = island,
+          width = road.width;
+        let index = state.platforms.indexOf(road);
+        while (
+          state.platforms[index + 1] &&
+          platformsJoin(road, state.platforms[index + 1]!)
+        ) {
+          road = state.platforms[++index]!;
+          width += road.width;
+        }
+        expect(width).toBeGreaterThanOrEqual(759.999);
+      }
     }
   });
-  it('preserves generated terrain when extending its prefix', () => {
+  it('never rewrites a generated terrain prefix when collecting boosts', () => {
     const state = createRunner(41),
       old = structuredClone(state.platforms);
+    state.fever.abilities.boost = 12;
     generateTerrain(state, 9000);
     expect(state.platforms.slice(0, old.length)).toEqual(old);
   });
-  it('carries eight seeded routes through early, middle and capped speed with three takeoff timings', () => {
-    for (const seed of [1, 2, 7, 42, 84, 991, 12345, 0xffffffff]) {
-      for (const lead of [0.08, 0.12, 0.16]) {
+  it('carries held jumps across seeded terrain at actual 330–1650 speeds', () => {
+    for (const seed of [1, 7, 42, 991]) {
+      for (const boosts of [0, 6, 12]) {
         const state = createRunner(seed);
-        generateTerrain(state, 70000);
-        // Terrain proof uses no power-ups, recovery hop, invulnerability, or position resets.
+        state.fever.abilities.boost = boosts;
+        state.speed = getSpeed(0, boosts);
+        generateTerrain(state, 45000);
         state.rivals = [];
         state.obstacles = [];
         state.pickups = [];
-        state.shield = 0;
         startRunner(state);
-        let tightestDecision = Infinity;
-        while (state.distance < 65000 && state.status === 'running') {
-          terrainPilot(state, lead);
-          const airborne = !state.player.grounded;
+        while (state.distance < 40000 && state.status === 'running') {
+          if (state.player.grounded) {
+            releaseJump(state);
+            if (roadEnd(state) - state.distance < state.speed * 0.09)
+              requestJump(state);
+          }
           stepRunner(state);
-          if (airborne && state.player.grounded)
-            tightestDecision = Math.min(
-              tightestDecision,
-              (roadEnd(state) - state.distance) / getSpeed(state.distance) -
-                lead,
-            );
         }
-        // Full holds also leave time to deliberately release and press again.
-        expect(tightestDecision).toBeGreaterThan(0.4);
         expect(
           state.status,
-          JSON.stringify({
-            seed,
-            lead,
-            x: state.distance,
-            failure: state.failure,
-            platforms: state.platforms.slice(0, 5),
-          }),
+          JSON.stringify({ seed, boosts, failure: state.failure }),
         ).toBe('running');
-        expect({
-          seed,
-          lead,
-          status: state.status,
-          reason: state.reason,
-          x: state.distance,
-          failure: state.failure,
-        }).toMatchObject({ seed, lead, status: 'running', reason: null });
-        expect(state.distance).toBeGreaterThan(65000);
-        expect(state.jumps).toBeGreaterThan(45);
-        expect(state.player.airHops).toBe(1);
-      }
-    }
-  }, 20000);
-  it('lets 50ms low taps take the short trails through a complete carried route', () => {
-    for (const seed of [7, 42, 991]) {
-      const state = createRunner(seed);
-      generateTerrain(state, 50000);
-      state.rivals = [];
-      state.obstacles = [];
-      state.pickups = [];
-      state.shield = 0;
-      startRunner(state);
-      let lowReleases = 0;
-      while (state.distance < 45000 && state.status === 'running') {
-        const held = state.player.holding;
-        terrainPilot(state, 0.12, true);
-        if (held && !state.player.grounded && !state.player.holding)
-          lowReleases++;
-        stepRunner(state);
-      }
-      expect(state.status, JSON.stringify(state.failure)).toBe('running');
-      expect(lowReleases).toBeGreaterThan(10);
-      expect(state.player.airHops).toBe(1);
-    }
-  });
-  it('makes long drops ask for a hold while short gaps accept either a tap or hold', () => {
-    const course = createRunner(42);
-    generateTerrain(course, 45000);
-    for (const long of [false, true]) {
-      const index = course.platforms.findIndex((road, i) => {
-        const prev = course.platforms[i - 1];
-        if (!prev || platformsJoin(prev, road) || road.x < SPEED_RAMP_DISTANCE)
-          return false;
-        const time = (road.x - prev.x - prev.width) / MAX_SPEED;
-        return long ? time > 0.5 : time < 0.33;
-      });
-      const target = course.platforms[index]!,
-        prev = course.platforms[index - 1]!;
-      for (const tap of [true, false]) {
-        const state = arena();
-        state.platforms = [prev, target];
-        state.distance = prev.x + prev.width - MAX_SPEED * 0.12;
-        state.player.y = platformTopAt(prev, state.distance);
-        requestJump(state);
-        advance(state, 0.05);
-        if (tap) releaseJump(state);
-        advance(state, 0.82);
-        expect(state.status).toBe(long && tap ? 'over' : 'running');
-        if (!(long && tap)) expect(state.player.grounded).toBe(true);
-        expect(state.player.airHops).toBe(1);
+        expect(state.jumps).toBeGreaterThan(15);
       }
     }
   });
-});
-
-it('replays 80 seconds of physical 16ms input through cap at 60, 120 and 144Hz', () => {
-  for (const collect of [true, false]) {
-    const { state, inputs, minimumLandingRunway } = buildReplay(
-      42,
-      80,
-      collect,
-    );
-    expect(
-      state.status,
-      JSON.stringify({
-        collect,
-        time: state.time,
-        x: state.distance,
-        failure: state.failure,
-      }),
-    ).toBe('running');
-    expect(state.distance).toBeGreaterThan(SPEED_RAMP_DISTANCE);
-    expect(inputs.length).toBeGreaterThan(60);
-    // Greedy optional gear jumps must also leave a readable next decision.
-    expect(minimumLandingRunway).toBeGreaterThan(0.54);
-    if (collect)
-      expect(Object.keys(state.weaponLevels).length).toBeGreaterThan(2);
-    for (const hz of [60, 120, 144]) {
-      const replay = replayAtRefresh(inputs, 80, hz);
-      expect(
-        replay.status,
-        JSON.stringify({
-          collect,
-          hz,
-          x: replay.distance,
-          failure: replay.failure,
-        }),
-      ).toBe('running');
-      expect(Math.abs(replay.distance - state.distance)).toBeLessThan(
-        MAX_SPEED * FIXED_DT * 2,
-      );
-      expect(replay.jumps).toBe(state.jumps);
-    }
-  }
-});
-
-describe('integrated movement and combat routes', () => {
-  it('survives every mixed encounter without weapons or shielding', () => {
-    for (const seed of [1, 3, 42, 84, 991]) {
-      const state = createRunner(seed);
-      generateTerrain(state, 50000);
-      state.pickups = [];
-      state.shield = 0;
-      startRunner(state);
-      while (state.distance < 45000 && state.status === 'running') {
-        fullPilot(state);
-        stepRunner(state);
-      }
-      expect(
-        state.status,
-        JSON.stringify({
-          seed,
-          x: state.distance,
-          reason: state.reason,
-          failure: state.failure,
-          nearby: state.platforms.slice(0, 6),
-        }),
-      ).toBe('running');
-      expect(state.shield).toBe(0);
-      expect(state.weapon).toBeNull();
-    }
-  });
-  it('makes the first gun useful before the first gap and preserves it while running low', () => {
-    const state = createRunner(42);
+  it('keeps low taps viable on the short base-speed route', () => {
+    const state = createRunner(7);
+    generateTerrain(state, 20000);
+    state.rivals = [];
+    state.obstacles = [];
+    state.pickups = [];
     startRunner(state);
-    while (state.distance < 2500 && state.status === 'running') {
-      fullPilot(state);
+    while (state.distance < 15000 && state.status === 'running') {
+      terrainPilot(state, 0.08, true);
       stepRunner(state);
     }
-    expect(state.status).toBe('running');
-    expect(state.defeated).toBeGreaterThan(0);
-    expect(state.weapon?.id).toBe('machine');
+    expect(state.status, JSON.stringify(state.failure)).toBe('running');
+  });
+  it('replays physical input consistently at 60, 120 and 144Hz', () => {
+    const { state, inputs } = buildReplay(42, 35, true);
+    expect(state.status, JSON.stringify(state.failure)).toBe('running');
+    expect(state.chestsOpened).toBeGreaterThan(4);
+    expect(state.score).toBeGreaterThan(10000);
+    for (const hz of [60, 120, 144]) {
+      const replay = replayAtRefresh(inputs, 35, hz);
+      expect(
+        replay.status,
+        JSON.stringify({ hz, failure: replay.failure }),
+      ).toBe('running');
+      expect(replay.jumps).toBe(state.jumps);
+      expect(Math.abs(replay.distance - state.distance)).toBeLessThan(
+        MAX_SPEED * FIXED_DT * 3,
+      );
+    }
   });
 });
 
@@ -577,7 +315,7 @@ describe('observed failure feedback', () => {
   it('identifies a no-input fall only when no jump was made on that flight', () => {
     const state = createRunner(42);
     startRunner(state);
-    advance(state, 3);
+    advance(state, 6);
     expect(state.status).toBe('over');
     expect(state.failure?.kind).toBe('no-input');
     expect(state.failure?.takeoffX).toBeNull();

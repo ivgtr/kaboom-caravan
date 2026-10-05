@@ -1,8 +1,14 @@
 import { runtimeAssetUrl } from '../runtimeAssets';
-import type { RivalKind, WeaponId } from './types';
+import type { AbilityId, RivalKind, WeaponId } from './types';
 
 const root = (path: string) => runtimeAssetUrl(`assets/${path}`);
 export const SCRAP_ART = root('runner-pickups/scrap-metal_v001.png');
+export const ABILITY_ART: Record<AbilityId, string> = {
+  boost: root('score-fever/boost.webp'),
+  slam: root('score-fever/slam.webp'),
+  gold: root('score-fever/gold.webp'),
+  magnet: root('score-fever/magnet.webp'),
+};
 export const WEAPON_ART: Record<WeaponId, string> = {
   machine: root('equipment/wpn_machine_cannon_v001.png'),
   scatter: root('equipment/wpn_scatter_cannon_v001.png'),
@@ -32,6 +38,17 @@ export interface RunnerArt {
   magnet: HTMLCanvasElement;
   scrap: HTMLCanvasElement;
   crate: HTMLCanvasElement;
+  fever: {
+    cabinet: HTMLCanvasElement;
+    chest: HTMLCanvasElement;
+    goldenChest: HTMLCanvasElement;
+    openChest: HTMLCanvasElement;
+    burst: HTMLCanvasElement;
+    trail: HTMLCanvasElement;
+    abilities: Record<AbilityId, HTMLCanvasElement>;
+    goldenRivals: Record<RivalKind, HTMLCanvasElement[]>;
+    goldenCrate: HTMLCanvasElement;
+  };
   effects: {
     guard: HTMLCanvasElement;
     hit: HTMLCanvasElement;
@@ -117,6 +134,17 @@ function compact(image: HTMLCanvasElement, maxEdge = 96): HTMLCanvasElement {
   return canvas;
 }
 
+/** Tint the actual painted sprite once; retain its silhouette and shaded details. */
+function gild(image: HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext('2d')!;
+  context.filter = 'sepia(1) saturate(2.9) hue-rotate(350deg) brightness(1.17)';
+  context.drawImage(image, 0, 0);
+  return canvas;
+}
+
 export async function loadRunnerArt(): Promise<RunnerArt> {
   const [
     player,
@@ -132,6 +160,7 @@ export async function loadRunnerArt(): Promise<RunnerArt> {
     burst,
     body,
     cap,
+    feverImages,
   ] = await Promise.all([
     loadImage(root('animation/veh_player_chassis_v005.png')).then((image) =>
       trim(image),
@@ -180,6 +209,22 @@ export async function loadRunnerArt(): Promise<RunnerArt> {
     ),
     loadImage(root('runner-terrain/rock-body.webp')),
     loadImage(root('runner-terrain/road-cap.webp')),
+    Promise.all(
+      [
+        'cabinet',
+        'chest',
+        'chest-gold',
+        'chest-open',
+        'burst',
+        'trail',
+        'boost',
+        'slam',
+        'gold',
+        'magnet',
+      ].map(async (name) =>
+        trim(await loadImage(root(`score-fever/${name}.webp`))),
+      ),
+    ),
   ]);
   return {
     player,
@@ -191,6 +236,24 @@ export async function loadRunnerArt(): Promise<RunnerArt> {
     magnet,
     scrap,
     crate,
+    fever: {
+      cabinet: feverImages[0]!,
+      chest: feverImages[1]!,
+      goldenChest: feverImages[2]!,
+      openChest: feverImages[3]!,
+      burst: feverImages[4]!,
+      trail: feverImages[5]!,
+      abilities: {
+        boost: feverImages[6]!,
+        slam: feverImages[7]!,
+        gold: feverImages[8]!,
+        magnet: feverImages[9]!,
+      },
+      goldenRivals: Object.fromEntries(
+        Object.entries(rivals).map(([kind, poses]) => [kind, poses.map(gild)]),
+      ) as RunnerArt['rivals'],
+      goldenCrate: gild(crate),
+    },
     effects: { guard, hit, burst },
   };
 }

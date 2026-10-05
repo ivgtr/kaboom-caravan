@@ -116,102 +116,6 @@ button:disabled {
 .runner-icon:hover {
   background: #1b4c5c60;
 }
-.runner-scrap {
-  margin-right: 10px;
-  font-size: 20px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-.runner-scrap img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  vertical-align: -4px;
-}
-.runner-gear {
-  position: absolute;
-  top: max(28px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 14px;
-  max-width: 330px;
-  border-radius: 13px;
-  background: #17424fbc;
-  box-shadow: 0 2px 0 #13353f25;
-  pointer-events: none;
-}
-.runner-gear > img {
-  width: 46px;
-  height: 47px;
-  object-fit: contain;
-}
-.runner-gear > div {
-  min-width: 0;
-}
-.runner-gear strong {
-  display: block;
-  font-family: 'Barlow Condensed', system-ui, sans-serif;
-  font-weight: 800;
-  font-size: 20px;
-  letter-spacing: 0.05em;
-  line-height: 1;
-}
-.runner-gear em {
-  color: #ffe395;
-  font-style: normal;
-  font-size: 15px;
-}
-.runner-gear span,
-.runner-gear small {
-  display: block;
-  font-size: 10px;
-  line-height: 1.7;
-}
-.runner-gear small {
-  color: #c0dcd5;
-  font-size: 9px;
-}
-.runner-meter {
-  height: 3px;
-  border-radius: 3px;
-  overflow: hidden;
-  background: #92b1ad60;
-  margin-top: 3px;
-}
-.runner-meter i {
-  display: block;
-  height: 100%;
-  background: #ffe18f;
-}
-.runner-unarmed {
-  text-align: center;
-  padding: 3px 5px;
-}
-.runner-unarmed strong {
-  font-size: 16px;
-  color: #fff3bd;
-}
-.runner-protection {
-  position: absolute;
-  top: 140px;
-  left: max(28px, env(safe-area-inset-left));
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 900;
-}
-.runner-protection span {
-  color: #dae1cbd9;
-  background: #21536461;
-  border-radius: 7px;
-  padding: 5px 8px;
-}
-.runner-protection .charged {
-  color: #e2fff0;
-}
 .runner-notice {
   position: absolute;
   top: 25%;
@@ -435,13 +339,6 @@ h1 span {
   margin-top: 28px;
   font-size: 13px;
 }
-@media (orientation: landscape) {
-  .runner-protection {
-    top: max(78px, calc(env(safe-area-inset-top) + 56px));
-    left: auto;
-    right: max(28px, env(safe-area-inset-right));
-  }
-}
 @media (max-width: 650px) and (orientation: portrait) {
   .runner-hud {
     inset: max(20px, env(safe-area-inset-top)) 18px auto 18px;
@@ -449,22 +346,9 @@ h1 span {
   .runner-top-right {
     gap: 7px;
   }
-  .runner-scrap {
-    margin-right: 2px;
-    font-size: 18px;
-  }
   .runner-icon {
     width: 38px;
     height: 38px;
-  }
-  .runner-gear {
-    top: 145px;
-    max-width: 310px;
-    width: max-content;
-  }
-  .runner-protection {
-    left: 18px;
-    top: 109px;
   }
   .runner-title {
     padding-top: 24vh;
@@ -512,23 +396,6 @@ h1 span {
   .runner-icon {
     width: 35px;
     height: 35px;
-  }
-  .runner-gear {
-    top: 13px;
-    padding: 7px 12px;
-  }
-  .runner-gear strong {
-    font-size: 17px;
-  }
-  .runner-gear > img {
-    width: 35px;
-    height: 40px;
-  }
-  .runner-protection {
-    top: max(65px, calc(env(safe-area-inset-top) + 53px));
-    left: auto;
-    right: max(19px, env(safe-area-inset-right));
-    font-size: 9px;
   }
   .runner-notice {
     top: 28%;
@@ -611,17 +478,6 @@ h1 span {
     transition: none !important;
   }
 }
-
-.runner-scrap small {
-  display: block;
-  font-size: 9px;
-  color: #e7efd0;
-  font-weight: 700;
-}
-.runner-protection {
-  flex-wrap: wrap;
-  max-width: 360px;
-}
 .runner-result {
   background: linear-gradient(
     90deg,
@@ -642,17 +498,6 @@ h1 span {
   letter-spacing: 0;
 }
 @media (max-width: 650px) and (orientation: portrait) {
-  .runner-protection {
-    max-width: 350px;
-    gap: 5px;
-  }
-  .runner-protection span {
-    font-size: 9px;
-    padding: 5px 6px;
-  }
-  .runner-gear {
-    top: 151px;
-  }
   .runner-result {
     background: #1137449e;
     padding-bottom: 26vh;
@@ -661,26 +506,287 @@ h1 span {
     max-width: 310px;
   }
 }
-@media (max-height: 500px) and (orientation: landscape) {
-  .runner-protection {
-    max-width: 205px;
-    justify-content: flex-end;
+
+/* Score-first HUD; the middle sky belongs to the physical reward cabinet. */
+.runner-score {
+  color: #fff4c6;
+  text-shadow:
+    0 3px 0 #174655,
+    0 0 9px #173e5080;
+}
+.runner-score > strong {
+  font-size: clamp(38px, 5vw, 72px);
+}
+.runner-chain {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 7px;
+  color: #ebeee0;
+  font-size: 11px;
+  font-weight: 900;
+}
+.runner-chain b {
+  font-family: 'Barlow Condensed', Impact, sans-serif;
+  font-size: 29px;
+  color: #ffe58c;
+}
+.runner-chain[data-active='true'] b {
+  color: #ffb66a;
+}
+.runner-distance-secondary {
+  font:
+    800 18px 'Barlow Condensed',
+    sans-serif;
+  color: #fff0ce;
+  margin-right: 5px;
+}
+.runner-loadout {
+  position: absolute;
+  z-index: 1;
+  left: max(28px, env(safe-area-inset-left));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  max-width: calc(100% - 165px);
+  pointer-events: none;
+  text-shadow: 0 2px 2px #123843;
+}
+.runner-abilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+.runner-abilities span {
+  color: #c0d0c7;
+}
+.runner-abilities [data-active='true'] {
+  color: #ffe39a;
+}
+.runner-abilities b {
+  font-size: 20px;
+  font-family: 'Barlow Condensed', Impact, sans-serif;
+}
+.runner-equipment-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  font-size: 10px;
+  margin-top: 4px;
+  color: #d7e9da;
+  font-weight: 700;
+}
+.runner-equipment-line img {
+  object-fit: contain;
+  width: 24px;
+  height: 24px;
+  margin-right: -7px;
+}
+.runner-bottom {
+  justify-content: flex-end;
+}
+.runner-hint {
+  position: absolute;
+  left: 0;
+  bottom: 60px;
+}
+.runner-result h2 {
+  font-size: clamp(58px, 8vw, 108px);
+  max-width: 95vw;
+  overflow-wrap: anywhere;
+  color: #fff0b0;
+}
+.runner-result h2 small {
+  font-size: 0.22em;
+}
+.runner-stats {
+  gap: clamp(15px, 3vw, 32px);
+  margin-bottom: 12px;
+}
+.runner-result .runner-score-recipe {
+  margin: 0 0 8px;
+  font-size: 10px;
+  color: #ffe195;
+}
+.runner-result .runner-result-secondary {
+  margin: 0 0 18px;
+  font-size: 11px;
+  color: #cadfd2;
+}
+@media (max-width: 650px) and (orientation: portrait) {
+  .runner-score > strong {
+    font-size: clamp(34px, 9vw, 49px);
   }
-  .runner-gear {
-    max-width: 250px;
+  .runner-score .runner-best {
+    font-size: 12px;
   }
-  .runner-gear small {
+  .runner-chain {
+    gap: 7px;
+    margin-top: 4px;
+    font-size: 10px;
+  }
+  .runner-chain b {
+    font-size: 25px;
+  }
+  .runner-distance-secondary {
     display: none;
   }
-  .runner-gear span {
-    max-width: 155px;
-    font-size: 8px;
+  .runner-loadout {
+    left: 20px;
+    bottom: max(35px, env(safe-area-inset-bottom));
+    max-width: calc(100% - 135px);
   }
-  .runner-scrap {
-    margin-right: 0;
+  .runner-abilities {
+    gap: 2px 10px;
+    font-size: 10px;
+  }
+  .runner-abilities b {
+    font-size: 18px;
+  }
+  .runner-equipment-line {
+    gap: 5px;
+    font-size: 9px;
+  }
+  .runner-hint {
+    bottom: 85px;
+    font-size: 11px;
+  }
+  .runner-result {
+    padding-bottom: 19vh;
+  }
+  .runner-result .runner-cause {
+    margin: 13px 0;
+  }
+  .runner-stats b {
+    font-size: 25px;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .runner-score > strong {
+    font-size: 36px;
+  }
+  .runner-score .runner-best {
+    font-size: 10px;
+  }
+  .runner-chain {
+    margin-top: 2px;
+    font-size: 9px;
+  }
+  .runner-chain b {
+    font-size: 21px;
+  }
+  .runner-distance-secondary {
+    display: none;
+  }
+  .runner-loadout {
+    left: 18px;
+    bottom: 12px;
+    max-width: calc(100% - 135px);
+  }
+  .runner-abilities {
+    font-size: 9px;
+    gap: 7px;
+  }
+  .runner-abilities b {
     font-size: 16px;
   }
-  .runner-scrap small {
+  .runner-equipment-line {
     font-size: 8px;
+    gap: 6px;
+    margin-top: 0;
   }
+  .runner-equipment-line img {
+    width: 18px;
+    height: 18px;
+  }
+  .runner-hint {
+    bottom: 43px;
+    font-size: 9px;
+    line-height: 1.4;
+    padding: 4px 7px;
+  }
+  .runner-hint span {
+    font-size: 9px;
+  }
+  .runner-result h2 {
+    font-size: 55px;
+  }
+  .runner-result .runner-cause {
+    margin: 6px 0;
+    font-size: 10px;
+  }
+  .runner-stats {
+    margin: 0 0 6px;
+    gap: 24px;
+  }
+  .runner-stats b {
+    font-size: 20px;
+  }
+  .runner-result .runner-score-recipe {
+    font-size: 8px;
+    margin-bottom: 3px;
+  }
+  .runner-result .runner-result-secondary {
+    font-size: 9px;
+    margin-bottom: 9px;
+  }
+  .runner-result .runner-secondary {
+    padding-top: 7px;
+  }
+  .runner-result > small {
+    margin-top: 6px;
+  }
+}
+.runner-score-parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  max-width: 480px;
+  font-size: 10px;
+  color: #c8e0d0;
+  margin: 0 0 12px;
+}
+.runner-score-parts b {
+  color: #fff1b4;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .runner-score-parts {
+    font-size: 8px;
+    margin-bottom: 5px;
+  }
+  .runner-result .runner-result-secondary {
+    margin-bottom: 5px;
+  }
+}
+.runner-score {
+  min-width: 0;
+  max-width: calc(100% - 104px);
+}
+.runner-top-right {
+  flex-shrink: 0;
+}
+.runner-score .runner-best {
+  overflow-wrap: anywhere;
+}
+
+/* The power cut silences the HUD too. Controls remain discoverable and active. */
+.runner[data-cut='true'] .runner-score,
+.runner[data-cut='true'] .runner-distance-secondary,
+.runner[data-cut='true'] .runner-loadout,
+.runner[data-cut='true'] .runner-notice,
+.runner[data-cut='true'] .runner-hint,
+.runner[data-cut='true'] .runner-jump {
+  opacity: 0;
+  transition: none;
+}
+.runner[data-cut='true'] .runner-icon {
+  color: #899395;
+  background: #070909;
+  border-color: #253033;
+  box-shadow: none;
+  opacity: 0.3;
 }

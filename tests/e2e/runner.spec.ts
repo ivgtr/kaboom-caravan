@@ -1,10 +1,12 @@
+import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { buildReplay } from '../runner-replay';
-import { MAX_SPEED, SPEED_RAMP_DISTANCE } from '../../src/runner/pacing';
+import { createRunner, generateTerrain } from '../../src/runner/simulation';
+import { platformTopAt, platformsJoin } from '../../src/runner/terrain';
 
-async function openRun(page: Page) {
+async function openRun(page: Page, seed = 42) {
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
-  await page.goto('/?seed=42');
+  await page.goto(`/?seed=${seed}`);
   await expect(page.getByTestId('runner')).toHaveAttribute(
     'data-status',
     'ready',
@@ -55,20 +57,6 @@ test('tap, hold and one recovery have distinct responsive results', async ({
   await expect(page.getByTestId('runner')).toHaveAttribute('data-jumps', '2');
   await page.keyboard.up('Space');
   await capture(page, info, 'desktop-air-recovery');
-  // This real recovery misses the first gun, then the first rival spends the guard.
-  await page.clock.runFor(930);
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-shield', '0');
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-guard-flash',
-    'true',
-  );
-  await capture(page, info, 'desktop-guard-contact');
-  await page.clock.runFor(300);
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-guard-flash',
-    'false',
-  );
-  await capture(page, info, 'desktop-guard-finished');
   expect(errors).toEqual([]);
 });
 
@@ -106,31 +94,80 @@ test('pause, pointer release outside and focus loss clear hold and require expli
   await expect(runner).toHaveAttribute('data-status', 'paused');
 });
 
-test('starter gun pays off before first gap; death explains missed input and retry is immediate', async ({
+test('early chest grows score; jackpot freezes the world, then resumes a queued tap and preserves score record', async ({
   page,
 }, info) => {
-  await openRun(page);
+  await openRun(page, 1);
+  const runner = page.getByTestId('runner');
   await page.getByRole('button', { name: 'スタート', exact: true }).click();
-  await page.clock.runFor(1200);
-  await expect(page.getByLabel('現在の装備')).toContainText('連射');
-  expect(await number(page, 'defeated')).toBeGreaterThan(0);
-  await capture(page, info, 'desktop-first-payoff');
-  await page.clock.runFor(1500);
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-status',
-    'over',
-  );
-  await expect(page.locator('.runner-cause')).toContainText('ジャンプせず');
-  await capture(page, info, 'desktop-death-context');
-  const finalDistance = await number(page, 'distance');
+  await page.clock.runFor(1880);
+  expect(await number(page, 'chests')).toBe(1);
+  expect(await number(page, 'freeze')).toBeGreaterThan(0.4);
+  const frozenX = await number(page, 'world-x');
+  await capture(page, info, 'desktop-jackpot-power-cut');
+  await page.keyboard.down('Space');
+  await page.keyboard.up('Space');
+  await page.clock.runFor(180);
+  expect(await number(page, 'world-x')).toBe(frozenX);
+  await expect(runner).toHaveAttribute('data-cut', 'true');
+  await expect(page.locator('.runner-score')).toHaveCSS('opacity', '0');
+  expect(
+    await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+      const pixels = canvas
+        .getContext('2d')!
+        .getImageData(0, 0, canvas.width, canvas.height).data;
+      let brightest = 0;
+      for (let i = 0; i < pixels.length; i += 4)
+        brightest = Math.max(
+          brightest,
+          pixels[i]!,
+          pixels[i + 1]!,
+          pixels[i + 2]!,
+        );
+      return brightest;
+    }),
+  ).toBe(0);
+  await capture(page, info, 'desktop-jackpot-black-hold');
+  await expect(runner).toHaveAttribute('data-holding', 'false');
+  await page.clock.runFor(650);
+  expect(await number(page, 'freeze')).toBe(0);
+  await expect(runner).toHaveAttribute('data-cut', 'false');
+  expect(await number(page, 'world-x')).toBeGreaterThan(frozenX);
+  expect(await number(page, 'jumps')).toBe(1);
+  expect(await number(page, 'score')).toBeGreaterThan(100);
+  await capture(page, info, 'desktop-jackpot-release');
+  await page.clock.runFor(5000);
+  await expect(runner).toHaveAttribute('data-status', 'over');
+  await expect(page.getByLabel('ラン結果')).toContainText('最大CHAIN');
+  const finalScore = await number(page, 'score');
+  const parts = await page.locator('.runner-score-parts b').allTextContents();
+  expect(
+    parts.reduce((sum, value) => sum + Number(value.replaceAll(',', '')), 0),
+  ).toBe(finalScore);
+  expect(
+    await page.evaluate(() =>
+      Number(localStorage.getItem('kaboom-score-fever-best-v1')),
+    ),
+  ).toBe(finalScore);
+  await capture(page, info, 'desktop-score-result');
   await page.getByRole('button', { name: 'もう一度', exact: true }).click();
-  await expect(page.getByTestId('runner')).toHaveAttribute(
-    'data-status',
-    'running',
-  );
-  await expect(page.getByTestId('runner')).toHaveAttribute('data-jumps', '0');
-  await page.clock.runFor(100);
-  expect(await number(page, 'distance')).toBeLessThan(finalDistance);
+  await expect(runner).toHaveAttribute('data-status', 'running');
+  await expect(runner).toHaveAttribute('data-jumps', '0');
+  await expect(runner).toHaveAttribute('data-score', '0');
+  await page.clock.runFor(1880);
+  await page.getByRole('button', { name: '一時停止', exact: true }).click();
+  const frozenClock = await number(page, 'fever-clock');
+  const remaining = await number(page, 'freeze');
+  await page.keyboard.down('Space');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.keyboard.up('Space');
+  await page.clock.runFor(1000);
+  expect(await number(page, 'fever-clock')).toBe(frozenClock);
+  expect(await number(page, 'freeze')).toBe(remaining);
+  await page.getByRole('button', { name: '再開', exact: true }).click();
+  await page.clock.runFor(800);
+  await expect(runner).toHaveAttribute('data-holding', 'false');
+  await expect(runner).toHaveAttribute('data-jumps', '0');
 });
 
 /** The browser receives only physical input and elapsed time, never game-state edits. */
@@ -162,9 +199,9 @@ async function replay(
     x: button!.x + button!.width / 2,
     y: button!.y + button!.height / 2,
   };
-  const checkpoints = (
-    seconds > 60 ? [2.8, 15, 32, 52, 76, 89] : [2.8, 7.6, 15, 30]
-  ).filter((t) => t < seconds);
+  const checkpoints = [2.2, 2.8, 7.6, 15, 24, 32, 39].filter(
+    (t) => t < seconds,
+  );
   const events = [
     ...plan.inputs.map((input) => ({
       at: Math.round(input.time * 1000),
@@ -197,12 +234,11 @@ async function replay(
         'data-status',
         'running',
       );
-      if (event.checkpoint === 2.8)
-        expect(await number(page, 'speed')).toBeLessThan(360);
-      if (event.checkpoint === 32)
-        expect(await number(page, 'speed')).toBeGreaterThan(440);
-      if (event.checkpoint === 89)
-        expect(await number(page, 'speed')).toBe(MAX_SPEED);
+      if (event.checkpoint === 32) {
+        expect(await number(page, 'speed')).toBeGreaterThan(800);
+        expect(await number(page, 'score')).toBeGreaterThan(10000);
+        expect(await number(page, 'chests')).toBeGreaterThan(5);
+      }
       await capture(page, info, `${name}-${event.checkpoint}s`);
     }
   }
@@ -211,11 +247,6 @@ async function replay(
     'data-status',
     'running',
   );
-  expect(
-    Math.abs((await number(page, 'world-x')) - plan.state.distance),
-  ).toBeLessThan(45);
-  expect(await number(page, 'run-level')).toBeGreaterThan(1);
-  expect(await number(page, 'defeated')).toBeGreaterThan(0);
   if (session && held)
     await session.send('Input.dispatchTouchEvent', {
       type: 'touchEnd',
@@ -223,15 +254,250 @@ async function replay(
     });
   else await page.keyboard.up('Space');
   await session?.detach();
+  // A physical pause publishes the exact endpoint. The running HUD is sampled
+  // every60ms, and a FREEZE edge may publish an extra frame between samples.
+  const pauseButton = page.getByRole('button', {
+    name: '一時停止',
+    exact: true,
+  });
+  if (touch) await pauseButton.tap();
+  else await pauseButton.click();
+  await expect(page.getByTestId('runner')).toHaveAttribute(
+    'data-status',
+    'paused',
+  );
+  expect(
+    Math.abs((await number(page, 'world-x')) - plan.state.distance),
+  ).toBeLessThan(45);
+  expect(await number(page, 'run-level')).toBeGreaterThan(1);
+  expect(await number(page, 'defeated')).toBeGreaterThan(0);
+  const resumeButton = page.getByRole('button', { name: '再開', exact: true });
+  if (touch) await resumeButton.tap();
+  else await resumeButton.click();
 }
 
-test('real keyboard replay crosses hills, gear encounters and late capped-speed accents', async ({
+/** A separate wall-clock recording, with physical inputs and the real audio graph. */
+async function captureNormalSpeed(page: Page, info: TestInfo) {
+  const dir = info.outputPath('normal-speed');
+  await mkdir(dir, { recursive: true });
+  const context = await page
+    .context()
+    .browser()!
+    .newContext({
+      viewport: { width: 1280, height: 720 },
+      recordVideo: { dir, size: { width: 1280, height: 720 } },
+    });
+  const live = await context.newPage();
+  const videoStarted = Date.now();
+  const video = live.video()!;
+  try {
+    await live.addInitScript(() => {
+      const qa = window as unknown as {
+        qaStream?: MediaStream;
+        qaRecorder?: MediaRecorder;
+        qaChunks?: Blob[];
+      };
+      const connect = AudioNode.prototype.connect;
+      const taps = new WeakMap<AudioContext, MediaStreamAudioDestinationNode>();
+      AudioNode.prototype.connect = function (
+        ...args: Parameters<AudioNode['connect']>
+      ) {
+        const result = Reflect.apply(connect, this, args);
+        if (
+          (args[0] as unknown) instanceof AudioDestinationNode &&
+          this.context instanceof AudioContext
+        ) {
+          let destination = taps.get(this.context);
+          if (!destination) {
+            destination = this.context.createMediaStreamDestination();
+            taps.set(this.context, destination);
+          }
+          Reflect.apply(connect, this, [destination]);
+          qa.qaStream = destination.stream;
+        }
+        return result;
+      } as AudioNode['connect'];
+    });
+    const runUrl = new URL(page.url());
+    runUrl.searchParams.set('seed', '1'); // A naturally rolled first-chest jackpot, not a forced game state.
+    await live.goto(runUrl.toString());
+    await expect(live.getByTestId('runner')).toHaveAttribute(
+      'data-art-ready',
+      'true',
+    );
+    await live.getByRole('button', { name: 'スタート', exact: true }).click();
+    const start = Date.now();
+    await live.evaluate(() => {
+      const qa = window as unknown as {
+        qaStream?: MediaStream;
+        qaRecorder?: MediaRecorder;
+        qaChunks?: Blob[];
+      };
+      if (!qa.qaStream) return;
+      qa.qaChunks = [];
+      qa.qaRecorder = new MediaRecorder(qa.qaStream);
+      qa.qaRecorder.ondataavailable = (event) => qa.qaChunks!.push(event.data);
+      qa.qaRecorder.start();
+    });
+    const audioDelayMs = Date.now() - videoStarted;
+    const jumpButton = await live
+      .getByRole('button', { name: 'ジャンプ', exact: true })
+      .boundingBox();
+    await live.mouse.move(
+      jumpButton!.x + jumpButton!.width / 2,
+      jumpButton!.y + jumpButton!.height / 2,
+    );
+    // Use visible live position for this wall-clock movie. A prerecorded schedule
+    // drifts under CI load and could otherwise press Space after death (a retry).
+    const route = createRunner(1);
+    generateTerrain(route, 100000);
+    let held = false;
+    let airborneSeen = false;
+    let previousX = 0;
+    let frozen = false;
+    const freezeTransitions: { kind: string; at: number; worldX: number }[] =
+      [];
+    while (Date.now() - start < 24000) {
+      const observed = await live.getByTestId('runner').evaluate((element) => ({
+        status: element.getAttribute('data-status'),
+        x: Number(element.getAttribute('data-world-x')),
+        y: Number(element.getAttribute('data-y')),
+        speed: Number(element.getAttribute('data-speed')),
+        grounded: element.getAttribute('data-grounded') === 'true',
+        freeze: Number(element.getAttribute('data-freeze')),
+      }));
+      if (observed.status !== 'running') break;
+      expect(observed.x).toBeGreaterThanOrEqual(previousX);
+      previousX = observed.x;
+      if (observed.freeze > 0 !== frozen) {
+        frozen = observed.freeze > 0;
+        freezeTransitions.push({
+          kind: frozen ? 'freeze' : 'release',
+          at: (Date.now() - start) / 1000,
+          worldX: observed.x,
+        });
+      }
+      if (!observed.grounded) airborneSeen = true;
+      if (
+        observed.grounded &&
+        observed.freeze <= 0 &&
+        (!held || airborneSeen)
+      ) {
+        if (held) {
+          await live.mouse.up();
+          held = false;
+        }
+        let index = route.platforms.findIndex(
+          (road) =>
+            observed.x + 22 > road.x &&
+            observed.x - 22 < road.x + road.width &&
+            Math.abs(platformTopAt(road, observed.x) - observed.y) < 4,
+        );
+        if (index >= 0) {
+          while (
+            route.platforms[index + 1] &&
+            platformsJoin(route.platforms[index]!, route.platforms[index + 1]!)
+          )
+            index++;
+          const road = route.platforms[index]!;
+          if (road.x + road.width - observed.x < observed.speed * 0.18) {
+            // The on-screen control disappears on death. Unlike Space here,
+            // a physical pointer at this position cannot trigger auto-retry.
+            await live.mouse.down();
+            held = true;
+            airborneSeen = false;
+          }
+        }
+      }
+      await live.waitForTimeout(12);
+    }
+    const gameplaySeconds = (Date.now() - start) / 1000;
+    // This is a demo capture, not a promise of a perfect run. Keep any death in
+    // the evidence and stop; never restart or edit gameplay state to improve it.
+    if (
+      (await live.getByTestId('runner').getAttribute('data-status')) ===
+      'running'
+    )
+      await live.keyboard.press('Escape');
+    await live.mouse.up();
+    const status = await live.getByTestId('runner').getAttribute('data-status');
+    expect(['paused', 'over']).toContain(status);
+    const finalX = await number(live, 'world-x');
+    expect(finalX).toBeGreaterThanOrEqual(previousX);
+    const failureReason =
+      status === 'over'
+        ? await live.locator('.runner-cause').textContent()
+        : null;
+    if (status === 'paused') {
+      expect(
+        await live.evaluate(() =>
+          localStorage.getItem('kaboom-score-fever-best-v1'),
+        ),
+      ).toBeNull();
+    }
+    await capture(live, info, 'desktop-normal-speed-final');
+    const audio = await live.evaluate(async () => {
+      const qa = window as unknown as {
+        qaRecorder?: MediaRecorder;
+        qaChunks?: Blob[];
+      };
+      if (!qa.qaRecorder) return null;
+      await new Promise<void>((resolve) => {
+        qa.qaRecorder!.onstop = () => resolve();
+        qa.qaRecorder!.stop();
+      });
+      return Array.from(
+        new Uint8Array(
+          await new Blob(qa.qaChunks, { type: 'audio/webm' }).arrayBuffer(),
+        ),
+      );
+    });
+    if (audio)
+      await writeFile(
+        info.outputPath('normal-speed-audio.webm'),
+        Buffer.from(audio),
+      );
+    await writeFile(
+      info.outputPath('normal-speed-capture.json'),
+      JSON.stringify(
+        {
+          seconds: gameplaySeconds,
+          targetSeconds: 24,
+          seed: 1,
+          freezeTransitions,
+          automatedPhysicalInput: true,
+          audioDelayMs,
+          finalStatus: status,
+          retries: 0,
+          finalWorldX: finalX,
+          finalScore: await number(live, 'score'),
+          failureReason,
+          endpoint:
+            status === 'over'
+              ? 'natural run end'
+              : 'explicit pause at recording endpoint',
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    await context.close();
+  }
+  await rename(
+    await video.path(),
+    info.outputPath('normal-speed-gameplay.webm'),
+  );
+}
+
+test('real keyboard replay chains chests, inflation and high-speed landing destruction', async ({
   page,
 }, info) => {
   test.setTimeout(180000);
   await openRun(page);
-  await replay(page, info, 'desktop-course', 90);
-  expect(await number(page, 'world-x')).toBeGreaterThan(SPEED_RAMP_DISTANCE);
+  await replay(page, info, 'desktop-course', 40);
+  expect(await number(page, 'multiplier')).toBeGreaterThan(10);
+  if (process.env.CAPTURE_UI_REVIEW) await captureNormalSpeed(page, info);
 });
 
 for (const viewport of [
@@ -245,7 +511,7 @@ for (const viewport of [
     }, info) => {
       test.setTimeout(180000);
       await openRun(page);
-      await replay(page, info, `touch-${viewport.name}`, 90, true);
+      await replay(page, info, `touch-${viewport.name}`, 40, true);
       const runner = page.getByTestId('runner');
       await page.getByRole('button', { name: '一時停止', exact: true }).tap();
       await page.getByRole('button', { name: '最初から', exact: true }).tap();

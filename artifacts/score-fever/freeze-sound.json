@@ -1,0 +1,13 @@
+{
+  "asset": "public/assets/audio/freeze-compact-dry-cut.wav",
+  "original_filename": "A_Compact_Dry_Cut.wav",
+  "generator": "Original procedural synthesis by dot; selected by the user",
+  "sha256": "077c7b3cae1c6423bacde99f94a210b5011b4b78d27dbfad1f8ffdd0176e9f90",
+  "bytes": 62700,
+  "sample_rate_hz": 48000,
+  "channels": 1,
+  "pcm_bits": 16,
+  "duration_seconds": 0.65,
+  "last_nonzero_seconds": 0.15947916666666667,
+  "runtime_edit": "None; the approved WAV bytes are copied unchanged. Native playback sample-rate conversion may occur."
+}
