@@ -10,7 +10,18 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
     const { RunnerAudio } = await import('/src/runner/audio.ts');
     const { createRunner } = await import('/src/runner/simulation.ts');
     const { stepFeverUI } = await import('/src/runner/fever.ts');
-    const sampleRate = 24000,
+    const approvedBytes = await (
+      await fetch('/assets/audio/freeze-compact-dry-cut.wav')
+    ).arrayBuffer();
+    const approvedHash = Array.from(
+      new Uint8Array(await crypto.subtle.digest('SHA-256', approvedBytes)),
+    )
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    const approved = await new OfflineAudioContext(1, 1, 48000).decodeAudioData(
+      approvedBytes.slice(0),
+    );
+    const sampleRate = 48000,
       seconds = 22;
     const context = new OfflineAudioContext(
       1,
@@ -61,7 +72,14 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
       string,
       (...args: unknown[]) => unknown
     >;
-    for (const kind of ['chest', 'award', 'entry', 'jackpot', 'fire']) {
+    for (const kind of [
+      'chest',
+      'award',
+      'entry',
+      'freezeEntry',
+      'jackpot',
+      'fire',
+    ]) {
       const original = tracked[kind]!;
       tracked[kind] = (...args) => {
         cueCalls.push({
@@ -72,6 +90,7 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
         return Reflect.apply(original, audio, args);
       };
     }
+    const preloaded = await audio.preload();
     audio.unlock();
     let state = createRunner(42);
     state.status = 'running';
@@ -202,6 +221,14 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
         sources.filter((s) => s.start <= at && s.end > at).length,
       );
     }
+    let freezePcmMaxError = 0;
+    const approvedSamples = approved.getChannelData(0);
+    for (let i = 0; i < approvedSamples.length; i++) {
+      freezePcmMaxError = Math.max(
+        freezePcmMaxError,
+        Math.abs(samples[8 * sampleRate + i]! - approvedSamples[i]!),
+      );
+    }
     // Original gain, no normalization. This is a scripted audition, not a gameplay replay.
     const wav = new Uint8Array(44 + samples.length * 2),
       view = new DataView(wav.buffer);
@@ -240,13 +267,17 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
       burstSources,
       revealTimes,
       cueCalls,
+      approvedHash,
+      preloaded,
+      freezePcmMaxError,
+      freezeEntry: rms(8.005, 8.15),
       music: rms(0.3, 1.9),
       opening: rms(2.02, 2.4),
       firstStop: rms(2.66, 2.9),
       extraAward: rms(3.22, 3.5),
       rush: rms(4.52, 5),
       hyper: rms(6.02, 6.5),
-      freeze: rms(8.15, 8.6),
+      freeze: rms(8.2, 8.6),
       release: rms(8.67, 9.05),
       paused: rms(12.15, 12.9),
       resumed: rms(13.2, 13.8),
@@ -267,6 +298,12 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
     body: JSON.stringify(metrics, null, 2),
     contentType: 'application/json',
   });
+  expect(metrics.preloaded).toBe(true);
+  expect(metrics.approvedHash).toBe(
+    '077c7b3cae1c6423bacde99f94a210b5011b4b78d27dbfad1f8ffdd0176e9f90',
+  );
+  expect(metrics.freezePcmMaxError).toBeLessThan(0.000001);
+  expect(metrics.freezeEntry).toBeGreaterThan(0.001);
   expect(metrics.finite).toBe(true);
   expect(metrics.peak).toBeLessThan(0.51);
   expect(metrics.maxSources).toBeLessThanOrEqual(29);
@@ -286,6 +323,9 @@ test('audio stays bounded through fever, FREEZE, bursts and interruptions', asyn
     [3.2, 2],
     [3.75, 3],
   ]);
+  expect(
+    cues.filter((cue) => cue.kind === 'freezeEntry').map((cue) => cue.at),
+  ).toEqual([8, 18]);
   const jackpots = cues.filter((cue) => cue.kind === 'jackpot');
   expect(jackpots).toHaveLength(2);
   expect(Math.abs(jackpots[0]!.at - 8.65)).toBeLessThan(0.025);

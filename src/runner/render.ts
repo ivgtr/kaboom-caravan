@@ -1,7 +1,12 @@
 import { START_SPEED, MAX_SPEED } from './pacing';
 import { RIVALS, WEAPONS } from './definitions';
 import { RIVAL_WARNING_TIME } from './combat';
-import { ABILITY_LABELS, MAX_ABILITY_LEVEL, REEL_FIRST_REVEAL } from './fever';
+import {
+  ABILITY_LABELS,
+  JACKPOT_FREEZE,
+  MAX_ABILITY_LEVEL,
+  REEL_FIRST_REVEAL,
+} from './fever';
 import type { RunnerArt } from './assets';
 import {
   platformSlope,
@@ -396,6 +401,9 @@ function renderExhaust(
 }
 
 const ABILITY_KEYS: AbilityId[] = ['boost', 'slam', 'gold', 'magnet'];
+// Sound A loses power over this interval, then holds silence until FREEZE ends.
+// Both phases read simulation time; pausing cannot advance the presentation.
+const FREEZE_POWER_CUT = 0.16;
 
 function displayScore(value: number): string {
   return Math.round(value).toLocaleString('en-US');
@@ -425,6 +433,8 @@ function renderFeverShow(
 ) {
   const f = state.fever;
   if (state.status === 'ready' || state.status === 'over') return;
+  // The cabinet powers up with the release. Nothing glows over the black hold.
+  if (f.freeze > 0) return;
   const rewardCue = f.rewardCue;
   const rewardAge = rewardCue ? f.clock - rewardCue.clock : 10;
   const showingAward = rewardCue !== null && rewardAge < 1;
@@ -447,41 +457,57 @@ function renderFeverShow(
   );
   ctx.save();
   if (reel) {
-    const entry = Math.min(1, reel.elapsed / 0.22);
+    const entryAge = Math.max(
+      0,
+      reel.elapsed - (reel.jackpot ? JACKPOT_FREEZE : 0),
+    );
+    const entry = Math.min(1, entryAge / 0.22);
     const spring = reducedMotion
       ? 1
-      : 0.86 + Math.sin(entry * Math.PI * 0.6) * 0.147;
+      : reel.jackpot
+        ? 1 + 0.065 * (1 - entry) ** 3
+        : 0.86 + Math.sin(entry * Math.PI * 0.6) * 0.147;
     ctx.translate(cx, top + cabinetHeight / 2);
     ctx.scale(spring, spring);
     ctx.translate(-cx, -top - cabinetHeight / 2);
     const left = cx - cabinetWidth / 2;
-    const entryBurst = Math.max(0, 1 - reel.elapsed / 0.65);
-    if (entryBurst > 0 || f.freeze > 0) {
+    const entryBurst = Math.max(0, 1 - entryAge / 0.65);
+    if (entryBurst > 0) {
       ctx.save();
-      ctx.globalAlpha = reducedMotion ? 0.35 : Math.max(0.38, entryBurst);
+      // One painted gold burst on power-up, never a screen flash or a pulse.
+      ctx.globalAlpha = reducedMotion ? entryBurst * 0.28 : entryBurst;
       const burstSize =
-        cabinetWidth * (reducedMotion ? 0.57 : 0.58 + reel.elapsed * 0.15);
+        cabinetWidth *
+        (reducedMotion
+          ? 0.57
+          : reel.jackpot
+            ? 0.74 + (1 - entryBurst) * 0.12
+            : 0.58 + entryAge * 0.15);
       sprite(ctx, art.fever.burst, cx, top + cabinetHeight * 0.94, burstSize);
       ctx.restore();
     }
+    ctx.save();
+    if (reel.jackpot && entryBurst > 0) {
+      // Follow the actual painted brass silhouette instead of adding a frame.
+      ctx.shadowColor = '#ffc957';
+      ctx.shadowBlur = (reducedMotion ? 7 : 24) * entryBurst;
+    }
     ctx.drawImage(art.fever.cabinet, left, top, cabinetWidth, cabinetHeight);
+    ctx.restore();
     const count = reel.rewards.length;
-    const title =
-      f.freeze > 0
-        ? 'FREEZE'
-        : reel.jackpot
-          ? 'JACKPOT'
-          : hyper
-            ? 'HYPER TREASURE'
-            : rush
-              ? 'RUSH TREASURE'
-              : reel.merged > 1
-                ? 'TREASURE CASCADE'
-                : count >= 3
-                  ? 'TRIPLE TREASURE'
-                  : count === 2
-                    ? 'DOUBLE TREASURE'
-                    : 'TREASURE CHANCE';
+    const title = reel.jackpot
+      ? 'JACKPOT'
+      : hyper
+        ? 'HYPER TREASURE'
+        : rush
+          ? 'RUSH TREASURE'
+          : reel.merged > 1
+            ? 'TREASURE CASCADE'
+            : count >= 3
+              ? 'TRIPLE TREASURE'
+              : count === 2
+                ? 'DOUBLE TREASURE'
+                : 'TREASURE CHANCE';
     fittedText(
       ctx,
       title,
@@ -489,7 +515,7 @@ function renderFeverShow(
       top + cabinetHeight * 0.334,
       cabinetWidth * 0.034,
       cabinetWidth * 0.215,
-      f.freeze > 0 ? '#bdfaff' : '#fff4bf',
+      '#fff4bf',
     );
     const windowLeft = left + cabinetWidth * 0.226;
     const windowTop = top + cabinetHeight * 0.415;
@@ -516,7 +542,8 @@ function renderFeverShow(
       }
       const sinceReveal =
         reel.elapsed -
-        ((reel.jackpot ? 0.81 : REEL_FIRST_REVEAL) + i * reel.revealInterval);
+        ((reel.jackpot ? JACKPOT_FREEZE + 0.16 : REEL_FIRST_REVEAL) +
+          i * reel.revealInterval);
       if (settled) {
         const land = reducedMotion
           ? 1
@@ -572,13 +599,11 @@ function renderFeverShow(
     ctx.restore();
     const latest = reel.rewards[Math.max(0, reel.revealed - 1)]!;
     const caption =
-      f.freeze > 0
-        ? 'WORLD STOP · JACKPOT'
-        : reel.revealed === 0
-          ? 'WHAT WILL YOU GET?'
-          : f.abilities[latest.kind] >= MAX_ABILITY_LEVEL
-            ? `${ABILITY_LABELS[latest.kind]} MAX → SCORE`
-            : `${ABILITY_LABELS[latest.kind]}  +${latest.count}`;
+      reel.revealed === 0
+        ? 'WHAT WILL YOU GET?'
+        : f.abilities[latest.kind] >= MAX_ABILITY_LEVEL
+          ? `${ABILITY_LABELS[latest.kind]} MAX → SCORE`
+          : `${ABILITY_LABELS[latest.kind]}  +${latest.count}`;
     fittedText(
       ctx,
       caption,
@@ -626,24 +651,6 @@ function renderFeverShow(
         cabinetWidth * 0.16,
         '#fff9cf',
       );
-    if (f.freeze > 0) {
-      text(
-        ctx,
-        'FREEZE',
-        cx,
-        top + cabinetHeight * 0.66,
-        cabinetWidth * 0.105,
-        '#d6ffff',
-      );
-      text(
-        ctx,
-        '時が止まる、大当たり',
-        cx,
-        top + cabinetHeight + 63,
-        cabinetWidth * 0.027,
-        '#d4ffff',
-      );
-    }
   } else if (hyper || rush) {
     const y = Math.max(100, Math.min(view.height * 0.24, view.ground - 225));
     ctx.save();
@@ -747,6 +754,26 @@ export function renderRunner(
   reducedMotion: boolean,
 ) {
   const { width, height, ground, anchor } = view;
+  const frozen = state.fever.freeze > 0;
+  const powerCut = frozen
+    ? Math.min(1, (JACKPOT_FREEZE - state.fever.freeze) / FREEZE_POWER_CUT)
+    : 0;
+  if (frozen) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+    // A real black, held frame after one power-down. No timers, residual
+    // cabinet lights, bright sky, scrolling reels or repeated flashes.
+    if (powerCut >= 1) return;
+  }
+  ctx.save();
+  if (frozen && !reducedMotion) {
+    // Collapse the actual painted scene into a dim horizontal slit. This is
+    // confined to the stopped world; normal takeoff/landing geometry returns
+    // exactly at release. Reduced motion only uses the fade below.
+    const compression = Math.max(0.002, (1 - powerCut) ** 2.5);
+    ctx.translate(0, height * 0.48 * (1 - compression));
+    ctx.scale(1, compression);
+  }
   const camera = state.distance - anchor;
   const sx = (x: number) => x - camera;
   const sky = ctx.createLinearGradient(0, 0, 0, ground);
@@ -1117,4 +1144,13 @@ export function renderRunner(
   ctx.fillStyle = bottom;
   ctx.fillRect(0, height - 110, width, 110);
   renderFeverShow(ctx, state, art, view, reducedMotion);
+  ctx.restore();
+  if (frozen) {
+    ctx.save();
+    // Monotonic loss of light, with no white flash at either boundary.
+    ctx.globalAlpha = 1 - (1 - powerCut) ** 1.4;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
 }

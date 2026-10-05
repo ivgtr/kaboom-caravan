@@ -772,3 +772,21 @@ h1 span {
 .runner-score .runner-best {
   overflow-wrap: anywhere;
 }
+
+/* The power cut silences the HUD too. Controls remain discoverable and active. */
+.runner[data-cut='true'] .runner-score,
+.runner[data-cut='true'] .runner-distance-secondary,
+.runner[data-cut='true'] .runner-loadout,
+.runner[data-cut='true'] .runner-notice,
+.runner[data-cut='true'] .runner-hint,
+.runner[data-cut='true'] .runner-jump {
+  opacity: 0;
+  transition: none;
+}
+.runner[data-cut='true'] .runner-icon {
+  color: #899395;
+  background: #070909;
+  border-color: #253033;
+  box-shadow: none;
+  opacity: 0.3;
+}

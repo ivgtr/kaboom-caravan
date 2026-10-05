@@ -13,6 +13,31 @@ type Voice = {
   bus: Bus;
 };
 type Phrase = { at: number; sound: (at: number) => void };
+type FreezeVoice = {
+  source: AudioBufferSourceNode;
+  gain: GainNode;
+  end: number;
+};
+
+// Decode before the start screen becomes playable. Offline decoding does not
+// unlock a device or autoplay; all instances share the exact approved WAV.
+let freezeBufferPromise: Promise<AudioBuffer> | null = null;
+function loadFreezeBuffer() {
+  freezeBufferPromise ??= fetch(
+    `${import.meta.env.BASE_URL}assets/audio/freeze-compact-dry-cut.wav`,
+  )
+    .then(async (response) => {
+      if (!response.ok) throw new Error('FREEZE entry audio failed to load');
+      const bytes = await response.arrayBuffer();
+      const decoder = new OfflineAudioContext(1, 1, 48000);
+      return decoder.decodeAudioData(bytes);
+    })
+    .catch((error: unknown) => {
+      freezeBufferPromise = null;
+      throw error;
+    });
+  return freezeBufferPromise;
+}
 
 // Original D-Dorian writing: the small running bed leaves space for the machine.
 // Mechanical anticipation, confirmed wins and the rare FREEZE have separate roles.
@@ -32,7 +57,7 @@ const hz = (note: number) => 440 * 2 ** ((note - 69) / 12);
 const clamp = (n: number, low: number, high: number) =>
   Math.max(low, Math.min(high, n));
 
-/** Gesture-unlocked, frame-scheduled synthesis. No timers or downloaded samples. */
+/** Gesture-unlocked synthesis plus the user's unprocessed FREEZE entry sample. */
 export class RunnerAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -45,6 +70,8 @@ export class RunnerAudio {
   private noise: AudioBuffer | null = null;
   private brass: PeriodicWave | null = null;
   private chime: PeriodicWave | null = null;
+  private freezeBuffer: AudioBuffer | null = null;
+  private freezeVoice: FreezeVoice | null = null;
   private voices = new Set<Voice>();
   private phrases: Phrase[] = [];
   private pending = new Map<string, number>();
@@ -56,6 +83,7 @@ export class RunnerAudio {
   private lastEvent = 0;
   private lastReward = 0;
   private lastReel = 0;
+  private lastFreezeReel = 0;
   private lastRevealed = 0;
   private lastLevel = 0;
   private lastAbilities: Record<AbilityId, number> = {
@@ -78,11 +106,13 @@ export class RunnerAudio {
   private jackpotUntil = 0;
   private _enabled = true;
   private disposed = false;
+  private blurred = false;
 
   constructor() {
     // RAF can stop entirely in the background. Silence without waiting for it.
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('blur', this.onBlur);
+    window.addEventListener('focus', this.onFocus);
   }
 
   get enabled() {
@@ -98,7 +128,28 @@ export class RunnerAudio {
     if (document.hidden) this.silence();
   };
 
-  private onBlur = () => this.silence();
+  private onBlur = () => {
+    this.blurred = true;
+    this.silence();
+  };
+
+  private onFocus = () => {
+    this.blurred = false;
+  };
+
+  /** Await with artwork before enabling Start. Failure never starts a late cue. */
+  async preload() {
+    // Devices without Web Audio can retain the existing silent-play fallback.
+    if (typeof AudioContext === 'undefined') return true;
+    try {
+      const buffer = await loadFreezeBuffer();
+      if (this.disposed) return false;
+      this.freezeBuffer = buffer;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   unlock() {
     if (!this.enabled || this.disposed) return;
@@ -187,6 +238,7 @@ export class RunnerAudio {
         this.lastEvent =
         this.lastReward =
         this.lastReel =
+        this.lastFreezeReel =
         this.lastRevealed =
           0;
       this.lastFireAt = -1;
@@ -212,6 +264,11 @@ export class RunnerAudio {
     const released = this.frozen && !freeze;
     this.frozen = freeze;
     const reel = fever.reel;
+    const newFreeze =
+      freeze && !!reel?.jackpot && reel.id !== this.lastFreezeReel;
+    // Consume the edge even when muted, paused, not decoded, or unavailable.
+    // Neither resuming nor completion of a pending fetch may replay it.
+    if (newFreeze) this.lastFreezeReel = reel.id;
     const newReel = !!reel && reel.id !== this.lastReel;
     const previousReveal = newReel ? 0 : this.lastRevealed;
     const newReveal = !!reel && reel.revealed > previousReveal;
@@ -228,19 +285,25 @@ export class RunnerAudio {
 
     const context = this.context;
     const running =
-      this.enabled && state.status === 'running' && !document.hidden;
+      this.enabled &&
+      state.status === 'running' &&
+      !document.hidden &&
+      !this.blurred;
     if (!running || !context || context.state !== 'running') {
       this.silence();
       return;
     }
     if (freeze) {
+      const playEntry = newFreeze && !this.resync;
       // Resume during a still-visible FREEZE can arm its remaining release.
       // Returning after it ended cannot: this branch must actually be observed.
       this.armedJackpot = reel?.jackpot ? reel.id : 0;
       this.resync = false;
       this.silence(true);
+      if (playEntry) this.freezeEntry(context.currentTime);
       return;
     }
+    this.stopFreezeEntry();
     const now = context.currentTime;
     const skipCues = this.resync;
     this.resync = false;
@@ -583,6 +646,48 @@ export class RunnerAudio {
       });
   }
 
+  private freezeEntry(now: number) {
+    const context = this.context;
+    if (
+      !context ||
+      !this.freezeBuffer ||
+      !this.enabled ||
+      this.disposed ||
+      this.blurred ||
+      document.hidden
+    )
+      return;
+    this.stopFreezeEntry();
+    if (!this.reserve('reward')) return;
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = this.freezeBuffer;
+    // A is already mastered. Preserve its native level, timing, and zero tail:
+    // no envelope, filter, compressor, waveshaper, or synthesized reinforcement.
+    gain.gain.value = 1;
+    source.connect(gain);
+    gain.connect(context.destination);
+    const voice = { source, gain, end: now + this.freezeBuffer.duration };
+    this.freezeVoice = voice;
+    source.onended = () => {
+      source.disconnect();
+      gain.disconnect();
+      if (this.freezeVoice === voice) this.freezeVoice = null;
+    };
+    source.start(now);
+    source.stop(voice.end);
+  }
+
+  private stopFreezeEntry() {
+    const voice = this.freezeVoice;
+    if (!voice || !this.context) return;
+    const now = this.context.currentTime;
+    voice.gain.gain.cancelScheduledValues(now);
+    voice.gain.gain.setValueAtTime(0, now);
+    voice.source.stop(Math.min(now, voice.end));
+    this.freezeVoice = null;
+  }
+
   private jackpot(now: number) {
     this.pending.clear();
     this.phrases = [];
@@ -776,7 +881,11 @@ export class RunnerAudio {
       return false;
     // At least sixteen slots cannot be occupied by guns, rhythm, or ratchets.
     // Release tails count too: stealing must never exceed the physical cap.
-    return this.voices.size < MAX_VOICES;
+    const entryVoices =
+      this.freezeVoice && this.freezeVoice.end > this.context!.currentTime
+        ? 1
+        : 0;
+    return this.voices.size + entryVoices < MAX_VOICES;
   }
 
   private connectVoice(
@@ -849,17 +958,19 @@ export class RunnerAudio {
     source.stop(voice.end);
   }
 
-  private stopVoice(voice: Voice) {
+  private stopVoice(voice: Voice, immediate = false) {
     const now = this.context!.currentTime;
     voice.gain.gain.cancelScheduledValues(now);
-    voice.gain.gain.setTargetAtTime(0, now, 0.004);
-    voice.end = Math.min(voice.end, now + 0.025);
+    if (immediate) voice.gain.gain.setValueAtTime(0, now);
+    else voice.gain.gain.setTargetAtTime(0, now, 0.004);
+    voice.end = Math.min(voice.end, now + (immediate ? 0 : 0.025));
     voice.source.stop(voice.end);
+    if (immediate) this.voices.delete(voice);
   }
 
-  private stopVoices(bus?: Bus) {
+  private stopVoices(bus?: Bus, immediate = false) {
     for (const voice of this.voices)
-      if (!bus || voice.bus === bus) this.stopVoice(voice);
+      if (!bus || voice.bus === bus) this.stopVoice(voice, immediate);
   }
 
   private silence(forFreeze = false) {
@@ -869,13 +980,24 @@ export class RunnerAudio {
     if (!forFreeze) {
       this.resync = true;
       this.armedJackpot = 0;
+      // This lane bypasses only the game FREEZE, never a user/lifecycle stop.
+      // Do this even when the synthesized master is already silent.
+      this.stopFreezeEntry();
     }
-    if (!this.context || !this.sounding) return;
+    if (!this.context || (!this.sounding && !forFreeze)) return;
     this.sounding = false;
     const now = this.context.currentTime;
-    this.master?.gain.setTargetAtTime(0, now, 0.007);
-    this.motorGain?.gain.setTargetAtTime(0, now, 0.007);
-    this.stopVoices();
+    if (forFreeze) {
+      // Cut ordinary sound at the same audio-clock edge as the approved entry.
+      this.master?.gain.cancelScheduledValues(now);
+      this.master?.gain.setValueAtTime(0, now);
+      this.motorGain?.gain.cancelScheduledValues(now);
+      this.motorGain?.gain.setValueAtTime(0, now);
+    } else {
+      this.master?.gain.setTargetAtTime(0, now, 0.007);
+      this.motorGain?.gain.setTargetAtTime(0, now, 0.007);
+    }
+    this.stopVoices(undefined, forFreeze);
     this.nextBeat = this.nextRatchet = 0;
     this.duckUntil = this.protectedUntil = this.jackpotUntil = 0;
   }
@@ -885,6 +1007,7 @@ export class RunnerAudio {
     this.disposed = true;
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('focus', this.onFocus);
     this.motor?.stop(this.context?.currentTime ?? 0);
     void this.context?.close().catch(() => {});
     this.context = null;
@@ -897,6 +1020,7 @@ export class RunnerAudio {
         null;
     this.motor = null;
     this.noise = null;
+    this.freezeBuffer = null;
     this.brass = this.chime = null;
     this.voices.clear();
   }

@@ -104,14 +104,34 @@ test('early chest grows score; jackpot freezes the world, then resumes a queued 
   expect(await number(page, 'chests')).toBe(1);
   expect(await number(page, 'freeze')).toBeGreaterThan(0.4);
   const frozenX = await number(page, 'world-x');
-  await capture(page, info, 'desktop-jackpot-freeze');
+  await capture(page, info, 'desktop-jackpot-power-cut');
   await page.keyboard.down('Space');
   await page.keyboard.up('Space');
   await page.clock.runFor(180);
   expect(await number(page, 'world-x')).toBe(frozenX);
+  await expect(runner).toHaveAttribute('data-cut', 'true');
+  await expect(page.locator('.runner-score')).toHaveCSS('opacity', '0');
+  expect(
+    await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+      const pixels = canvas
+        .getContext('2d')!
+        .getImageData(0, 0, canvas.width, canvas.height).data;
+      let brightest = 0;
+      for (let i = 0; i < pixels.length; i += 4)
+        brightest = Math.max(
+          brightest,
+          pixels[i]!,
+          pixels[i + 1]!,
+          pixels[i + 2]!,
+        );
+      return brightest;
+    }),
+  ).toBe(0);
+  await capture(page, info, 'desktop-jackpot-black-hold');
   await expect(runner).toHaveAttribute('data-holding', 'false');
   await page.clock.runFor(650);
   expect(await number(page, 'freeze')).toBe(0);
+  await expect(runner).toHaveAttribute('data-cut', 'false');
   expect(await number(page, 'world-x')).toBeGreaterThan(frozenX);
   expect(await number(page, 'jumps')).toBe(1);
   expect(await number(page, 'score')).toBeGreaterThan(100);
@@ -263,6 +283,7 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
         qaChunks?: Blob[];
       };
       const connect = AudioNode.prototype.connect;
+      const taps = new WeakMap<AudioContext, MediaStreamAudioDestinationNode>();
       AudioNode.prototype.connect = function (
         ...args: Parameters<AudioNode['connect']>
       ) {
@@ -271,14 +292,20 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
           (args[0] as unknown) instanceof AudioDestinationNode &&
           this.context instanceof AudioContext
         ) {
-          const destination = this.context.createMediaStreamDestination();
+          let destination = taps.get(this.context);
+          if (!destination) {
+            destination = this.context.createMediaStreamDestination();
+            taps.set(this.context, destination);
+          }
           Reflect.apply(connect, this, [destination]);
           qa.qaStream = destination.stream;
         }
         return result;
       } as AudioNode['connect'];
     });
-    await live.goto(page.url());
+    const runUrl = new URL(page.url());
+    runUrl.searchParams.set('seed', '1'); // A naturally rolled first-chest jackpot, not a forced game state.
+    await live.goto(runUrl.toString());
     await expect(live.getByTestId('runner')).toHaveAttribute(
       'data-art-ready',
       'true',
@@ -307,11 +334,14 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
     );
     // Use visible live position for this wall-clock movie. A prerecorded schedule
     // drifts under CI load and could otherwise press Space after death (a retry).
-    const route = createRunner(42);
+    const route = createRunner(1);
     generateTerrain(route, 100000);
     let held = false;
     let airborneSeen = false;
     let previousX = 0;
+    let frozen = false;
+    const freezeTransitions: { kind: string; at: number; worldX: number }[] =
+      [];
     while (Date.now() - start < 24000) {
       const observed = await live.getByTestId('runner').evaluate((element) => ({
         status: element.getAttribute('data-status'),
@@ -324,6 +354,14 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
       if (observed.status !== 'running') break;
       expect(observed.x).toBeGreaterThanOrEqual(previousX);
       previousX = observed.x;
+      if (observed.freeze > 0 !== frozen) {
+        frozen = observed.freeze > 0;
+        freezeTransitions.push({
+          kind: frozen ? 'freeze' : 'release',
+          at: (Date.now() - start) / 1000,
+          worldX: observed.x,
+        });
+      }
       if (!observed.grounded) airborneSeen = true;
       if (
         observed.grounded &&
@@ -410,7 +448,8 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
         {
           seconds: gameplaySeconds,
           targetSeconds: 24,
-          seed: 42,
+          seed: 1,
+          freezeTransitions,
           automatedPhysicalInput: true,
           audioDelayMs,
           finalStatus: status,

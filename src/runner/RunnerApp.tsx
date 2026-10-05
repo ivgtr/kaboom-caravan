@@ -149,7 +149,8 @@ export function RunnerApp() {
       frame = 0,
       previousTime = 0,
       accumulator = 0,
-      uiTime = 0;
+      uiTime = 0,
+      lastCut = false;
     let width = 0,
       height = 0,
       lastEffect = 0;
@@ -189,6 +190,7 @@ export function RunnerApp() {
         fresh ? newSeed() : stateRef.current!.seed,
       );
       startRunner(stateRef.current);
+      audio.update(stateRef.current);
       lastEffect = 0;
       accumulator = 0;
       previousTime = performance.now();
@@ -303,8 +305,9 @@ export function RunnerApp() {
       document.addEventListener('visibilitychange', onVisibility);
     };
     artPromise ??= loadRunnerArt();
-    void artPromise
-      .then((art) => {
+    void Promise.all([artPromise, audio.preload()])
+      .then(([art, soundReady]) => {
+        if (!soundReady) throw new Error('Freeze audio failed to load');
         if (!alive) return;
         setLoading(false);
         bindInput();
@@ -346,9 +349,11 @@ export function RunnerApp() {
             0,
           );
           renderRunner(context, state, art, viewport, reducedMotion);
-          if (now - uiTime >= 60) {
+          const cut = state.status === 'running' && state.fever.freeze > 0;
+          if (cut !== lastCut || now - uiTime >= 60) {
             sync();
             uiTime = now;
+            lastCut = cut;
           }
           frame = requestAnimationFrame(tick);
         };
@@ -385,6 +390,7 @@ export function RunnerApp() {
       className="runner"
       data-testid="runner"
       data-status={view.status}
+      data-cut={view.status === 'running' && view.freeze > 0}
       data-distance={view.distance}
       data-score={view.score}
       data-chain={view.chain}
