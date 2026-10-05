@@ -1,6 +1,8 @@
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { buildReplay } from '../runner-replay';
+import { createRunner, generateTerrain } from '../../src/runner/simulation';
+import { platformTopAt, platformsJoin } from '../../src/runner/terrain';
 
 async function openRun(page: Page, seed = 42) {
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
@@ -294,19 +296,68 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
     qa.qaRecorder.start();
   });
   const audioDelayMs = Date.now() - videoStarted;
-  const plan = buildReplay(42, 24);
-  for (const input of plan.inputs) {
-    const remaining = start + input.time * 1000 - Date.now();
-    if (remaining > 0) await live.waitForTimeout(remaining);
-    if (input.action === 'press') await live.keyboard.down('Space');
-    else await live.keyboard.up('Space');
+  // Use visible live position for this wall-clock movie. A prerecorded schedule
+  // drifts under CI load and could otherwise press Space after death (a retry).
+  const route = createRunner(42);
+  generateTerrain(route, 100000);
+  let held = false;
+  let previousX = 0;
+  while (Date.now() - start < 24000) {
+    const observed = await live.getByTestId('runner').evaluate((element) => ({
+      status: element.getAttribute('data-status'),
+      x: Number(element.getAttribute('data-world-x')),
+      y: Number(element.getAttribute('data-y')),
+      speed: Number(element.getAttribute('data-speed')),
+      grounded: element.getAttribute('data-grounded') === 'true',
+      freeze: Number(element.getAttribute('data-freeze')),
+    }));
+    expect(
+      observed.status,
+      'The normal-speed capture must never auto-retry',
+    ).toBe('running');
+    expect(observed.x).toBeGreaterThanOrEqual(previousX);
+    previousX = observed.x;
+    if (observed.grounded && observed.freeze <= 0) {
+      if (held) {
+        await live.keyboard.up('Space');
+        held = false;
+      }
+      let index = route.platforms.findIndex(
+        (road) =>
+          observed.x + 22 > road.x &&
+          observed.x - 22 < road.x + road.width &&
+          Math.abs(platformTopAt(road, observed.x) - observed.y) < 4,
+      );
+      if (index >= 0) {
+        while (
+          route.platforms[index + 1] &&
+          platformsJoin(route.platforms[index]!, route.platforms[index + 1]!)
+        )
+          index++;
+        const road = route.platforms[index]!;
+        if (road.x + road.width - observed.x < observed.speed * 0.18) {
+          await live.keyboard.down('Space');
+          held = true;
+        }
+      }
+    }
+    await live.waitForTimeout(12);
   }
-  const remaining = start + 24000 - Date.now();
-  if (remaining > 0) await live.waitForTimeout(remaining);
   await live.keyboard.up('Space');
   await capture(live, info, 'desktop-normal-speed-final');
   const status = await live.getByTestId('runner').getAttribute('data-status');
+  expect(await number(live, 'distance')).toBeGreaterThan(600);
+  expect(await number(live, 'score')).toBeGreaterThan(10000);
+  expect(
+    await live.evaluate(() =>
+      localStorage.getItem('kaboom-score-fever-best-v1'),
+    ),
+  ).toBeNull();
   await live.getByRole('button', { name: '一時停止', exact: true }).click();
+  await expect(live.getByTestId('runner')).toHaveAttribute(
+    'data-status',
+    'paused',
+  );
   const audio = await live.evaluate(async () => {
     const qa = window as unknown as {
       qaRecorder?: MediaRecorder;
