@@ -79,6 +79,7 @@ export interface RivalDefinition {
   height: number;
   hp: number;
   pace: number;
+  scrap: number;
 }
 
 export const RIVALS: Record<RivalKind, RivalDefinition> = {
@@ -89,6 +90,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     height: 30,
     hp: 2,
     pace: 0.22,
+    scrap: 3,
   },
   rusher: {
     label: '突撃バギー',
@@ -97,14 +99,16 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     height: 30,
     hp: 2,
     pace: 0.28,
+    scrap: 3,
   },
   heavy: {
     label: '鉄ガエル',
     color: '#9cacc9',
     width: 52,
     height: 40,
-    hp: 4,
+    hp: 6,
     pace: 0.19,
+    scrap: 5,
   },
   bomber: {
     label: 'ボムビートル',
@@ -113,6 +117,7 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     height: 34,
     hp: 3,
     pace: 0.2,
+    scrap: 3,
   },
   artillery: {
     label: '砂ぼこり砲',
@@ -121,14 +126,16 @@ export const RIVALS: Record<RivalKind, RivalDefinition> = {
     height: 38,
     hp: 4,
     pace: 0.2,
+    scrap: 4,
   },
   fortress: {
     label: '豆タンク',
     color: '#c3c786',
     width: 62,
     height: 44,
-    hp: 6,
+    hp: 12,
     pace: 0.18,
+    scrap: 8,
   },
 };
 

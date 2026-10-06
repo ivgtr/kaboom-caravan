@@ -218,7 +218,7 @@ describe('boost-safe endless course', () => {
     expect(a.status).toBe('running');
     expect(a.distance).toBeLessThan(a.platforms[0]!.x + a.platforms[0]!.width);
   });
-  it('keeps slopes bounded and broad landing decks for every speed tier', () => {
+  it('keeps varied rising/falling phrases and bounded boosted landing decks', () => {
     for (const boosts of [0, 3, 6, 12]) {
       const state = createRunner(7);
       state.fever.abilities.boost = boosts;
@@ -230,6 +230,16 @@ describe('boost-safe endless course', () => {
       const islands = state.platforms.filter(
         (road, i) => i > 0 && !platformsJoin(state.platforms[i - 1]!, road),
       );
+      const slopes = state.platforms.filter(
+        (road) => Math.abs((road.endTop ?? road.top) - road.top) > 60,
+      );
+      expect(slopes.length).toBeGreaterThan(islands.length);
+      expect(slopes.some((road) => road.endTop! > road.top)).toBe(true);
+      expect(slopes.some((road) => road.endTop! < road.top)).toBe(true);
+      expect(new Set(state.rivals.map((rival) => rival.kind))).toEqual(
+        new Set(['basic', 'heavy', 'bomber', 'rusher', 'fortress']),
+      );
+      const lengths = new Set<number>();
       for (const island of islands) {
         let road = island,
           width = road.width;
@@ -242,7 +252,9 @@ describe('boost-safe endless course', () => {
           width += road.width;
         }
         expect(width).toBeGreaterThanOrEqual(759.999);
+        lengths.add(Math.round(width));
       }
+      expect(lengths.size).toBeGreaterThanOrEqual(5);
     }
   });
   it('never rewrites a generated terrain prefix when collecting boosts', () => {

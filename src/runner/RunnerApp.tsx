@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadRunnerArt, WEAPON_ART } from './assets';
+import { ABILITY_ART, HUD_ART, loadRunnerArt, WEAPON_ART } from './assets';
 import { RunnerAudio } from './audio';
 import { WEAPONS } from './definitions';
+import { MAX_SPEED, START_SPEED } from './pacing';
 import { renderRunner, runnerViewport } from './render';
 import {
   clearJumpInput,
@@ -57,6 +58,7 @@ function snapshot(state: RunnerState) {
         Math.floor(state.scoreParts.landing),
     },
     chain: state.fever.chain,
+    chainTime: state.fever.chainTime,
     bestChain: state.bestChain,
     multiplier: state.fever.multiplier,
     maxMultiplier: state.maxMultiplier,
@@ -385,6 +387,12 @@ export function RunnerApp() {
 
   const weapon = view.weapon ? WEAPONS[view.weapon.id] : null;
   const playable = !loading && !error;
+  const mode =
+    view.hyperTime > 0 ? 'hyper' : view.rushTime > 0 ? 'rush' : 'normal';
+  const pace = Math.max(
+    0,
+    Math.min(1, (view.speed - START_SPEED) / (MAX_SPEED - START_SPEED)),
+  );
   return (
     <main
       className="runner"
@@ -420,6 +428,7 @@ export function RunnerApp() {
       data-guard-flash={view.guardFlash}
       data-defeated={view.defeated}
       data-art-ready={playable}
+      data-mode={mode}
     >
       <canvas
         ref={canvasRef}
@@ -433,7 +442,7 @@ export function RunnerApp() {
           <span className="runner-eyebrow">SCORE</span>
           <strong
             style={{
-              fontSize: `clamp(${Math.max(20, 48 - String(view.score).length * 2)}px, ${Math.min(5, 40 / String(view.score).length)}vw, 72px)`,
+              fontSize: `clamp(${Math.max(20, 46 - String(view.score).length * 2)}px, ${Math.min(4.4, 34 / String(view.score).length)}vw, 62px)`,
             }}
           >
             {view.score.toLocaleString()}
@@ -441,9 +450,17 @@ export function RunnerApp() {
           <span className="runner-best">BEST {best.toLocaleString()}</span>
           <div className="runner-chain" data-active={view.chain > 0}>
             <b>×{view.multiplier.toFixed(1)}</b>
-            <span>
-              {view.chain > 0 ? `${view.chain} CHAIN` : '壊して、つなげ！'}
+            <span className="runner-chain-count">
+              <strong>{view.chain}</strong> CHAIN
             </span>
+            {mode !== 'normal' && !view.reel && <em>{mode.toUpperCase()}</em>}
+          </div>
+          <div className="runner-chain-fuse" aria-hidden="true">
+            <i
+              style={{
+                transform: `scaleX(${Math.min(1, view.chainTime / 3.8)})`,
+              }}
+            />
           </div>
         </div>
         <div className="runner-top-right">
@@ -452,6 +469,7 @@ export function RunnerApp() {
           </span>
           <button
             className="runner-icon"
+            style={{ backgroundImage: `url(${HUD_ART.control})` }}
             aria-label={`サウンド${sound ? 'をオフ' : 'をオン'}`}
             aria-pressed={sound}
             onClick={() => controls.current.sound()}
@@ -460,6 +478,7 @@ export function RunnerApp() {
           </button>
           <button
             className="runner-icon"
+            style={{ backgroundImage: `url(${HUD_ART.control})` }}
             aria-label="一時停止"
             disabled={!playable || view.status !== 'running'}
             onClick={() => controls.current.pause()}
@@ -480,27 +499,48 @@ export function RunnerApp() {
                   ['magnet', '宝箱磁石'],
                 ] as const
               ).map(([key, label]) => (
-                <span key={key} data-active={view.abilities[key] > 0}>
-                  {label} <b>{view.abilities[key]}</b>
+                <span
+                  key={key}
+                  className="runner-module"
+                  data-active={view.abilities[key] > 0}
+                  aria-label={`${label} レベル${view.abilities[key]}`}
+                  title={`${label} Lv.${view.abilities[key]}`}
+                >
+                  <img src={ABILITY_ART[key]} alt="" />
+                  <b>{view.abilities[key]}</b>
                 </span>
               ))}
             </div>
             <div className="runner-equipment-line">
               {view.weapon && weapon && (
-                <>
+                <span
+                  className="runner-weapon"
+                  aria-label={`${weapon.label} レベル${view.weapon.level}`}
+                >
                   <img src={WEAPON_ART[view.weapon.id]} alt="" />
-                  <span>
-                    {weapon.label} Lv.{view.weapon.level}
-                  </span>
-                </>
+                  <b>{view.weapon.level}</b>
+                </span>
               )}
-              <span>{view.shield ? 'ガード 1' : 'ガード 0'}</span>
-              <span>↑ 空中 {view.airHops} 回</span>
-              <span>{Math.round(view.speed)} px/s</span>
+              <span
+                className="runner-guard"
+                data-active={view.shield > 0}
+                aria-label={`ガード ${view.shield}`}
+              >
+                <img src={HUD_ART.shield} alt="" />
+                <i aria-hidden="true" />
+              </span>
+              <span
+                className="runner-speed"
+                aria-label={`速度 ${Math.round(view.speed)} px/s`}
+              >
+                {Array.from({ length: 8 }, (_, i) => (
+                  <i key={i} data-lit={i <= pace * 7} />
+                ))}
+              </span>
             </div>
           </div>
-          {view.notice && !view.reel && (
-            <p className="runner-notice" role="status">
+          {view.notice && (
+            <p className="runner-notice runner-sr-only" role="status">
               {view.notice}
             </p>
           )}
@@ -509,13 +549,13 @@ export function RunnerApp() {
               <p
                 className={view.time > 12 ? 'runner-hint faded' : 'runner-hint'}
               >
-                跳んで、宝箱をつなげ！
-                <br />
-                <span>短押し・長押し・空中でもう一度</span>
+                <span>短押し ↗ / 長押し ⤴ / 空中でもう一度</span>
               </p>
               <button
                 className="runner-jump"
                 aria-label="ジャンプ"
+                style={{ backgroundImage: `url(${HUD_ART.control})` }}
+                data-ready={view.airHops > 0}
                 onPointerDown={(event) => {
                   if (!event.isPrimary || event.button !== 0) return;
                   event.preventDefault();
@@ -526,7 +566,11 @@ export function RunnerApp() {
                   if (event.detail === 0) controls.current.tap();
                 }}
               >
-                <span>↑</span>ジャンプ
+                <span aria-hidden="true">↑</span>
+                <i className="runner-air-hop" aria-hidden="true" />
+                <span className="runner-sr-only">
+                  空中ジャンプ 残り{view.airHops}回
+                </span>
               </button>
             </div>
           )}
