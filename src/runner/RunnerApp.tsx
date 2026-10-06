@@ -453,7 +453,7 @@ export function RunnerApp() {
             <span className="runner-chain-count">
               <strong>{view.chain}</strong> CHAIN
             </span>
-            {mode !== 'normal' && <em>{mode.toUpperCase()}</em>}
+            {mode !== 'normal' && !view.reel && <em>{mode.toUpperCase()}</em>}
           </div>
           <div className="runner-chain-fuse" aria-hidden="true">
             <i

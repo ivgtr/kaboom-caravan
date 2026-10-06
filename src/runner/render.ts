@@ -447,7 +447,7 @@ function renderFeverShow(
   const cabinetWidth = Math.min(
     view.width * (portrait ? 0.88 : 0.51),
     Math.max(380, (view.ground - 235) * 2.3),
-    790,
+    portrait ? 1100 : 790,
   );
   const cabinetHeight =
     (cabinetWidth * art.fever.cabinet.height) / art.fever.cabinet.width;
