@@ -486,11 +486,60 @@ test('real keyboard replay chains chests, inflation and high-speed landing destr
   page,
 }, info) => {
   test.setTimeout(360000);
+  // Observe real draws throughout the existing input-only replay. These are the
+  // trimmed SLAM, explosion and exhaust assets, not replacement test sprites.
+  await page.addInitScript(() => {
+    const probe = { seen: {} as Record<string, number>, distortion: 0 };
+    (window as unknown as { effectArtProbe: typeof probe }).effectArtProbe =
+      probe;
+    const draw = CanvasRenderingContext2D.prototype.drawImage;
+    let worldTransform = new DOMMatrix();
+    CanvasRenderingContext2D.prototype.drawImage = function (...args) {
+      const image = args[0];
+      if (this.canvas.isConnected) {
+        const matrix = this.getTransform();
+        // Remove the whole-scene FREEZE transform before measuring local art,
+        // including exhaust rotated with the car on slopes or in midair.
+        if (image instanceof HTMLImageElement) worldTransform = matrix;
+        const local = worldTransform.inverse().multiply(matrix);
+        const ratio =
+          Math.hypot(local.a, local.b) / Math.hypot(local.c, local.d);
+        if (image instanceof HTMLCanvasElement && args.length === 5) {
+          const key = `${image.width}x${image.height}`;
+          if (['351x307', '485x490', '347x210'].includes(key)) {
+            probe.seen[key] = (probe.seen[key] ?? 0) + 1;
+            probe.distortion = Math.max(
+              probe.distortion,
+              Math.abs(
+                ((Number(args[3]) / Number(args[4])) * image.height * ratio) /
+                  image.width -
+                  1,
+              ),
+            );
+          }
+        }
+      }
+      return Reflect.apply(draw, this, args);
+    } as typeof draw;
+  });
   await openRun(page);
   await replay(page, info, 'desktop-course', 120);
   expect(await number(page, 'slot-kick')).toBeGreaterThan(60);
   expect(await number(page, 'boost')).toBe(20);
   expect(await number(page, 'multiplier')).toBeGreaterThan(10);
+  const art = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          effectArtProbe: { seen: Record<string, number>; distortion: number };
+        }
+      ).effectArtProbe,
+  );
+  expect(Object.keys(art.seen).sort()).toEqual(
+    ['351x307', '485x490', '347x210'].sort(),
+  );
+  expect(art.distortion).toBeLessThan(0.001);
+
   if (process.env.CAPTURE_UI_REVIEW) await captureNormalSpeed(page, info);
 });
 

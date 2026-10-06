@@ -130,7 +130,7 @@ export interface Effect {
     | 'chest';
   life: number;
   maxLife: number;
-  /** Physical radius captured at emission, for matching area-attack art. */
+  /** Physical radius at emission; visual impact size is independently bounded. */
   radius?: number;
   text?: string;
 }
