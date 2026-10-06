@@ -1,4 +1,5 @@
 import { START_SPEED, MAX_SPEED } from './pacing';
+import { drawPaintedSprite } from './sprite';
 import { RIVALS, WEAPONS } from './definitions';
 import { RIVAL_WARNING_TIME } from './combat';
 import {
@@ -57,7 +58,8 @@ function sprite(
   ctx.save();
   ctx.translate(x, y);
   if (flip) ctx.scale(-1, 1);
-  ctx.drawImage(
+  drawPaintedSprite(
+    ctx,
     image,
     -width / 2,
     (-width * image.height) / image.width,
@@ -526,7 +528,14 @@ function renderFeverShow(
       ctx.shadowColor = '#ffc957';
       ctx.shadowBlur = (reducedMotion ? 7 : 24) * entryBurst;
     }
-    ctx.drawImage(art.fever.cabinet, left, top, cabinetWidth, cabinetHeight);
+    drawPaintedSprite(
+      ctx,
+      art.fever.cabinet,
+      left,
+      top,
+      cabinetWidth,
+      cabinetHeight,
+    );
     ctx.restore();
     const count = reel.rewards.length;
     const title = reel.jackpot
@@ -859,7 +868,7 @@ export function renderRunner(
       ctx.save();
       ctx.shadowColor = pickup.earned ? '#ffc642' : '#a1ffe8';
       ctx.shadowBlur = reducedMotion ? 3 : 8;
-      ctx.drawImage(image, x - size / 2, y - h / 2 + bob, size, h);
+      drawPaintedSprite(ctx, image, x - size / 2, y - h / 2 + bob, size, h);
       ctx.restore();
     } else if (pickup.kind === 'scrap') {
       // Keep the familiar guide spacing and footprint with actual salvage art.

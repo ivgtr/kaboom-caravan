@@ -301,7 +301,40 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
         qaStream?: MediaStream;
         qaRecorder?: MediaRecorder;
         qaChunks?: Blob[];
+        qaFrames?: { at: number; gap: number; cpu: number }[];
+        qaDraws?: Record<string, { calls: number; ms: number }>;
       };
+      // Wall-clock diagnostics belong to the existing recording, not the
+      // deterministic clock replay. Keep these out of the shipped game loop.
+      qa.qaFrames = [];
+      qa.qaDraws = {};
+      const raf = window.requestAnimationFrame.bind(window);
+      let previous = 0;
+      window.requestAnimationFrame = (callback) =>
+        raf((now) => {
+          const begin = performance.now();
+          callback(now);
+          const runner = document.querySelector('[data-testid="runner"]');
+          if (runner?.getAttribute('data-status') === 'running')
+            qa.qaFrames!.push({
+              at: Number(runner.getAttribute('data-fever-clock')),
+              gap: previous ? now - previous : 0,
+              cpu: performance.now() - begin,
+            });
+          previous = now;
+        });
+      const draw = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (...args) {
+        if (!this.canvas.isConnected) return Reflect.apply(draw, this, args);
+        const source = args[0] as HTMLCanvasElement | HTMLImageElement;
+        const key = `${source.width}x${source.height}${this.shadowBlur ? ':shadow' : ''}`;
+        const entry = (qa.qaDraws![key] ??= { calls: 0, ms: 0 });
+        const begin = performance.now();
+        const result = Reflect.apply(draw, this, args);
+        entry.calls++;
+        entry.ms += performance.now() - begin;
+        return result;
+      } as typeof draw;
       const connect = AudioNode.prototype.connect;
       const taps = new WeakMap<AudioContext, MediaStreamAudioDestinationNode>();
       AudioNode.prototype.connect = function (
@@ -464,6 +497,41 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
           finalWorldX: finalX,
           finalScore: await number(live, 'score'),
           failureReason,
+          performance: await live.evaluate(() => {
+            const qa = window as unknown as {
+              qaFrames: { at: number; gap: number; cpu: number }[];
+              qaDraws: Record<string, { calls: number; ms: number }>;
+            };
+            const distribution = (values: number[]) => {
+              const sorted = [...values].sort((a, b) => a - b);
+              return {
+                count: sorted.length,
+                mean:
+                  values.reduce((sum, value) => sum + value, 0) /
+                  Math.max(1, values.length),
+                p95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
+                p99: sorted[Math.floor(sorted.length * 0.99)] ?? 0,
+                max: sorted.at(-1) ?? 0,
+              };
+            };
+            const gl = document.createElement('canvas').getContext('webgl');
+            const debug = gl?.getExtension('WEBGL_debug_renderer_info');
+            const gpuRenderer = debug
+              ? String(gl!.getParameter(debug.UNMASKED_RENDERER_WEBGL))
+              : null;
+            gl?.getExtension('WEBGL_lose_context')?.loseContext();
+            return {
+              userAgent: navigator.userAgent,
+              hardwareConcurrency: navigator.hardwareConcurrency,
+              gpuRenderer,
+              dpr: devicePixelRatio,
+              viewport: [innerWidth, innerHeight],
+              frameGapMs: distribution(qa.qaFrames.map((frame) => frame.gap)),
+              callbackMs: distribution(qa.qaFrames.map((frame) => frame.cpu)),
+              over33ms: qa.qaFrames.filter((frame) => frame.gap > 33.5).length,
+              draws: qa.qaDraws,
+            };
+          }),
           endpoint:
             status === 'over'
               ? 'natural run end'
