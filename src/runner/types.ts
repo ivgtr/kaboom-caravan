@@ -41,6 +41,15 @@ export interface FeverState {
   chainTime: number;
   multiplier: number;
   goldCharge: number;
+  goldChestCooldown: number;
+  /** Decaying extra velocity target: each visible reel stop contributes one kick. */
+  slotBoost: number;
+  slotKickSerial: number;
+  slotKickClock: number;
+  /** World-time durations; duplicates extend and retrigger, with a hard ceiling. */
+  awakening: Record<AbilityId, number>;
+  awakeningSerial: Record<AbilityId, number>;
+  awakeningSeen: Record<AbilityId, number>;
   abilities: Record<AbilityId, number>;
   reel: FeverReel | null;
   queue: FeverReel[];

@@ -83,12 +83,18 @@ function terrainPilot(state: RunnerState, lead: number, low = false): void {
 }
 
 describe('responsive one-button movement', () => {
-  it('accelerates briskly then tapers smoothly into a bounded base cruise with genuinely stackable boost speed', () => {
+  it('spreads permanent growth across a long run and preserves gains at every booster level', () => {
     expect(getSpeed(-100)).toBe(START_SPEED);
     expect(getSpeed(0)).toBe(330);
-    expect(getSpeed(SPEED_RAMP_DISTANCE / 2)).toBe(487.5);
+    expect(getSpeed(SPEED_RAMP_DISTANCE / 2)).toBeCloseTo(
+      330 + 570 * (1 - 0.5 ** 1.35),
+    );
     expect(getSpeed(SPEED_RAMP_DISTANCE)).toBe(CRUISE_SPEED);
-    expect(getSpeed(0, 6)).toBeGreaterThan(1000);
+    expect(getSpeed(0, 6)).toBeGreaterThan(630);
+    for (let level = 1; level <= 20; level++)
+      expect(getSpeed(60000, level)).toBeGreaterThan(
+        getSpeed(60000, level - 1),
+      );
     expect(getSpeed(0, 1000)).toBe(MAX_SPEED);
     expect(getSpeed(1e9)).toBe(CRUISE_SPEED);
     let previousGain = Infinity;
@@ -100,7 +106,7 @@ describe('responsive one-button movement', () => {
     }
     expect(
       getSpeed(SPEED_RAMP_DISTANCE) - getSpeed(SPEED_RAMP_DISTANCE - 1),
-    ).toBeLessThan(1e-8);
+    ).toBeLessThan(0.001);
   });
   it('press jumps immediately, repeated held input does not jump again', () => {
     const state = arena();

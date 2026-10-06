@@ -128,6 +128,7 @@ export function buildReplay(
   seed = 42,
   seconds = 45,
   collectWeapons = true,
+  frameMs = 16,
 ): { inputs: ReplayInput[]; state: RunnerState; minimumLandingRunway: number } {
   const state = createRunner(seed),
     inputs: ReplayInput[] = [];
@@ -141,8 +142,8 @@ export function buildReplay(
       if (action === 'press') requestJump(state);
       else releaseJump(state);
     }
-    elapsed = Math.round((elapsed + 0.016) * 1000) / 1000;
-    accumulator += 0.016;
+    elapsed = Math.round((elapsed + frameMs / 1000) * 1e9) / 1e9;
+    accumulator += frameMs / 1000;
     while (accumulator >= FIXED_DT) {
       const airborne = !state.player.grounded;
       stepRunner(state);

@@ -1,7 +1,12 @@
 import { START_SPEED, MAX_SPEED } from './pacing';
 import { RIVALS, WEAPONS } from './definitions';
 import { RIVAL_WARNING_TIME } from './combat';
-import { JACKPOT_FREEZE, MAX_ABILITY_LEVEL, REEL_FIRST_REVEAL } from './fever';
+import {
+  JACKPOT_FREEZE,
+  MAX_ABILITY_LEVEL,
+  REEL_FIRST_REVEAL,
+  SLOT_BOOST_CAP,
+} from './fever';
 import type { RunnerArt } from './assets';
 import {
   platformSlope,
@@ -293,6 +298,13 @@ function renderFailure(
   ctx.restore();
 }
 
+/** Every reel stop has one short, simulation-clock impulse, including MAX rolls. */
+export function slotKickPulse(fever: RunnerState['fever']): number {
+  if (fever.slotKickSerial === 0) return 0;
+  const age = Math.max(0, fever.clock - fever.slotKickClock);
+  return Math.max(0, 1 - age / 0.4) ** 2;
+}
+
 /** A few near-camera dust flecks establish speed while leaving landings clear. */
 function renderForeground(
   ctx: CanvasRenderingContext2D,
@@ -361,17 +373,36 @@ function renderExhaust(
 ) {
   if (state.status !== 'running') return;
   const boost = state.fever.abilities.boost;
-  if (boost > 0) {
+  const kick = slotKickPulse(state.fever);
+  const surge = Math.min(1, state.fever.slotBoost / SLOT_BOOST_CAP);
+  const awakened = Math.min(1, state.fever.awakening.boost / 0.4);
+  if (boost > 0 || surge > 0 || kick > 0) {
     const pulse = reducedMotion ? 1 : 0.94 + Math.sin(state.time * 35) * 0.06;
     const width =
-      (48 + Math.min(8, boost) * 10 + (state.fever.hyperTime > 0 ? 30 : 0)) *
+      (48 +
+        Math.min(8, boost) * 10 +
+        (state.fever.hyperTime > 0 ? 30 : 0) +
+        surge * 34 +
+        awakened * 48 +
+        (reducedMotion ? 0 : kick * 68)) *
       pulse;
     ctx.save();
     // The painted trail's bright nozzle is its RIGHT tip. Leave the image
     // unflipped and attach that tip to the rear booster, tail flowing left.
     ctx.translate(-23, -32);
-    ctx.globalAlpha = reducedMotion ? 0.72 : 0.95;
-    ctx.drawImage(art.fever.trail, -width, -width * 0.13, width, width * 0.26);
+    // A reel stop pushes through the existing painted exhaust, never a screen
+    // shake: the next landing and the jump button remain completely steady.
+    const thickness = 0.26 + (reducedMotion ? 0 : kick * 0.06);
+    ctx.globalAlpha =
+      (reducedMotion ? 0.72 : 0.95) *
+      (boost > 0 ? 1 : Math.min(1, surge * 3 + kick));
+    ctx.drawImage(
+      art.fever.trail,
+      -width,
+      (-width * thickness) / 2,
+      width,
+      width * thickness,
+    );
     ctx.restore();
     return;
   }
@@ -397,6 +428,11 @@ function renderExhaust(
 }
 
 const ABILITY_KEYS: AbilityId[] = ['boost', 'slam', 'gold', 'magnet'];
+const MOUNTED_ABILITIES: [AbilityId, number, number, number, string][] = [
+  ['boost', -17, -20, 27, '#8deeff'],
+  ['slam', 16, -15, 16, '#ffc39b'],
+  ['magnet', 42, -11, 16, '#a2ffe0'],
+];
 const REEL_LABELS: Record<AbilityId, string> = {
   boost: 'BOOST',
   slam: 'BOMB',
@@ -1023,9 +1059,11 @@ export function renderRunner(
   }
   ctx.save();
   ctx.translate(anchor, foot);
-  // Contact, body, roof mount and the simulation muzzle share this transform.
+  // Contact, body and roof mount share the terrain lean. The kick below is
+  // presentation-only and never moves the simulation's contact point.
   ctx.rotate(playerTilt(state));
   const squash = reducedMotion ? 0 : state.player.squash;
+  const kick = reducedMotion ? 0 : slotKickPulse(state.fever);
   const growth =
     1 +
     Math.min(
@@ -1035,7 +1073,12 @@ export function renderRunner(
         0,
       ) * 0.008,
     );
-  ctx.scale((1 + squash * 0.07) * growth, (1 - squash * 0.1) * growth);
+  // A small foot-anchored compression sells the kick without moving collision
+  // geometry, the camera, or any input target. Pausing also holds this frame.
+  ctx.scale(
+    (1 + squash * 0.07 + kick * 0.13) * growth,
+    (1 - squash * 0.1 - kick * 0.08) * growth,
+  );
   renderExhaust(ctx, state, art, reducedMotion);
   // A soft grace-period pulse keeps the body and wheel contact legible.
   // The guard spark and HUD already communicate the hit; never hide the car.
@@ -1045,12 +1088,25 @@ export function renderRunner(
       : 1;
   // Wheelbase, rather than the long front overhang, is centred on collision.
   sprite(ctx, art.player, 10, 0, 68);
-  if (state.fever.abilities.boost > 0)
-    sprite(ctx, art.fever.abilities.boost, -17, -20, 27);
-  if (state.fever.abilities.slam > 0)
-    sprite(ctx, art.fever.abilities.slam, 16, -15, 16);
-  if (state.fever.abilities.magnet > 0)
-    sprite(ctx, art.fever.abilities.magnet, 42, -11, 16);
+  for (const [ability, x, y, size, color] of MOUNTED_ABILITIES) {
+    if (state.fever.abilities[ability] === 0) continue;
+    const awakened = Math.min(1, state.fever.awakening[ability] / 0.4);
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = awakened * (reducedMotion ? 4 : 8);
+    sprite(ctx, art.fever.abilities[ability], x, y, size);
+    ctx.restore();
+  }
+  // Gold has no permanent hardware mount. Its original painted emblem lights
+  // the front panel only while its MAX effect is actually active.
+  if (state.fever.awakening.gold > 0) {
+    ctx.save();
+    ctx.globalAlpha *= Math.min(1, state.fever.awakening.gold / 0.4);
+    ctx.shadowColor = '#ffdc83';
+    ctx.shadowBlur = reducedMotion ? 3 : 6;
+    sprite(ctx, art.fever.abilities.gold, 29, -22, 13);
+    ctx.restore();
+  }
   renderWheelMotion(ctx, state.distance, reducedMotion);
   if (state.weapon) {
     sprite(ctx, art.weapons[state.weapon.id], 6, -46, 29);

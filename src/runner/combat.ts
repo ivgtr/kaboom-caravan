@@ -30,6 +30,10 @@ export const RIVAL_WARNING_TIME = 0.8;
 export const RIVAL_WARNING_LEAD_TIME = 1.05;
 export const BOMBER_BLAST_RADIUS = 190;
 export const BOMBER_BLAST_DAMAGE = 6;
+export const AWAKENED_BOOST_RADIUS = 155;
+export const AWAKENED_BOOST_PULSE_RADIUS = 245;
+export const AWAKENED_GOLD_RADIUS = 1120;
+export const AWAKENED_GOLD_PULSE_RADIUS = 1750;
 const HALF_PLAYER = PLAYER_WIDTH / 2;
 const MAX_CONTACT_DISTANCE =
   HALF_PLAYER +
@@ -182,10 +186,12 @@ function activeTargets(state: RunnerState): Target[] {
   ];
 }
 
-function damageTarget(
+/** Kill accounting is atomic; each defeated bomber adds one finite blast job. */
+function damageBody(
   state: RunnerState,
   target: Target,
   damage: number,
+  blasts: { x: number; y: number }[],
 ): void {
   const entity = target.rival ?? target.obstacle;
   if (!entity || target.rival?.defeated || target.obstacle?.destroyed) return;
@@ -213,11 +219,12 @@ function damageTarget(
   );
   if (entity.golden && state.fever.abilities.gold > 0) {
     // Infection visits existing bodies only. Destruction never creates another body.
+    const radius =
+      state.fever.awakening.gold > 0
+        ? 1000
+        : 260 + Math.min(20, state.fever.abilities.gold) * 16;
     for (const next of activeTargets(state)) {
-      if (
-        Math.hypot(next.x - target.x, next.y - target.y) <=
-        260 + state.fever.abilities.gold * 35
-      ) {
+      if (Math.hypot(next.x - target.x, next.y - target.y) <= radius) {
         const body = next.rival ?? next.obstacle;
         if (body) body.golden = true;
       }
@@ -226,15 +233,73 @@ function damageTarget(
   if (target.rival?.kind === 'bomber') {
     effect(state, 'burst', target.x, target.y, 'CHAIN BLAST');
     state.effects[state.effects.length - 1]!.radius = BOMBER_BLAST_RADIUS;
-    // The bomber is already defeated, so another blast cannot reward it twice.
-    // Infect first: chain reactions preserve the build's real golden kills.
+    // Infection precedes the explosion, preserving real golden chain rewards.
+    blasts.push({ x: target.x, y: target.y });
+  }
+}
+
+function damageTarget(
+  state: RunnerState,
+  target: Target,
+  damage: number,
+): void {
+  const blasts: { x: number; y: number }[] = [];
+  damageBody(state, target, damage, blasts);
+  // No recursive calls: every job belongs to one already-defeated real bomber.
+  // Each body can earn rewards once even when multiple blast areas overlap.
+  for (let index = 0; index < blasts.length; index++) {
+    const blast = blasts[index]!;
     for (const next of activeTargets(state)) {
-      if (
-        Math.hypot(next.x - target.x, next.y - target.y) <= BOMBER_BLAST_RADIUS
-      )
-        damageTarget(state, next, BOMBER_BLAST_DAMAGE);
+      if (Math.hypot(next.x - blast.x, next.y - blast.y) <= BOMBER_BLAST_RADIUS)
+        damageBody(state, next, BOMBER_BLAST_DAMAGE, blasts);
     }
   }
+}
+
+/** MAX BOOST reaches ahead of contact but never touches terrain or jump physics. */
+function awakenedBoost(state: RunnerState, fresh: boolean): void {
+  const radius = fresh ? AWAKENED_BOOST_PULSE_RADIUS : AWAKENED_BOOST_RADIUS;
+  const x = state.distance + (fresh ? 220 : 160);
+  const y = state.player.y + PLAYER_HEIGHT / 2;
+  const targets = activeTargets(state).filter(
+    (target) =>
+      target.x >= state.distance &&
+      Math.hypot(target.x - x, target.y - y) <= radius &&
+      // A bonus cannot silently erase a rusher before its established telegraph.
+      !(
+        target.rival?.kind === 'rusher' && target.rival.age < RIVAL_WARNING_TIME
+      ),
+  );
+  if (fresh || targets.length > 0) {
+    effect(state, 'burst', x, y, 'MAX BOOST');
+    state.effects[state.effects.length - 1]!.radius = radius;
+  }
+  for (const target of targets) {
+    const body = target.rival ?? target.obstacle;
+    if (body) damageTarget(state, target, body.hp);
+  }
+}
+
+/** Each fresh draw transforms the group now present, even during a prior awakening. */
+function goldenWave(state: RunnerState, fresh: boolean): void {
+  const radius = fresh
+    ? AWAKENED_GOLD_PULSE_RADIUS
+    : state.fever.awakening.gold > 0
+      ? AWAKENED_GOLD_RADIUS
+      : 600 + Math.min(20, state.fever.abilities.gold) * 12;
+  for (const target of activeTargets(state)) {
+    if (
+      Math.hypot(target.x - state.distance, target.y - state.player.y) <= radius
+    ) {
+      const body = target.rival ?? target.obstacle;
+      if (body && !body.golden) {
+        body.golden = true;
+        if (fresh) effect(state, 'gold', target.x, target.y);
+      }
+    }
+  }
+  if (fresh)
+    effect(state, 'gold', state.distance, state.player.y + 24, 'MAX GOLD');
 }
 
 /** Follow every connected slope, stopping short of a real ledge, in either direction. */
@@ -475,25 +540,76 @@ function fireWeapon(state: RunnerState, dt: number): void {
 
 /** Landing, not a timer, triggers the build's area attack. */
 export function landingBlast(state: RunnerState): void {
-  const level = state.fever.abilities.slam;
+  const f = state.fever;
+  // Physics can land before stepCombat in the reward's first world tick. Apply
+  // the newly earned group conversion before that landing destroys its bodies.
+  if (
+    f.abilities.gold > 0 &&
+    f.awakening.gold > 0 &&
+    f.awakeningSerial.gold > f.awakeningSeen.gold
+  ) {
+    goldenWave(state, true);
+    f.awakeningSeen.gold = f.awakeningSerial.gold;
+  }
+  const level = f.abilities.slam;
+  const awakened = level > 0 && f.awakening.slam > 0;
+  const charged = awakened && f.awakeningSerial.slam > f.awakeningSeen.slam;
   const speedFactor = Math.max(0, Math.min(4, state.speed / START_SPEED - 1));
   const radius =
     level > 0 ? 235 + Math.min(12, level) * 32 + speedFactor * 35 : 68;
-  const damage = level > 0 ? (6 + level * 2) * (1 + speedFactor * 0.12) : 2;
+  const damage =
+    (level > 0 ? (6 + level * 2) * (1 + speedFactor * 0.12) : 2) *
+    (awakened ? 1.8 : 1);
+  const blasts = [{ x: state.distance, y: state.player.y, radius }];
+  if (awakened) {
+    f.awakeningSeen.slam = f.awakeningSerial.slam;
+    // Every fresh MAX draw charges the next actual landing with one extra echo.
+    // Coalesced draws never exceed four centers or fire without landing input.
+    // These finite steps follow the road; overlapping areas damage each body once.
+    for (const step of charged ? [1, 2, 3] : [1, 2]) {
+      const x = state.distance + radius * 0.78 * step;
+      const platform = state.platforms.find(
+        (road) => x >= road.x && x <= road.x + road.width,
+      );
+      blasts.push({
+        x,
+        y: platform ? platformTopAt(platform, x) : state.player.y,
+        radius: Math.min(360, radius * 0.58),
+      });
+    }
+  }
   if (level > 0) {
-    effect(
+    for (const blast of blasts) {
+      effect(
+        state,
+        'slam',
+        blast.x,
+        blast.y,
+        charged
+          ? 'MAX LANDING ECHO'
+          : awakened
+            ? 'MAX LANDING CHAIN'
+            : `LANDING BOMB ×${level}`,
+      );
+      state.effects[state.effects.length - 1]!.radius = blast.radius;
+    }
+    feverEvent(
       state,
       'slam',
-      state.distance,
-      state.player.y,
-      `LANDING BOMB ×${level}`,
+      charged
+        ? 'MAX LANDING ECHO'
+        : awakened
+          ? 'MAX LANDING CHAIN'
+          : 'LANDING BOMB',
+      radius,
     );
-    state.effects[state.effects.length - 1]!.radius = radius;
-    feverEvent(state, 'slam', 'LANDING BOMB', radius);
   }
   for (const target of activeTargets(state)) {
     if (
-      Math.hypot(target.x - state.distance, target.y - state.player.y) <= radius
+      blasts.some(
+        (blast) =>
+          Math.hypot(target.x - blast.x, target.y - blast.y) <= blast.radius,
+      )
     )
       damageTarget(state, target, damage);
   }
@@ -527,17 +643,11 @@ export function stepCombat(
   oldY = state.player.y,
 ): void {
   if (state.status !== 'running' || state.fever.freeze > 0) return;
-  if (state.fever.abilities.gold > 0) {
-    for (const target of activeTargets(state)) {
-      if (
-        Math.hypot(target.x - state.distance, target.y - state.player.y) <
-        600 + state.fever.abilities.gold * 70
-      ) {
-        const body = target.rival ?? target.obstacle;
-        if (body) body.golden = true;
-      }
-    }
-  }
+  const f = state.fever;
+  const freshGold =
+    f.awakening.gold > 0 && f.awakeningSerial.gold > f.awakeningSeen.gold;
+  if (f.abilities.gold > 0) goldenWave(state, freshGold);
+  f.awakeningSeen.gold = f.awakeningSerial.gold;
   const sweptBody = (
     x: number,
     y: number,
@@ -589,6 +699,9 @@ export function stepCombat(
       );
     } else moveRival(state, rival, dt);
   }
+  if (f.awakening.boost > 0)
+    awakenedBoost(state, f.awakeningSerial.boost > f.awakeningSeen.boost);
+  f.awakeningSeen.boost = f.awakeningSerial.boost;
   fireWeapon(state, dt);
   for (const obstacle of state.obstacles) {
     if (obstacle.destroyed) continue;
