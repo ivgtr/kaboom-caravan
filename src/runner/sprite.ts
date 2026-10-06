@@ -55,7 +55,7 @@ export function drawPaintedSprite(
   const blur = Math.round(ctx.shadowBlur * 2) / 2;
   if (blur === 0) return direct();
   const padding = Math.ceil(blur * 3 + 2);
-  const pixels = (pw + padding * 2) * (ph + padding * 2);
+  const pixels = 2 * (pw + padding * 2) * (ph + padding * 2);
   if (pixels > MAX_PIXELS) return direct();
   let cache = caches.get(ctx);
   if (!cache) {
@@ -68,7 +68,7 @@ export function drawPaintedSprite(
   let entry = variants.get(key);
   if (!entry) {
     const canvas = document.createElement('canvas');
-    canvas.width = pw + padding * 2;
+    canvas.width = 2 * (pw + padding * 2);
     canvas.height = ph + padding * 2;
     const baked = canvas.getContext('2d');
     if (!baked) return direct();
@@ -76,9 +76,10 @@ export function drawPaintedSprite(
     baked.imageSmoothingQuality = ctx.imageSmoothingQuality;
     baked.shadowColor = ctx.shadowColor;
     baked.shadowBlur = blur;
-    // Keep the source entirely offscreen; only its offset shadow lands here.
-    baked.shadowOffsetX = canvas.width;
-    baked.drawImage(image, padding - canvas.width, padding, pw, ph);
+    // Keep both source and shadow in bounds: some renderers cull offscreen
+    // sources before producing their shadow. Only the right half is displayed.
+    baked.shadowOffsetX = canvas.width / 2;
+    baked.drawImage(image, padding, padding, pw, ph);
     entry = { canvas, padding, width: pw, height: ph, key, variants };
     while (
       cache.pixels + pixels > MAX_PIXELS ||
@@ -100,9 +101,13 @@ export function drawPaintedSprite(
   ctx.shadowBlur = 0;
   ctx.drawImage(
     entry.canvas,
+    entry.canvas.width / 2,
+    0,
+    entry.canvas.width / 2,
+    entry.canvas.height,
     x - entry.padding * dx,
     y - entry.padding * dy,
-    entry.canvas.width * dx,
+    (entry.canvas.width / 2) * dx,
     entry.canvas.height * dy,
   );
   // Separate source-over draws preserve translucent shadow/source overlap.

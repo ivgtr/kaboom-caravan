@@ -64,7 +64,7 @@ describe('painted sprite glow cache', () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(contexts[0]!.drawImage).toHaveBeenCalledExactlyOnceWith(
       image,
-      -46,
+      26,
       26,
       20,
       32,
@@ -72,6 +72,28 @@ describe('painted sprite glow cache', () => {
     expect(ctx.shadowBlur).toBe(8);
     expect(ctx.getTransform()).toMatchObject({ a: 0, b: -1, c: -1, d: 0 });
   });
+
+  it.each([12, 60, 80])(
+    'bakes %ipx sources fully in bounds, outside the displayed halo region',
+    (width) => {
+      const { contexts, canvases, draw } = setup();
+      draw(width, width);
+      const canvas = canvases[0]!;
+      const [, x, y, w, h] = vi.mocked(contexts[0]!.drawImage).mock
+        .calls[0]! as unknown as [
+        HTMLCanvasElement,
+        number,
+        number,
+        number,
+        number,
+      ];
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(x + w).toBeLessThan(canvas.width / 2);
+      expect(y + h).toBeLessThan(canvas.height);
+      expect(contexts[0]!.shadowOffsetX).toBe(canvas.width / 2);
+    },
+  );
 
   it('keeps the exact footprint with fractional size and nonuniform scale', () => {
     const { ctx, canvases } = setup();
@@ -82,18 +104,26 @@ describe('painted sprite glow cache', () => {
       d: 0,
     } as DOMMatrix);
     drawPaintedSprite(ctx, {} as HTMLCanvasElement, 12, -36, 24.2, 35.8);
-    const [canvas, x, y, width, height] = vi.mocked(ctx.drawImage).mock
-      .calls[0]! as unknown as [
-      HTMLCanvasElement,
-      number,
-      number,
-      number,
-      number,
-    ];
+    const [canvas, cropX, cropY, cropWidth, cropHeight, x, y, width, height] =
+      vi.mocked(ctx.drawImage).mock.calls[0]! as unknown as [
+        HTMLCanvasElement,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ];
     expect(canvas).toBe(canvases[0]);
-    expect(x + (26 / canvas.width) * width).toBeCloseTo(12);
+    expect(cropX).toBe(canvas.width / 2);
+    expect(cropY).toBe(0);
+    expect(cropWidth).toBe(canvas.width / 2);
+    expect(cropHeight).toBe(canvas.height);
+    expect(x + (26 / cropWidth) * width).toBeCloseTo(12);
     expect(y + (26 / canvas.height) * height).toBeCloseTo(-36);
-    expect((48 / canvas.width) * width).toBeCloseTo(24.2);
+    expect((48 / cropWidth) * width).toBeCloseTo(24.2);
     expect((108 / canvas.height) * height).toBeCloseTo(35.8);
   });
 
