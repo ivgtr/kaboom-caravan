@@ -181,6 +181,8 @@ export interface RunnerState {
   effects: Effect[];
   generatedUntil: number;
   chunk: number;
+  courseBag: number[];
+  coursePhrase: number;
   jumps: number;
   scrap: number;
   passed: number;

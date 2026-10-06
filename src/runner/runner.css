@@ -53,6 +53,18 @@ button:disabled {
   outline: none;
   touch-action: none;
 }
+.runner-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+/* The score and a burning chain fuse are the only persistent sky instruments. */
 .runner-hud {
   z-index: 3;
   position: absolute;
@@ -63,73 +75,263 @@ button:disabled {
   justify-content: space-between;
   align-items: start;
   pointer-events: none;
-  text-shadow: 0 2px 3px #16465c60;
 }
-.runner-distance {
+.runner-score {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: calc(100% - 104px);
+  color: #fff3c7;
+  text-shadow:
+    0 3px 0 #173f4e,
+    0 0 8px #14374380;
 }
 .runner-eyebrow,
 .runner-kicker {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.22em;
 }
-.runner-distance > strong {
+.runner-score > strong {
   font-family: 'Barlow Condensed', Impact, sans-serif;
-  font-size: clamp(44px, 5.7vw, 78px);
   font-weight: 800;
-  line-height: 0.96;
+  line-height: 0.98;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-.runner-distance small {
-  font-size: 0.4em;
-  padding-left: 5px;
 }
 .runner-best {
-  margin-top: 7px;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
+  margin-top: 6px;
+  font:
+    700 12px 'Barlow Condensed',
+    sans-serif;
   letter-spacing: 0.08em;
+  color: #dce8d9;
+  overflow-wrap: anywhere;
+}
+.runner-chain {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  color: #f5ecd1;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.runner-chain > b {
+  font:
+    italic 800 28px 'Barlow Condensed',
+    Impact,
+    sans-serif;
+  line-height: 1;
+  color: #fff1b7;
+}
+.runner-chain-count strong {
+  font:
+    800 19px 'Barlow Condensed',
+    Impact,
+    sans-serif;
+}
+.runner-chain[data-active='false'] .runner-chain-count {
+  opacity: 0.55;
+}
+.runner-chain em {
+  font:
+    italic 900 15px 'Barlow Condensed',
+    Impact,
+    sans-serif;
+  color: #ffca68;
+  letter-spacing: 0.04em;
+}
+.runner[data-mode='hyper'] .runner-chain > b,
+.runner[data-mode='hyper'] .runner-chain em {
+  color: #ffb66a;
+}
+.runner-chain-fuse {
+  width: 152px;
+  max-width: 100%;
+  height: 4px;
+  margin-top: 5px;
+  background: #153c4a55;
+  transform: skewX(-18deg);
+}
+.runner-chain-fuse i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #ffcc70;
+  box-shadow: 0 0 7px #ffd58970;
+  transform-origin: left;
+}
+.runner[data-mode='hyper'] .runner-chain-fuse i {
+  background: #ff9166;
 }
 .runner-top-right {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 9px;
   pointer-events: auto;
+}
+.runner-distance-secondary {
+  font:
+    800 15px 'Barlow Condensed',
+    sans-serif;
+  color: #fff0ce;
+  margin-right: 7px;
+  text-shadow: 0 2px 2px #173f4e;
 }
 .runner-icon {
   width: 44px;
   height: 44px;
   min-width: 44px;
   min-height: 44px;
-  border: 1px solid #e3fffc50;
-  background: #1b4c5c30;
-  color: #fff9e9;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  background-size: 100% 100%;
   border-radius: 50%;
-  font-size: 20px;
+  color: #fff2c9;
+  font-size: 18px;
   font-weight: 900;
-  box-shadow: 0 2px 0 #173b4817;
+  filter: drop-shadow(0 3px 2px #173b4850);
 }
 .runner-icon:hover {
-  background: #1b4c5c60;
+  filter: brightness(1.12);
 }
-.runner-notice {
+/* Painted modules sit on one equipment rail, rather than rows of web labels. */
+.runner-loadout {
   position: absolute;
-  top: 25%;
-  left: 20%;
-  width: 60%;
-  margin: 0;
-  text-align: center;
-  color: #fff2bd;
-  font-size: clamp(12px, 1.6vw, 18px);
-  font-weight: 900;
-  text-shadow:
-    0 2px 0 #173e50,
-    0 0 12px #173e50;
+  z-index: 1;
+  left: max(28px, env(safe-area-inset-left));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  max-width: calc(100% - 155px);
   pointer-events: none;
+  text-shadow:
+    0 2px 0 #153744,
+    1px 0 #153744,
+    -1px 0 #153744;
+}
+.runner-abilities {
+  position: relative;
+  display: flex;
+  align-items: end;
+  gap: 9px;
+  border-bottom: 3px solid #e2c58d9c;
+  padding: 0 4px 3px;
+  filter: drop-shadow(0 2px 1px #152e3c70);
+}
+.runner-abilities::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 -6px;
+  height: 2px;
+  background: #173947;
+}
+.runner-module {
+  position: relative;
+  display: block;
+  width: 52px;
+  height: 49px;
+}
+.runner-module img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.runner-module[data-active='false'] img {
+  filter: saturate(0.15) brightness(0.7);
+  opacity: 0.38;
+}
+.runner-module b {
+  position: absolute;
+  right: -1px;
+  bottom: -2px;
+  color: #ffe69a;
+  font:
+    800 21px 'Barlow Condensed',
+    Impact,
+    sans-serif;
+}
+.runner-module[data-active='false'] b {
+  color: #b0c2b8;
+}
+.runner-equipment-line {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  height: 30px;
+  padding-left: 6px;
+  margin-top: 7px;
+}
+.runner-weapon,
+.runner-guard {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.runner-weapon img {
+  width: 34px;
+  height: 26px;
+  object-fit: contain;
+}
+.runner-weapon b {
+  font:
+    800 15px 'Barlow Condensed',
+    Impact,
+    sans-serif;
+  color: #ffe7aa;
+}
+.runner-guard img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+}
+.runner-guard i {
+  width: 5px;
+  height: 12px;
+  background: #b0fff0;
+  border: 1px solid #173947;
+  box-shadow: 0 0 5px #80eed1;
+}
+.runner-guard[data-active='false'] {
+  opacity: 0.38;
+  filter: saturate(0.15);
+}
+.runner-guard[data-active='false'] i {
+  box-shadow: none;
+  background: #8aa8a6;
+}
+.runner-speed {
+  display: flex;
+  gap: 3px;
+  align-items: end;
+  margin-left: 2px;
+  transform: skewX(-17deg);
+}
+.runner-speed i {
+  width: 5px;
+  height: 8px;
+  background: #d3e4d42e;
+  border-bottom: 1px solid #153947;
+}
+.runner-speed i:nth-child(n + 3) {
+  height: 11px;
+}
+.runner-speed i:nth-child(n + 5) {
+  height: 14px;
+}
+.runner-speed i:nth-child(n + 7) {
+  height: 17px;
+}
+.runner-speed i[data-lit='true'] {
+  background: #b9ead2;
+}
+.runner-speed i:nth-child(n + 5)[data-lit='true'] {
+  background: #ffca69;
+}
+.runner-speed i:nth-child(n + 7)[data-lit='true'] {
+  background: #ff9769;
 }
 .runner-bottom {
   position: absolute;
@@ -138,57 +340,64 @@ button:disabled {
   right: max(28px, env(safe-area-inset-right));
   display: flex;
   align-items: end;
-  justify-content: space-between;
+  justify-content: flex-end;
   pointer-events: none;
 }
 .runner-hint {
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: #153d487a;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.8;
-  text-shadow: 0 2px 0 #173e50;
+  position: absolute;
+  left: 0;
+  bottom: 94px;
+  margin: 0;
+  color: #fff0c8;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.6;
+  text-shadow:
+    0 2px 2px #173e50,
+    0 0 6px #173e50;
   transition: opacity 1s;
-}
-.runner-hint span {
-  font-family: 'Barlow Condensed', system-ui, sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: #cde4d8;
 }
 .runner-hint.faded {
   opacity: 0;
 }
 .runner-jump {
+  position: relative;
   pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  width: 87px;
-  height: 87px;
+  width: 92px;
+  height: 92px;
+  border: 0;
   border-radius: 50%;
-  border: 2px solid #fff3bdc9;
-  color: #fff7d7;
-  background: #1b4a5b90;
-  box-shadow:
-    0 5px 0 #12334180,
-    inset 0 0 0 5px #fff3bd0e;
-  font:
-    800 14px 'Barlow Condensed',
-    sans-serif;
-  letter-spacing: 0.12em;
+  color: #fff4cf;
+  background-color: transparent;
+  background-size: 100% 100%;
+  filter: drop-shadow(0 5px 3px #12334180);
+  touch-action: none;
 }
-.runner-jump span {
-  font-family: system-ui;
-  font-size: 35px;
+.runner-jump > span:not(.runner-sr-only) {
+  font:
+    900 39px system-ui,
+    sans-serif;
   line-height: 1;
+  padding-bottom: 6px;
+}
+.runner-air-hop {
+  position: absolute;
+  bottom: 21%;
+  width: 19px;
+  height: 4px;
+  border-radius: 1px;
+  background: #47616a;
+}
+.runner-jump[data-ready='true'] .runner-air-hop {
+  background: #a6ffee;
+  box-shadow: 0 0 7px #a6ffee80;
 }
 .runner-jump:active {
   transform: translateY(3px);
-  box-shadow: 0 2px 0 #12334180;
-  background: #4b756b;
+  filter: brightness(1.15);
 }
 .runner-overlay {
   z-index: 2;
@@ -301,25 +510,40 @@ h1 span {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+.runner-result {
+  background: linear-gradient(
+    90deg,
+    #11374430,
+    #113744bd 38%,
+    #113744c9 68%,
+    #11374450
+  );
+  backdrop-filter: none;
+}
 .runner-result h2 {
   font-family: 'Barlow Condensed', Impact, sans-serif;
-  font-size: clamp(80px, 13vw, 126px);
+  font-size: clamp(58px, 8vw, 108px);
   line-height: 0.9;
   font-weight: 800;
+  max-width: 95vw;
+  overflow-wrap: anywhere;
+  color: #fff0b0;
 }
 .runner-result h2 small {
-  font-size: 0.4em;
+  font-size: 0.22em;
   color: #fff9e9;
   margin-left: 5px;
 }
 .runner-result .runner-cause {
   margin: 16px 0;
   color: #d7e8de;
+  max-width: 350px;
+  line-height: 1.8;
 }
 .runner-stats {
   display: flex;
-  gap: 30px;
-  margin-bottom: 26px;
+  gap: clamp(15px, 3vw, 32px);
+  margin-bottom: 12px;
 }
 .runner-stats span {
   display: flex;
@@ -331,6 +555,30 @@ h1 span {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 30px;
   color: #fff0b8;
+}
+.runner-result .runner-score-recipe {
+  margin: 0 0 8px;
+  font-size: 10px;
+  color: #ffe195;
+}
+.runner-result .runner-result-secondary {
+  margin: 0 0 18px;
+  font-size: 11px;
+  color: #cadfd2;
+}
+.runner-score-parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  max-width: 480px;
+  font-size: 10px;
+  color: #c8e0d0;
+  margin: 0 0 12px;
+}
+.runner-score-parts b {
+  color: #fff1b4;
+  font-variant-numeric: tabular-nums;
 }
 .runner-loading {
   background: #286d7a;
@@ -344,11 +592,75 @@ h1 span {
     inset: max(20px, env(safe-area-inset-top)) 18px auto 18px;
   }
   .runner-top-right {
-    gap: 7px;
+    gap: 6px;
   }
-  .runner-icon {
-    width: 38px;
-    height: 38px;
+  .runner-best {
+    font-size: 11px;
+  }
+  .runner-chain {
+    gap: 7px;
+    margin-top: 6px;
+    font-size: 8px;
+  }
+  .runner-chain > b {
+    font-size: 24px;
+  }
+  .runner-chain-count strong {
+    font-size: 17px;
+  }
+  .runner-chain em {
+    font-size: 13px;
+  }
+  .runner-chain-fuse {
+    width: 132px;
+  }
+  .runner-distance-secondary {
+    display: none;
+  }
+  .runner-loadout {
+    left: 18px;
+    bottom: max(32px, env(safe-area-inset-bottom));
+    max-width: calc(100% - 140px);
+  }
+  .runner-abilities {
+    gap: 5px;
+  }
+  .runner-module {
+    width: 39px;
+    height: 40px;
+  }
+  .runner-module b {
+    font-size: 18px;
+  }
+  .runner-equipment-line {
+    gap: 9px;
+    margin-top: 6px;
+  }
+  .runner-weapon img {
+    width: 28px;
+  }
+  .runner-guard img {
+    width: 21px;
+  }
+  .runner-speed {
+    gap: 2px;
+  }
+  .runner-speed i {
+    width: 4px;
+  }
+  .runner-bottom {
+    left: 18px;
+    right: 18px;
+    bottom: max(32px, env(safe-area-inset-bottom));
+  }
+  .runner-jump {
+    width: 88px;
+    height: 88px;
+  }
+  .runner-hint {
+    bottom: 88px;
+    max-width: 210px;
+    font-size: 10px;
   }
   .runner-title {
     padding-top: 24vh;
@@ -359,22 +671,16 @@ h1 span {
   .runner-title-copy {
     margin-top: 13px;
   }
-  .runner-notice {
-    top: 29%;
-    width: 92%;
-    left: 4%;
+  .runner-result {
+    background: #1137449e;
+    padding-bottom: 19vh;
   }
-  .runner-bottom {
-    left: 22px;
-    right: 22px;
-    bottom: max(35px, env(safe-area-inset-bottom));
+  .runner-result .runner-cause {
+    max-width: 310px;
+    margin: 13px 0;
   }
-  .runner-jump {
-    width: 96px;
-    height: 96px;
-  }
-  .runner-hint {
-    max-width: 200px;
+  .runner-stats b {
+    font-size: 25px;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {
@@ -383,36 +689,82 @@ h1 span {
     left: max(19px, env(safe-area-inset-left));
     right: max(19px, env(safe-area-inset-right));
   }
-  .runner-distance > strong {
-    font-size: 43px;
-  }
   .runner-eyebrow {
     font-size: 9px;
   }
   .runner-best {
-    font-size: 12px;
+    font-size: 10px;
     margin-top: 3px;
   }
-  .runner-icon {
-    width: 35px;
-    height: 35px;
+  .runner-chain {
+    margin-top: 4px;
+    gap: 8px;
+    font-size: 8px;
   }
-  .runner-notice {
-    top: 28%;
+  .runner-chain > b {
+    font-size: 22px;
+  }
+  .runner-chain-count strong {
+    font-size: 17px;
+  }
+  .runner-chain em {
+    font-size: 12px;
+  }
+  .runner-chain-fuse {
+    width: 126px;
+    height: 3px;
+    margin-top: 4px;
+  }
+  .runner-distance-secondary {
+    display: none;
+  }
+  .runner-loadout {
+    left: 18px;
+    bottom: 10px;
+  }
+  .runner-abilities {
+    gap: 8px;
+    padding-bottom: 1px;
+    border-bottom-width: 2px;
+  }
+  .runner-module {
+    width: 37px;
+    height: 33px;
+  }
+  .runner-module b {
+    font-size: 17px;
+  }
+  .runner-equipment-line {
+    height: 21px;
+    margin-top: 5px;
+    gap: 9px;
+  }
+  .runner-weapon img {
+    width: 26px;
+    height: 20px;
+  }
+  .runner-guard img {
+    width: 21px;
+    height: 20px;
+  }
+  .runner-speed i {
+    width: 4px;
   }
   .runner-bottom {
-    bottom: 15px;
+    bottom: 13px;
+    right: 19px;
+    left: 19px;
   }
   .runner-jump {
-    width: 68px;
-    height: 68px;
+    width: 70px;
+    height: 70px;
   }
-  .runner-jump span {
-    font-size: 25px;
+  .runner-jump > span:not(.runner-sr-only) {
+    font-size: 31px;
   }
   .runner-hint {
-    font-size: 11px;
-    margin: 0;
+    bottom: 64px;
+    font-size: 9px;
   }
   .runner-title {
     padding-top: 34px;
@@ -452,263 +804,11 @@ h1 span {
   .runner-modal p {
     margin: 10px 0 17px;
   }
-  .runner-result h2 {
-    font-size: 72px;
-  }
-  .runner-stats {
-    margin-bottom: 17px;
-  }
-  .runner-stats b {
-    font-size: 24px;
-  }
   .runner-modal small {
     margin-top: 10px;
   }
   .runner-secondary {
     padding-top: 10px;
-  }
-}
-@media (max-height: 400px) and (orientation: landscape) {
-  .runner[data-status='running'] .runner-best {
-    display: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-  }
-}
-.runner-result {
-  background: linear-gradient(
-    90deg,
-    #11374430,
-    #113744bd 38%,
-    #113744c9 68%,
-    #11374450
-  );
-  backdrop-filter: none;
-}
-.runner-result .runner-cause {
-  max-width: 350px;
-  line-height: 1.8;
-}
-.runner-jump {
-  touch-action: none;
-  font-size: 10px;
-  letter-spacing: 0;
-}
-@media (max-width: 650px) and (orientation: portrait) {
-  .runner-result {
-    background: #1137449e;
-    padding-bottom: 26vh;
-  }
-  .runner-result .runner-cause {
-    max-width: 310px;
-  }
-}
-
-/* Score-first HUD; the middle sky belongs to the physical reward cabinet. */
-.runner-score {
-  color: #fff4c6;
-  text-shadow:
-    0 3px 0 #174655,
-    0 0 9px #173e5080;
-}
-.runner-score > strong {
-  font-size: clamp(38px, 5vw, 72px);
-}
-.runner-chain {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  margin-top: 7px;
-  color: #ebeee0;
-  font-size: 11px;
-  font-weight: 900;
-}
-.runner-chain b {
-  font-family: 'Barlow Condensed', Impact, sans-serif;
-  font-size: 29px;
-  color: #ffe58c;
-}
-.runner-chain[data-active='true'] b {
-  color: #ffb66a;
-}
-.runner-distance-secondary {
-  font:
-    800 18px 'Barlow Condensed',
-    sans-serif;
-  color: #fff0ce;
-  margin-right: 5px;
-}
-.runner-loadout {
-  position: absolute;
-  z-index: 1;
-  left: max(28px, env(safe-area-inset-left));
-  bottom: max(28px, env(safe-area-inset-bottom));
-  max-width: calc(100% - 165px);
-  pointer-events: none;
-  text-shadow: 0 2px 2px #123843;
-}
-.runner-abilities {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1.5;
-}
-.runner-abilities span {
-  color: #c0d0c7;
-}
-.runner-abilities [data-active='true'] {
-  color: #ffe39a;
-}
-.runner-abilities b {
-  font-size: 20px;
-  font-family: 'Barlow Condensed', Impact, sans-serif;
-}
-.runner-equipment-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 9px;
-  font-size: 10px;
-  margin-top: 4px;
-  color: #d7e9da;
-  font-weight: 700;
-}
-.runner-equipment-line img {
-  object-fit: contain;
-  width: 24px;
-  height: 24px;
-  margin-right: -7px;
-}
-.runner-bottom {
-  justify-content: flex-end;
-}
-.runner-hint {
-  position: absolute;
-  left: 0;
-  bottom: 60px;
-}
-.runner-result h2 {
-  font-size: clamp(58px, 8vw, 108px);
-  max-width: 95vw;
-  overflow-wrap: anywhere;
-  color: #fff0b0;
-}
-.runner-result h2 small {
-  font-size: 0.22em;
-}
-.runner-stats {
-  gap: clamp(15px, 3vw, 32px);
-  margin-bottom: 12px;
-}
-.runner-result .runner-score-recipe {
-  margin: 0 0 8px;
-  font-size: 10px;
-  color: #ffe195;
-}
-.runner-result .runner-result-secondary {
-  margin: 0 0 18px;
-  font-size: 11px;
-  color: #cadfd2;
-}
-@media (max-width: 650px) and (orientation: portrait) {
-  .runner-score > strong {
-    font-size: clamp(34px, 9vw, 49px);
-  }
-  .runner-score .runner-best {
-    font-size: 12px;
-  }
-  .runner-chain {
-    gap: 7px;
-    margin-top: 4px;
-    font-size: 10px;
-  }
-  .runner-chain b {
-    font-size: 25px;
-  }
-  .runner-distance-secondary {
-    display: none;
-  }
-  .runner-loadout {
-    left: 20px;
-    bottom: max(35px, env(safe-area-inset-bottom));
-    max-width: calc(100% - 135px);
-  }
-  .runner-abilities {
-    gap: 2px 10px;
-    font-size: 10px;
-  }
-  .runner-abilities b {
-    font-size: 18px;
-  }
-  .runner-equipment-line {
-    gap: 5px;
-    font-size: 9px;
-  }
-  .runner-hint {
-    bottom: 85px;
-    font-size: 11px;
-  }
-  .runner-result {
-    padding-bottom: 19vh;
-  }
-  .runner-result .runner-cause {
-    margin: 13px 0;
-  }
-  .runner-stats b {
-    font-size: 25px;
-  }
-}
-@media (max-height: 500px) and (orientation: landscape) {
-  .runner-score > strong {
-    font-size: 36px;
-  }
-  .runner-score .runner-best {
-    font-size: 10px;
-  }
-  .runner-chain {
-    margin-top: 2px;
-    font-size: 9px;
-  }
-  .runner-chain b {
-    font-size: 21px;
-  }
-  .runner-distance-secondary {
-    display: none;
-  }
-  .runner-loadout {
-    left: 18px;
-    bottom: 12px;
-    max-width: calc(100% - 135px);
-  }
-  .runner-abilities {
-    font-size: 9px;
-    gap: 7px;
-  }
-  .runner-abilities b {
-    font-size: 16px;
-  }
-  .runner-equipment-line {
-    font-size: 8px;
-    gap: 6px;
-    margin-top: 0;
-  }
-  .runner-equipment-line img {
-    width: 18px;
-    height: 18px;
-  }
-  .runner-hint {
-    bottom: 43px;
-    font-size: 9px;
-    line-height: 1.4;
-    padding: 4px 7px;
-  }
-  .runner-hint span {
-    font-size: 9px;
   }
   .runner-result h2 {
     font-size: 55px;
@@ -730,7 +830,7 @@ h1 span {
   }
   .runner-result .runner-result-secondary {
     font-size: 9px;
-    margin-bottom: 9px;
+    margin-bottom: 5px;
   }
   .runner-result .runner-secondary {
     padding-top: 7px;
@@ -738,42 +838,22 @@ h1 span {
   .runner-result > small {
     margin-top: 6px;
   }
-}
-.runner-score-parts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 14px;
-  max-width: 480px;
-  font-size: 10px;
-  color: #c8e0d0;
-  margin: 0 0 12px;
-}
-.runner-score-parts b {
-  color: #fff1b4;
-  font-variant-numeric: tabular-nums;
-}
-@media (max-height: 500px) and (orientation: landscape) {
   .runner-score-parts {
     font-size: 8px;
     margin-bottom: 5px;
   }
-  .runner-result .runner-result-secondary {
-    margin-bottom: 5px;
+}
+@media (max-height: 400px) and (orientation: landscape) {
+  .runner[data-status='running'] .runner-best {
+    display: none;
   }
 }
-.runner-score {
-  min-width: 0;
-  max-width: calc(100% - 104px);
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }
-.runner-top-right {
-  flex-shrink: 0;
-}
-.runner-score .runner-best {
-  overflow-wrap: anywhere;
-}
-
-/* The power cut silences the HUD too. Controls remain discoverable and active. */
+/* FREEZE cuts every instrument. The dim pause/sound controls stay usable. */
 .runner[data-cut='true'] .runner-score,
 .runner[data-cut='true'] .runner-distance-secondary,
 .runner[data-cut='true'] .runner-loadout,
@@ -785,8 +865,6 @@ h1 span {
 }
 .runner[data-cut='true'] .runner-icon {
   color: #899395;
-  background: #070909;
-  border-color: #253033;
-  box-shadow: none;
-  opacity: 0.3;
+  opacity: 0.16;
+  filter: grayscale(1) brightness(0.4);
 }

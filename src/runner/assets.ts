@@ -3,6 +3,10 @@ import type { AbilityId, RivalKind, WeaponId } from './types';
 
 const root = (path: string) => runtimeAssetUrl(`assets/${path}`);
 export const SCRAP_ART = root('runner-pickups/scrap-metal_v001.png');
+export const HUD_ART = {
+  control: root('ui/ui_control_frame_v001.png'),
+  shield: root('equipment/mod_shield_generator_v001.png'),
+};
 export const ABILITY_ART: Record<AbilityId, string> = {
   boost: root('score-fever/boost.webp'),
   slam: root('score-fever/slam.webp'),

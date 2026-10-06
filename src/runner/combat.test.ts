@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   awardScrap,
+  BOMBER_BLAST_DAMAGE,
+  BOMBER_BLAST_RADIUS,
   collectPickup,
+  landingBlast,
   MAX_WEAPON_LEVEL,
   rivalWarningDistance,
   RIVAL_WARNING_LEAD_TIME,
@@ -10,6 +13,7 @@ import {
 } from './combat';
 import { RIVALS, WEAPONS, WEAPON_ORDER } from './definitions';
 import { createRunner, startRunner, stepRunner } from './simulation';
+import { platformTopAt } from './terrain';
 import {
   FIXED_DT,
   PLAYER_WIDTH,
@@ -276,6 +280,146 @@ describe('breakable route obstacles and contact', () => {
     target.speed = 100;
     stepCombat(state, 0.1);
     expect(target.x).toBe(550);
+  });
+});
+
+describe('rival encounter roles', () => {
+  it('holds an oncoming rusher still for its full warning before charging', () => {
+    const state = arena();
+    state.platforms = [{ id: 1, x: -200, width: 1200, top: 0 }];
+    const target = rival(state, 350);
+    target.kind = 'rusher';
+    target.age = 0;
+    target.speed = -100;
+    for (let tick = 0; tick < 95; tick++) stepCombat(state, FIXED_DT);
+    expect(target.age).toBeLessThan(RIVAL_WARNING_TIME);
+    expect(target.x).toBe(350);
+    expect(target.speed).toBe(0);
+    stepCombat(state, 0.11);
+    expect(target.x).toBeLessThan(344);
+    expect(target.speed).toBeLessThan(0);
+    expect(state.status).toBe('running');
+  });
+
+  it('shows an active rusher approach before the ordinary gun can erase it', () => {
+    for (const speed of [330, 1650]) {
+      const state = arena('machine');
+      state.speed = speed;
+      state.platforms = [{ id: 1, x: -200, width: 10000, top: 0 }];
+      const initialX = rivalWarningDistance(speed, 'rusher');
+      const target = rival(state, initialX, 0, RIVALS.rusher.hp);
+      target.kind = 'rusher';
+      target.age = 0;
+      while (target.age <= RIVAL_WARNING_TIME) {
+        const oldX = state.distance;
+        state.distance += speed * FIXED_DT;
+        stepCombat(state, FIXED_DT, oldX);
+      }
+      expect(target.speed).toBeLessThan(0);
+      expect(target.x - state.distance).toBeGreaterThan(WEAPONS.machine.range);
+      expect(target.hp).toBe(RIVALS.rusher.hp);
+      for (let tick = 0; tick < 120 && !target.defeated; tick++) {
+        const oldX = state.distance;
+        state.distance += speed * FIXED_DT;
+        stepCombat(state, FIXED_DT, oldX);
+      }
+      expect(target.defeated).toBe(true);
+      expect(initialX - target.x).toBeGreaterThan(-target.speed * 0.3);
+      expect(state.status).toBe('running');
+    }
+  });
+
+  it('patrols across joined slopes in both directions but stops at a real gap', () => {
+    for (const direction of [-1, 1]) {
+      const state = arena();
+      state.platforms = [
+        { id: 1, x: 0, width: 300, top: 0, endTop: 90 },
+        { id: 2, x: 300, width: 300, top: 90, endTop: 30 },
+      ];
+      state.player.y = 200;
+      const target = rival(state, direction > 0 ? 290 : 310);
+      target.speed = direction * 100;
+      stepCombat(state, 0.2);
+      expect(target.x).toBe(direction > 0 ? 310 : 290);
+      const road = state.platforms[direction > 0 ? 1 : 0]!;
+      expect(target.y).toBe(platformTopAt(road, target.x));
+      stepCombat(state, 10);
+      expect(target.x).toBe(direction > 0 ? 520 : 80);
+      expect(target.y).toBe(
+        platformTopAt(state.platforms[direction > 0 ? 1 : 0]!, target.x),
+      );
+    }
+  });
+
+  it('sweeps moving bodies relative to the player, including an oncoming pass', () => {
+    const state = arena();
+    state.platforms = [{ id: 1, x: -500, width: 1500, top: 0 }];
+    const target = rival(state, 100);
+    target.kind = 'rusher';
+    stepCombat(state, 2);
+    expect(target.x).toBeLessThan(-40);
+    expect(state.reason).toBe('rival');
+  });
+
+  it('chains bomber blasts through real nearby bodies once, with a bounded radius', () => {
+    const state = arena('machine');
+    const first = rival(state, 200, 0, 1);
+    first.kind = 'bomber';
+    const second = rival(state, 350, 0, 3);
+    second.kind = 'bomber';
+    const chainTarget = rival(state, 500, 0, 2);
+    const armor = rival(state, 530, 0, RIVALS.fortress.hp);
+    armor.kind = 'fortress';
+    const high = rival(state, 205, 220, 2);
+    const far = rival(state, 800, 0, 2);
+    const box = crate(state, 240, 2);
+    stepCombat(state, FIXED_DT);
+    expect(first.defeated && second.defeated && chainTarget.defeated).toBe(
+      true,
+    );
+    expect(box.destroyed).toBe(true);
+    expect(armor.hp).toBe(RIVALS.fortress.hp - BOMBER_BLAST_DAMAGE);
+    expect(high.hp).toBe(2);
+    expect(far.hp).toBe(2);
+    expect(state.defeated).toBe(3);
+    expect(state.fever.chain).toBe(4);
+    expect(state.scrap).toBe(11);
+    expect(
+      state.effects.filter((effect) => effect.radius === BOMBER_BLAST_RADIUS),
+    ).toHaveLength(2);
+  });
+
+  it('lets a landing detonate a golden bomber and carry infection into its chain', () => {
+    const state = arena();
+    state.fever.abilities.gold = 1;
+    const first = rival(state, 40, 0, 1);
+    first.kind = 'bomber';
+    first.golden = true;
+    const next = rival(state, 190, 0, 2);
+    landingBlast(state);
+    expect(first.defeated).toBe(true);
+    expect(next.defeated).toBe(true);
+    expect(next.golden).toBe(true);
+    expect(state.fever.goldCharge).toBe(2);
+    expect(state.fever.chain).toBe(2);
+  });
+
+  it('makes armor a tougher scrap target while preserving a full-speed boost breach', () => {
+    const state = arena('machine');
+    const heavy = rival(state, 200, 0, RIVALS.heavy.hp);
+    heavy.kind = 'heavy';
+    stepCombat(state, FIXED_DT);
+    expect(heavy.hp).toBe(5);
+    expect(heavy.defeated).toBe(false);
+    state.fever.abilities.boost = 1;
+    state.speed = 480;
+    const fortress = rival(state, 0, 0, RIVALS.fortress.hp);
+    fortress.kind = 'fortress';
+    stepCombat(state, FIXED_DT);
+    expect(fortress.defeated).toBe(true);
+    expect(state.scrap).toBe(RIVALS.fortress.scrap);
+    expect(state.pickups).toHaveLength(0);
+    expect(state.status).toBe('running');
   });
 });
 

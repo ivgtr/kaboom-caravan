@@ -149,10 +149,30 @@ function boundedHeight(value: number): number {
   return Math.max(TERRAIN_MIN_HEIGHT, Math.min(TERRAIN_MAX_HEIGHT, value));
 }
 
-/** Short repeatable jump phrases, with landing space for even the fastest build.
- * Boosts cannot invalidate a previously generated landing: the minimum deck
- * supports a full 1650px/s tempo-scaled flight plus a deliberate next press.
+/** Authored silhouettes, shuffled in six-phrase bags. Geometry only consumes the
+ * course seed: earning a boost never moves a ledge that is already visible.
  */
+function nextCoursePhrase(state: RunnerState): number {
+  if (!state.courseBag.length) {
+    const previous = state.coursePhrase;
+    state.courseBag = [0, 1, 2, 3, 4, 5];
+    for (let i = state.courseBag.length - 1; i > 0; i--) {
+      const j = Math.floor(random(state) * (i + 1));
+      [state.courseBag[i], state.courseBag[j]] = [
+        state.courseBag[j]!,
+        state.courseBag[i]!,
+      ];
+    }
+    if (state.courseBag[state.courseBag.length - 1] === previous)
+      [state.courseBag[0], state.courseBag[5]] = [
+        state.courseBag[5]!,
+        state.courseBag[0]!,
+      ];
+  }
+  state.coursePhrase = state.courseBag.pop()!;
+  return state.coursePhrase;
+}
+
 export function generateTerrain(
   state: RunnerState,
   target = state.distance + Math.max(GENERATION_AHEAD, state.speed * 3),
@@ -161,66 +181,150 @@ export function generateTerrain(
     const edge = state.generatedUntil;
     const previous = state.platforms[state.platforms.length - 1]!;
     const top = platformTopAt(previous, edge);
-    // Seed + world distance fully determine road geometry, regardless of when
-    // rewards are collected or which refresh rate delivers the physical input.
-    const speed = getSpeed(edge);
-    const tempo = 1;
+    const phrase = nextCoursePhrase(state);
     const roll = random(state);
-    const descending = state.chunk % 4 === 2;
-    const gap = (speed * (descending ? 0.29 : 0.23)) / tempo;
-    const nextTop = boundedHeight(
-      top + (descending ? -24 : roll < 0.45 ? 0 : 16),
-    );
+    const speed = getSpeed(edge);
+    const landingDelta = [8, -28, 20, -36, 0, 12][phrase]!;
+    const nextTop = boundedHeight(top + landingDelta);
+    const gap = speed * [0.25, 0.34, 0.22, 0.38, 0.18, 0.29][phrase]!;
     const start = edge + gap;
-    const width = Math.max(760, speed * (1.85 + roll * 0.3));
-    // Joined shallow hills preserve a single physical surface for driving/aiming.
-    if (state.chunk % 3 === 1) {
-      const middle = width * 0.42;
-      const rampWidth = Math.min(260, width * 0.23);
-      const endTop = boundedHeight(nextTop + (roll < 0.5 ? 32 : -32));
-      addPlatform(state, start, middle, nextTop);
-      addPlatform(state, start + middle, rampWidth, nextTop, endTop);
-      addPlatform(
-        state,
-        start + middle + rampWidth,
-        width - middle - rampWidth,
-        endTop,
-      );
-    } else addPlatform(state, start, width, nextTop);
-    // Bright arc coins describe the actual short ballistic flight.
-    for (const time of [0.1, 0.2, 0.32]) {
-      const flight = time / tempo;
+    const high = 92 + roll * 20;
+    const low = -30 - roll * 18;
+    const middle = 22 + roll * 18;
+    // Each pair is [horizontal length, endpoint height]. Entry aprons absorb a
+    // boosted landing; the following slopes remain physical drive surfaces.
+    const profiles: Array<Array<[number, number]>> = [
+      [
+        [210, nextTop],
+        [310, high],
+        [170, high],
+        [310, low],
+        [200, low],
+      ],
+      [
+        [200, nextTop],
+        [280, low],
+        [280, low],
+        [320, high],
+        [190, high],
+      ],
+      [
+        [200, nextTop],
+        [240, middle],
+        [160, middle],
+        [240, high],
+        [190, high],
+        [240, middle],
+      ],
+      [
+        [220, nextTop],
+        [360, low],
+        [210, low],
+        [260, middle],
+        [180, middle],
+      ],
+      [
+        [210, nextTop],
+        [240, high],
+        [220, middle],
+        [240, high],
+        [230, low],
+        [180, low],
+      ],
+      [
+        [210, nextTop],
+        [370, high],
+        [220, high],
+        [320, middle],
+        [240, middle],
+      ],
+    ];
+    let x = start;
+    let height = nextTop;
+    for (const [length, endTop] of profiles[phrase]!) {
+      addPlatform(state, x, length, height, endTop);
+      x += length;
+      height = endTop;
+    }
+    const width = x - start;
+    const deckAt = (worldX: number) => {
+      const road = state.platforms.findLast(
+        (p) => worldX >= p.x && worldX <= p.x + p.width,
+      )!;
+      return platformTopAt(road, worldX);
+    };
+    const rival = (offset: number, kind: RivalKind, pace = 0) => {
+      const worldX = start + offset;
+      addRival(state, worldX, deckAt(worldX), kind, pace);
+    };
+    const crate = (offset: number) => {
+      const worldX = start + offset;
+      addCrate(state, worldX, deckAt(worldX));
+    };
+    const chest = (offset: number, lift = 27) => {
+      const worldX = start + offset;
+      if (state.chunk % 2 === 0)
+        addPickup(state, worldX, deckAt(worldX) + lift, 'chest');
+      else
+        for (const dx of [-36, 0, 36])
+          addPickup(state, worldX + dx, deckAt(worldX + dx) + lift, 'scrap');
+    };
+    // Gap arcs and road coins follow the actual course instead of a flat row.
+    for (const time of [0.1, 0.2, 0.32])
       addPickup(
         state,
-        edge + speed * (flight - 0.075),
+        edge + speed * (time - 0.075),
         top + JUMP_VELOCITY * time - 0.5 * GRAVITY * time ** 2 + 18,
         'scrap',
       );
+    for (let offset = 100; offset < width - 110; offset += 150) {
+      const worldX = start + offset;
+      addPickup(state, worldX, deckAt(worldX) + 23, 'scrap');
     }
-    const deckAt = (x: number) => {
-      const road = state.platforms.findLast(
-        (p) => x >= p.x && x <= p.x + p.width,
-      )!;
-      return platformTopAt(road, x);
-    };
-    const cluster = start + Math.max(220, width * 0.36);
-    for (let i = 0; i < 4; i++) {
-      const x = cluster + i * 58;
-      if (i % 2 === 0) addCrate(state, x, deckAt(x));
-      else
-        addRival(
-          state,
-          x,
-          deckAt(x),
-          state.chunk > 5 && i === 3 ? 'heavy' : 'basic',
-        );
+    // Crests guard jump-line treasure; troughs group volatile enemies; open
+    // approaches give a charging buggy its warning window and an escape arc.
+    switch (phrase) {
+      case 0:
+        rival(550, 'heavy');
+        crate(630);
+        chest(610, 84);
+        rival(940, 'basic', 45);
+        break;
+      case 1:
+        crate(495);
+        rival(565, 'bomber');
+        crate(635);
+        rival(710, 'basic', 35);
+        chest(980);
+        break;
+      case 2:
+        rival(330, 'rusher');
+        crate(630);
+        rival(900, state.chunk > 5 ? 'fortress' : 'heavy');
+        chest(1060, 72);
+        break;
+      case 3:
+        rival(450, 'rusher');
+        rival(745, 'bomber');
+        crate(815);
+        crate(880);
+        chest(970);
+        break;
+      case 4:
+        rival(480, 'heavy');
+        chest(635, 82);
+        rival(930, 'basic', 65);
+        crate(1035);
+        break;
+      default:
+        rival(420, 'basic', 65);
+        rival(635, 'heavy');
+        crate(890);
+        rival(980, 'bomber');
+        crate(1055);
+        chest(1190);
     }
-    scrapLine(state, start + 95, nextTop, 4);
-    const chestX = start + width * 0.78;
-    if (state.chunk % 2 === 0)
-      addPickup(state, chestX, deckAt(chestX) + 27, 'chest');
-    else scrapLine(state, chestX - 90, deckAt(chestX), 4);
-    state.generatedUntil = start + width;
+    state.generatedUntil = x;
     state.chunk++;
   }
 }
@@ -266,6 +370,8 @@ export function createRunner(seed = 1): RunnerState {
     effects: [],
     generatedUntil: 0,
     chunk: 0,
+    courseBag: [],
+    coursePhrase: -1,
     jumps: 0,
     scrap: 0,
     passed: 0,

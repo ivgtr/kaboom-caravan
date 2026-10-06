@@ -6,7 +6,12 @@ import {
   openChest,
   registerDestruction,
 } from './fever';
-import { platformTopAt, playerMuzzle, playerTilt } from './terrain';
+import {
+  platformsJoin,
+  platformTopAt,
+  playerMuzzle,
+  playerTilt,
+} from './terrain';
 import {
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
@@ -23,13 +28,35 @@ export const SCRAP_PER_LEVEL = 25;
 export const MAGNET_DISTANCE = 1100;
 export const RIVAL_WARNING_TIME = 0.8;
 export const RIVAL_WARNING_LEAD_TIME = 1.05;
+export const BOMBER_BLAST_RADIUS = 190;
+export const BOMBER_BLAST_DAMAGE = 6;
 const HALF_PLAYER = PLAYER_WIDTH / 2;
 const MAX_CONTACT_DISTANCE =
   HALF_PLAYER +
   Math.max(...Object.values(RIVALS).map((rival) => rival.width / 2));
+function rusherChargeSpeed(speed: number): number {
+  return Math.max(75, Math.min(140, speed * 0.22));
+}
+
 /** Give every body a real-time approach window as the road accelerates. */
-export function rivalWarningDistance(speed: number): number {
-  return Math.max(500, speed * RIVAL_WARNING_LEAD_TIME + MAX_CONTACT_DISTANCE);
+export function rivalWarningDistance(
+  speed: number,
+  kind: Rival['kind'] = 'basic',
+): number {
+  const ordinary = Math.max(
+    500,
+    speed * RIVAL_WARNING_LEAD_TIME + MAX_CONTACT_DISTANCE,
+  );
+  // A rusher must finish its full warning before the ordinary machine gun can
+  // erase it. Reserve 0.3s of visible oncoming motion before entering gun range.
+  return kind === 'rusher'
+    ? Math.max(
+        ordinary,
+        speed * RIVAL_WARNING_TIME +
+          WEAPONS.machine.range +
+          (speed + rusherChargeSpeed(speed)) * 0.3,
+      )
+    : ordinary;
 }
 
 function effect(
@@ -174,7 +201,7 @@ function damageTarget(
   } else if (target.obstacle) {
     target.obstacle.destroyed = true;
   }
-  const reward = target.rival ? 3 : 2;
+  const reward = target.rival ? RIVALS[target.rival.kind].scrap : 2;
   awardScrap(state, reward);
   registerDestruction(state, target.x, target.y, entity.golden);
   effect(
@@ -195,6 +222,49 @@ function damageTarget(
         if (body) body.golden = true;
       }
     }
+  }
+  if (target.rival?.kind === 'bomber') {
+    effect(state, 'burst', target.x, target.y, 'CHAIN BLAST');
+    state.effects[state.effects.length - 1]!.radius = BOMBER_BLAST_RADIUS;
+    // The bomber is already defeated, so another blast cannot reward it twice.
+    // Infect first: chain reactions preserve the build's real golden kills.
+    for (const next of activeTargets(state)) {
+      if (
+        Math.hypot(next.x - target.x, next.y - target.y) <= BOMBER_BLAST_RADIUS
+      )
+        damageTarget(state, next, BOMBER_BLAST_DAMAGE);
+    }
+  }
+}
+
+/** Follow every connected slope, stopping short of a real ledge, in either direction. */
+function moveRival(state: RunnerState, rival: Rival, dt: number): void {
+  let road = state.platforms.find(
+    (platform) =>
+      rival.x >= platform.x && rival.x <= platform.x + platform.width,
+  );
+  if (!road) return;
+  const destination = rival.x + rival.speed * dt;
+  const forward = rival.speed >= 0;
+  // A generated island can have several short, joined terrain segments. The
+  // eighty-pixel safety margin belongs only to its open ends, never each seam.
+  for (let segment = 0; segment <= state.platforms.length; segment++) {
+    const next = state.platforms.find((platform) =>
+      forward ? platformsJoin(road!, platform) : platformsJoin(platform, road!),
+    );
+    const edge = forward ? road.x + road.width : road.x;
+    const crossesEdge = forward ? destination > edge : destination < edge;
+    if (next && crossesEdge) {
+      road = next;
+      continue;
+    }
+    rival.x = next
+      ? destination
+      : forward
+        ? Math.min(destination, Math.max(rival.x, edge - 80))
+        : Math.max(destination, Math.min(rival.x, edge + 80));
+    rival.y = platformTopAt(road, rival.x);
+    return;
   }
 }
 
@@ -473,39 +543,51 @@ export function stepCombat(
     y: number,
     width: number,
     height: number,
+    previousX = x,
+    previousY = y,
   ): boolean => {
-    const min = x - width / 2 - HALF_PLAYER;
-    const max = x + width / 2 + HALF_PLAYER;
-    const travel = state.distance - oldX;
-    const enter = travel > 0 ? Math.max(0, (min - oldX) / travel) : 0;
-    const leave = travel > 0 ? Math.min(1, (max - oldX) / travel) : 1;
-    if (enter > leave || state.distance < min || oldX > max) return false;
-    const feet = oldY + (state.player.y - oldY) * enter;
-    const endFeet = oldY + (state.player.y - oldY) * leave;
+    const reach = width / 2 + HALF_PLAYER;
+    const start = oldX - previousX;
+    const end = state.distance - x;
+    const travel = end - start;
+    if (Math.abs(travel) < 1e-9 && Math.abs(start) > reach) return false;
+    const first = travel === 0 ? 0 : (-reach - start) / travel;
+    const last = travel === 0 ? 1 : (reach - start) / travel;
+    const enter = Math.max(0, Math.min(first, last));
+    const leave = Math.min(1, Math.max(first, last));
+    if (enter > leave) return false;
+    const startFeet = oldY - previousY;
+    const feetTravel = state.player.y - y - startFeet;
+    const feet = startFeet + feetTravel * enter;
+    const endFeet = startFeet + feetTravel * leave;
     return (
-      Math.min(feet, endFeet) < y + height - 1 &&
-      Math.max(feet, endFeet) + PLAYER_HEIGHT > y + 2
+      Math.min(feet, endFeet) < height - 1 &&
+      Math.max(feet, endFeet) + PLAYER_HEIGHT > 2
     );
   };
   for (const obstacle of state.obstacles)
     obstacle.hit = Math.max(0, obstacle.hit - dt);
+  const previousRivals = new Map<number, { x: number; y: number }>();
   for (const rival of state.rivals) {
-    if (rival.x - state.distance <= rivalWarningDistance(state.speed))
+    if (
+      rival.x - state.distance <=
+      rivalWarningDistance(state.speed, rival.kind)
+    )
       rival.age += dt;
     rival.hit = Math.max(0, rival.hit - dt);
     if (rival.defeated) continue;
-    const road = state.platforms.find(
-      (platform) =>
-        rival.x >= platform.x && rival.x <= platform.x + platform.width,
-    );
-    if (road) {
-      // Never teleport a newly spawned target backward on a short platform.
-      rival.x = Math.min(
-        rival.x + rival.speed * dt,
-        Math.max(rival.x, road.x + road.width - 80),
+    previousRivals.set(rival.id, { x: rival.x, y: rival.y });
+    if (rival.kind === 'rusher') {
+      // Let the warning finish before the oncoming motion starts. At top speed
+      // the charge remains bounded rather than erasing the player's jump window.
+      rival.speed =
+        rival.age >= RIVAL_WARNING_TIME ? -rusherChargeSpeed(state.speed) : 0;
+      moveRival(
+        state,
+        rival,
+        Math.min(dt, Math.max(0, rival.age - RIVAL_WARNING_TIME)),
       );
-      rival.y = platformTopAt(road, rival.x);
-    }
+    } else moveRival(state, rival, dt);
   }
   fireWeapon(state, dt);
   for (const obstacle of state.obstacles) {
@@ -536,7 +618,17 @@ export function stepCombat(
   for (const rival of state.rivals) {
     if (rival.defeated || rival.age < RIVAL_WARNING_TIME) continue;
     const definition = RIVALS[rival.kind];
-    if (!sweptBody(rival.x, rival.y, definition.width, definition.height))
+    const previous = previousRivals.get(rival.id)!;
+    if (
+      !sweptBody(
+        rival.x,
+        rival.y,
+        definition.width,
+        definition.height,
+        previous.x,
+        previous.y,
+      )
+    )
       continue;
     if (state.fever.abilities.boost > 0 && state.speed >= 480) {
       damageTarget(

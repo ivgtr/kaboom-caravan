@@ -1,12 +1,7 @@
 import { START_SPEED, MAX_SPEED } from './pacing';
 import { RIVALS, WEAPONS } from './definitions';
 import { RIVAL_WARNING_TIME } from './combat';
-import {
-  ABILITY_LABELS,
-  JACKPOT_FREEZE,
-  MAX_ABILITY_LEVEL,
-  REEL_FIRST_REVEAL,
-} from './fever';
+import { JACKPOT_FREEZE, MAX_ABILITY_LEVEL, REEL_FIRST_REVEAL } from './fever';
 import type { RunnerArt } from './assets';
 import {
   platformSlope,
@@ -372,10 +367,11 @@ function renderExhaust(
       (48 + Math.min(8, boost) * 10 + (state.fever.hyperTime > 0 ? 30 : 0)) *
       pulse;
     ctx.save();
-    ctx.translate(-24, -22);
-    ctx.scale(-1, 1);
+    // The painted trail's bright nozzle is its RIGHT tip. Leave the image
+    // unflipped and attach that tip to the rear booster, tail flowing left.
+    ctx.translate(-23, -32);
     ctx.globalAlpha = reducedMotion ? 0.72 : 0.95;
-    ctx.drawImage(art.fever.trail, 0, -width * 0.16, width, width * 0.32);
+    ctx.drawImage(art.fever.trail, -width, -width * 0.13, width, width * 0.26);
     ctx.restore();
     return;
   }
@@ -401,6 +397,12 @@ function renderExhaust(
 }
 
 const ABILITY_KEYS: AbilityId[] = ['boost', 'slam', 'gold', 'magnet'];
+const REEL_LABELS: Record<AbilityId, string> = {
+  boost: 'BOOST',
+  slam: 'BOMB',
+  gold: 'GOLD',
+  magnet: 'MAGNET',
+};
 // Sound A loses power over this interval, then holds silence until FREEZE ends.
 // Both phases read simulation time; pausing cannot advance the presentation.
 const FREEZE_POWER_CUT = 0.16;
@@ -441,19 +443,21 @@ function renderFeverShow(
   const reel = f.reel;
   const hyper = f.hyperTime > 0;
   const rush = f.rushTime > 0;
-  const color = hyper ? '#ffb76a' : '#ffed94';
+  const portrait = view.height > view.width;
   const cabinetWidth = Math.min(
-    view.width * 0.78,
-    view.width - view.anchor - 76,
-    Math.max(420, (view.ground - 170) * 2.8),
-    1130,
+    view.width * (portrait ? 0.88 : 0.51),
+    Math.max(380, (view.ground - 235) * 2.3),
+    790,
   );
   const cabinetHeight =
     (cabinetWidth * art.fever.cabinet.height) / art.fever.cabinet.width;
-  const cx = Math.min(view.width * 0.6, view.width - cabinetWidth / 2 - 16);
+  const cx = view.width * (portrait ? 0.5 : 0.6);
   const top = Math.max(
-    20,
-    Math.min(view.height * 0.14, view.ground - cabinetHeight - 155),
+    portrait ? 285 : 46,
+    Math.min(
+      view.height * (portrait ? 0.21 : 0.13),
+      view.ground - cabinetHeight - 190,
+    ),
   );
   ctx.save();
   if (reel) {
@@ -498,16 +502,10 @@ function renderFeverShow(
     const title = reel.jackpot
       ? 'JACKPOT'
       : hyper
-        ? 'HYPER TREASURE'
+        ? 'HYPER'
         : rush
-          ? 'RUSH TREASURE'
-          : reel.merged > 1
-            ? 'TREASURE CASCADE'
-            : count >= 3
-              ? 'TRIPLE TREASURE'
-              : count === 2
-                ? 'DOUBLE TREASURE'
-                : 'TREASURE CHANCE';
+          ? 'RUSH'
+          : 'TREASURE';
     fittedText(
       ctx,
       title,
@@ -600,10 +598,10 @@ function renderFeverShow(
     const latest = reel.rewards[Math.max(0, reel.revealed - 1)]!;
     const caption =
       reel.revealed === 0
-        ? 'WHAT WILL YOU GET?'
+        ? Array.from({ length: count }, () => '●').join('  ')
         : f.abilities[latest.kind] >= MAX_ABILITY_LEVEL
-          ? `${ABILITY_LABELS[latest.kind]} MAX → SCORE`
-          : `${ABILITY_LABELS[latest.kind]}  +${latest.count}`;
+          ? `${REEL_LABELS[latest.kind]} MAX`
+          : `${REEL_LABELS[latest.kind]} +${latest.count}`;
     fittedText(
       ctx,
       caption,
@@ -613,69 +611,45 @@ function renderFeverShow(
       cabinetWidth * 0.275,
       reel.revealed > 0 ? '#c6fff0' : '#fff4bd',
     );
-    if (reel.revealed > 0 && !showingAward) {
-      const level = f.abilities[latest.kind];
-      const rank =
-        level >= MAX_ABILITY_LEVEL
-          ? 'MAXIMUM POWER'
-          : level >= 5
-            ? 'SUPER RANK UP'
-            : 'RANK UP';
-      fittedText(
+    if (f.queue.length > 0) {
+      const queueX = left + cabinetWidth * 0.92;
+      sprite(
         ctx,
-        `${rank}  Lv.${level}`,
-        cx,
-        top + cabinetHeight + 28,
-        cabinetWidth * 0.043,
-        cabinetWidth * 0.75,
-        '#ffe28b',
-      );
-    } else if (!showingAward) {
-      fittedText(
-        ctx,
-        `${count} ${count === 1 ? 'REWARD' : 'REWARDS'} · AUTO OPEN`,
-        cx,
-        top + cabinetHeight + 26,
-        cabinetWidth * 0.027,
-        cabinetWidth * 0.75,
-        '#fff2c6',
-      );
-    }
-    if (f.queue.length > 0)
-      fittedText(
-        ctx,
-        `NEXT ×${f.queue.reduce((sum, next) => sum + next.merged, 0)}`,
-        left + cabinetWidth * 0.86,
+        art.fever.chest,
+        queueX,
         top + cabinetHeight * 0.96,
-        cabinetWidth * 0.023,
-        cabinetWidth * 0.16,
+        cabinetWidth * 0.055,
+      );
+      text(
+        ctx,
+        `${f.queue.reduce((sum, next) => sum + next.merged, 0)}`,
+        queueX + cabinetWidth * 0.031,
+        top + cabinetHeight * 0.96,
+        cabinetWidth * 0.027,
         '#fff9cf',
       );
-  } else if (hyper || rush) {
-    const y = Math.max(100, Math.min(view.height * 0.24, view.ground - 225));
+    }
+  } else if (
+    (f.event?.kind === 'hyper' || f.event?.kind === 'rush') &&
+    f.clock - f.event.clock < 0.85
+  ) {
+    const age = f.clock - f.event.clock;
+    const y = top + cabinetHeight * 0.6;
     ctx.save();
-    ctx.globalAlpha = reducedMotion ? 0.17 : 0.22;
-    sprite(ctx, art.fever.burst, cx, y + 80, Math.min(440, view.width * 0.47));
-    ctx.restore();
+    ctx.globalAlpha = Math.min(1, (0.85 - age) * 4);
+    sprite(ctx, art.fever.burst, cx, y + 35, Math.min(210, view.width * 0.25));
     text(
       ctx,
-      hyper ? 'HYPER FEVER' : 'RUSH!',
+      hyper ? 'HYPER!' : 'RUSH!',
       cx,
       y,
-      Math.min(86, view.width * 0.086),
-      color,
+      Math.min(52, view.width * 0.064),
+      hyper ? '#ffb76a' : '#ffed94',
     );
-    text(
-      ctx,
-      `${f.chain} CHAIN   ×${f.multiplier.toFixed(1)}`,
-      cx,
-      y + 41,
-      Math.min(37, view.width * 0.04),
-      '#fff1c0',
-    );
+    ctx.restore();
   }
   if (rewardCue && showingAward) {
-    const y = top + cabinetHeight + 81;
+    const y = top + cabinetHeight + 53;
     ctx.save();
     ctx.globalAlpha = Math.min(1, (1 - rewardAge) * 4);
     const pop = reducedMotion ? 1 : 1 + Math.max(0, 0.18 - rewardAge) * 1.1;
@@ -684,8 +658,8 @@ function renderFeverShow(
       `+${displayScore(rewardCue.value)}`,
       cx,
       Math.min(view.ground - 90, y - rewardAge * 18),
-      Math.min(86, view.width * 0.08) * pop,
-      view.width - view.anchor - 65,
+      Math.min(58, view.width * 0.062) * pop,
+      cabinetWidth * 0.85,
       '#fff6b4',
     );
     ctx.restore();
@@ -857,21 +831,12 @@ export function renderRunner(
       ctx.shadowBlur = reducedMotion ? 3 : 8;
       ctx.drawImage(image, x - size / 2, y - h / 2 + bob, size, h);
       ctx.restore();
-      text(
-        ctx,
-        pickup.earned ? 'GOLD' : 'CHEST',
-        x,
-        y - h / 2 - 7 + bob,
-        14,
-        '#fff0a8',
-      );
     } else if (pickup.kind === 'scrap') {
       // Keep the familiar guide spacing and footprint with actual salvage art.
       const size = 20;
       const h = (size * art.scrap.height) / art.scrap.width;
       ctx.drawImage(art.scrap, x - size / 2, y - h / 2 + bob, size, h);
     } else {
-      const color = pickup.weapon ? WEAPONS[pickup.weapon].color : '#9fffe6';
       ellipse(ctx, x, y + 27, 20, 3, '#244d4730');
       const img = pickup.weapon
         ? art.weapons[pickup.weapon]
@@ -881,25 +846,39 @@ export function renderRunner(
       const size = 45;
       const h = (size * img.height) / img.width;
       ctx.drawImage(img, x - size / 2, y - h / 2 + bob, size, h);
-      text(
-        ctx,
-        pickup.weapon
-          ? `${WEAPONS[pickup.weapon].label}${state.weapon?.id === pickup.weapon ? (state.weapon.level === 3 ? ' ↻' : ' ↑') : ''}`
-          : pickup.kind === 'shield'
-            ? '+1'
-            : '磁石',
-        x,
-        y - 36 + bob,
-        18,
-        color,
-      );
+      if (pickup.weapon && state.weapon?.id === pickup.weapon)
+        text(
+          ctx,
+          state.weapon.level === 3 ? '↻' : '↑',
+          x,
+          y - 32 + bob,
+          19,
+          '#fff0a8',
+        );
     }
   }
+  let edgeWarningDrawn = false;
   for (const rival of state.rivals) {
     const x = sx(rival.x),
       y = ground - rival.y;
-    if (x < -120 || x > width + 120) continue;
     const telegraph = rival.age < RIVAL_WARNING_TIME;
+    const charging = rival.kind === 'rusher' && rival.speed < 0;
+    if (
+      rival.kind === 'rusher' &&
+      !rival.defeated &&
+      telegraph &&
+      rival.age > 0 &&
+      x > width - 35 &&
+      !edgeWarningDrawn
+    ) {
+      // Windup can begin outside the camera. One pinned directional cue makes
+      // the full warning useful without stacking names along the horizon.
+      edgeWarningDrawn = true;
+      const warningY = Math.min(ground - 35, Math.max(100, y - 36));
+      sprite(ctx, art.rivals.rusher[2]!, width - 27, warningY, 34);
+      text(ctx, '!', width - 28, warningY - 34, 23, '#ffbf70');
+    }
+    if (x < -120 || x > width + 120) continue;
     const size = rival.kind === 'heavy' || rival.kind === 'fortress' ? 82 : 67;
     ellipse(ctx, x, y + 2, size * 0.4, 6, '#183e4438');
     ctx.save();
@@ -911,33 +890,57 @@ export function renderRunner(
     const bounce = reducedMotion
       ? 0
       : Math.sin(rival.age * 16) * (rival.kind === 'rusher' ? 4 : 2);
-    const pose = rival.defeated ? 3 : Math.floor(rival.age * 6) % 2;
-    sprite(
-      ctx,
-      (rival.golden ? art.fever.goldenRivals : art.rivals)[rival.kind][pose]!,
-      x,
-      y + bounce,
-      size,
-      true,
-    );
+    const pose = rival.defeated
+      ? 3
+      : rival.kind === 'rusher'
+        ? charging
+          ? 3
+          : 2
+        : Math.floor(rival.age * 6) % 2;
+    if (!rival.defeated && rival.kind === 'bomber') {
+      ctx.shadowColor = '#ffad54';
+      ctx.shadowBlur = reducedMotion ? 6 : 7 + Math.sin(rival.age * 8) * 3;
+    } else if (!rival.defeated && charging) {
+      ctx.shadowColor = '#ff7f51';
+      ctx.shadowBlur = reducedMotion ? 3 : 7;
+    }
+    const image = (rival.golden ? art.fever.goldenRivals : art.rivals)[
+      rival.kind
+    ][pose]!;
+    sprite(ctx, image, x, y + bounce, size, rival.kind !== 'rusher');
     ctx.restore();
     if (!rival.defeated) {
       // A high-speed warning may begin just outside portrait view. Keep the
       // active cue visible at the edge instead of counting unseen warning time.
-      if (telegraph && rival.age > 0)
+      const spriteTop = y - (size * image.height) / image.width;
+      if (
+        rival.kind === 'rusher' &&
+        telegraph &&
+        rival.age > 0 &&
+        x <= width - 35
+      )
         text(
           ctx,
           '!',
           Math.min(x, width - 16),
-          y - size - 13,
-          27,
+          spriteTop - 11,
+          24,
           RIVALS[rival.kind].color,
         );
-      if (rival.hp < rival.maxHp) {
-        ctx.fillStyle = '#244a48';
-        ctx.fillRect(x - 17, y - size - 2, 34, 4);
-        ctx.fillStyle = '#ffc460';
-        ctx.fillRect(x - 17, y - size - 2, (34 * rival.hp) / rival.maxHp, 4);
+      const armored = rival.kind === 'heavy' || rival.kind === 'fortress';
+      if (armored || rival.hp < rival.maxHp) {
+        const plates = armored ? Math.min(12, rival.maxHp) : 4;
+        const left = x - (plates * 5 - 1) / 2;
+        for (let i = 0; i < plates; i++) {
+          ctx.fillStyle = '#203c46';
+          ctx.fillRect(left + i * 5 - 0.5, spriteTop - 9, 4.5, 5);
+          ctx.fillStyle = armored ? '#bee6d7' : '#ffc460';
+          const remaining = Math.max(
+            0,
+            Math.min(1, (rival.hp / rival.maxHp) * plates - i),
+          );
+          ctx.fillRect(left + i * 5, spriteTop - 8, 3.5 * remaining, 3);
+        }
       }
     }
   }
@@ -946,15 +949,19 @@ export function renderRunner(
   // The painted landing blast reaches the actual attack radius, below the car.
   // Keep its height low so a fast slam never hides the next takeoff silhouette.
   for (const effect of state.effects) {
-    if (effect.kind !== 'slam') continue;
+    const chainBlast = effect.kind === 'burst' && effect.radius !== undefined;
+    if (effect.kind !== 'slam' && !chainBlast) continue;
     const fraction = Math.max(0, effect.life / effect.maxLife);
     const diameter = (effect.radius ?? 150) * 2;
     const size = diameter * (reducedMotion ? 1 : 0.58 + (1 - fraction) * 0.42);
-    const blastHeight = Math.min(88, size * 0.2);
+    const blastHeight = Math.min(
+      chainBlast ? 140 : 88,
+      size * (chainBlast ? 0.4 : 0.2),
+    );
     ctx.save();
     ctx.globalAlpha = fraction * (reducedMotion ? 0.45 : 0.72);
     ctx.drawImage(
-      art.fever.burst,
+      chainBlast ? art.effects.burst : art.fever.burst,
       sx(effect.x) - size / 2,
       ground - effect.y - blastHeight * 0.74,
       size,
@@ -1057,16 +1064,11 @@ export function renderRunner(
     ctx.globalAlpha = fraction;
     // Equipment already has one HUD notice; another label here would cover
     // the mounted weapon during high jumps on a short landscape screen.
-    if (effect.kind === 'slam') {
-      if (effect.text)
-        text(
-          ctx,
-          effect.text,
-          x + 30,
-          y - 64 - (1 - fraction) * 32,
-          31,
-          '#fff0a8',
-        );
+    if (
+      effect.kind === 'slam' ||
+      (effect.kind === 'burst' && effect.radius !== undefined)
+    ) {
+      // Area attacks already show their actual painted reach behind the car.
     } else if (effect.kind === 'gold') {
       const size = 54 + (1 - fraction) * 36;
       ctx.globalAlpha = fraction * 0.85;
@@ -1074,7 +1076,6 @@ export function renderRunner(
     } else if (effect.kind === 'chest') {
       const size = 85 + (1 - fraction) * 28;
       sprite(ctx, art.fever.openChest, x, y + 25 - (1 - fraction) * 35, size);
-      if (effect.text) text(ctx, effect.text, x, y - size - 5, 25, '#fff0a8');
     } else if (effect.kind === 'guard') {
       // A directional flash only when contact consumes a guard, never an aura.
       const size = reducedMotion ? 32 : 44;
@@ -1087,7 +1088,7 @@ export function renderRunner(
         (reducedMotion ? 1 : 0.85 + (1 - fraction) * 0.15);
       ctx.globalAlpha = fraction * fraction;
       sprite(ctx, image, x, y + (size * image.height) / image.width / 2, size);
-      if (effect.text) {
+      if (effect.text && /^\+\d/.test(effect.text)) {
         ctx.globalAlpha = fraction;
         text(
           ctx,
@@ -1100,6 +1101,7 @@ export function renderRunner(
       }
     } else if (
       effect.text &&
+      /^\+\d/.test(effect.text) &&
       effect.kind !== 'pickup' &&
       effect.kind !== 'recover'
     )
