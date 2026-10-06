@@ -52,7 +52,7 @@ export function drawPaintedSprite(
   // Large cabinet glows need wider buckets to avoid a new canvas every frame
   // while they spring into view (up to 8px size / 1px blur tolerance).
   const bucket = Math.max(width * sx, height * sy) > 256 ? 16 : 4;
-  const blurBucket = bucket === 16 ? 2 : 0.5;
+  const blurBucket = bucket === 16 && ctx.shadowBlur >= 2 ? 2 : 0.5;
   const pw = Math.max(bucket, Math.round((width * sx) / bucket) * bucket);
   const ph = Math.max(bucket, Math.round((height * sy) / bucket) * bucket);
   const blur = Math.round(ctx.shadowBlur / blurBucket) * blurBucket;

@@ -141,6 +141,18 @@ describe('painted sprite glow cache', () => {
     expect(create).toHaveBeenCalledTimes(3);
   });
 
+  it('keeps faint large halos cached through the end of their fade', () => {
+    const { ctx, create, contexts, draw } = setup();
+    ctx.shadowBlur = 0.6;
+    draw(600, 240);
+    ctx.shadowBlur = 0.5;
+    draw(600, 240);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(contexts[0]!.shadowBlur).toBe(0.5);
+    expect(ctx.drawImage).toHaveBeenCalledTimes(4);
+    expect(ctx.shadowBlur).toBe(0.5);
+  });
+
   it('reuses a halo while applying changing alpha separately to shadow and source', () => {
     const { ctx, image, create, draw } = setup();
     const compositing: number[][] = [];

@@ -514,8 +514,16 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
                 max: sorted.at(-1) ?? 0,
               };
             };
+            const gl = document.createElement('canvas').getContext('webgl');
+            const debug = gl?.getExtension('WEBGL_debug_renderer_info');
+            const gpuRenderer = debug
+              ? String(gl!.getParameter(debug.UNMASKED_RENDERER_WEBGL))
+              : null;
+            gl?.getExtension('WEBGL_lose_context')?.loseContext();
             return {
               userAgent: navigator.userAgent,
+              hardwareConcurrency: navigator.hardwareConcurrency,
+              gpuRenderer,
               dpr: devicePixelRatio,
               viewport: [innerWidth, innerHeight],
               frameGapMs: distribution(qa.qaFrames.map((frame) => frame.gap)),
