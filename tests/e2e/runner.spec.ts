@@ -317,7 +317,7 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
           const runner = document.querySelector('[data-testid="runner"]');
           if (runner?.getAttribute('data-status') === 'running')
             qa.qaFrames!.push({
-              at: Number(runner.getAttribute('data-time')),
+              at: Number(runner.getAttribute('data-fever-clock')),
               gap: previous ? now - previous : 0,
               cpu: performance.now() - begin,
             });
