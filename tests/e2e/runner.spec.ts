@@ -233,9 +233,16 @@ async function replay(
         'running',
       );
       if (event.checkpoint === 32) {
-        expect(await number(page, 'speed')).toBeGreaterThan(800);
+        const expectedSpeed = buildReplay(42, 32).state.speed;
+        expect(
+          Math.abs((await number(page, 'speed')) - expectedSpeed),
+        ).toBeLessThan(35);
         expect(await number(page, 'score')).toBeGreaterThan(10000);
         expect(await number(page, 'chests')).toBeGreaterThan(5);
+      }
+      if (event.checkpoint === 119) {
+        expect(await number(page, 'speed')).toBeGreaterThan(1200);
+        expect(await number(page, 'slot-kick')).toBeGreaterThan(100);
       }
       await capture(page, info, `${name}-${event.checkpoint}s`);
     }

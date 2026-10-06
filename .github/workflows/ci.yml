@@ -53,5 +53,7 @@ jobs:
             test-results/*/touch-*.png
             test-results/*/test-failed-*.png
             test-results/*/error-context.md
+            test-results/*/normal-speed-*.webm
+            test-results/*/normal-speed-capture.json
           retention-days: 7
           if-no-files-found: ignore
