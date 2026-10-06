@@ -493,15 +493,17 @@ test('real keyboard replay chains chests, inflation and high-speed landing destr
     (window as unknown as { effectArtProbe: typeof probe }).effectArtProbe =
       probe;
     const draw = CanvasRenderingContext2D.prototype.drawImage;
-    let worldRatio = 1;
+    let worldTransform = new DOMMatrix();
     CanvasRenderingContext2D.prototype.drawImage = function (...args) {
       const image = args[0];
       if (this.canvas.isConnected) {
         const matrix = this.getTransform();
+        // Remove the whole-scene FREEZE transform before measuring local art,
+        // including exhaust rotated with the car on slopes or in midair.
+        if (image instanceof HTMLImageElement) worldTransform = matrix;
+        const local = worldTransform.inverse().multiply(matrix);
         const ratio =
-          Math.hypot(matrix.a, matrix.b) / Math.hypot(matrix.c, matrix.d);
-        // The intentional whole-scene FREEZE compression is the baseline.
-        if (image instanceof HTMLImageElement) worldRatio = ratio;
+          Math.hypot(local.a, local.b) / Math.hypot(local.c, local.d);
         if (image instanceof HTMLCanvasElement && args.length === 5) {
           const key = `${image.width}x${image.height}`;
           if (['351x307', '485x490', '347x210'].includes(key)) {
@@ -510,7 +512,7 @@ test('real keyboard replay chains chests, inflation and high-speed landing destr
               probe.distortion,
               Math.abs(
                 ((Number(args[3]) / Number(args[4])) * image.height * ratio) /
-                  (image.width * worldRatio) -
+                  image.width -
                   1,
               ),
             );
