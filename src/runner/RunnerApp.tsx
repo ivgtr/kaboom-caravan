@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ABILITY_ART, HUD_ART, loadRunnerArt, WEAPON_ART } from './assets';
 import { RunnerAudio } from './audio';
 import { WEAPONS } from './definitions';
+import { MAX_ABILITY_LEVEL, MAX_AWAKENING_TIME } from './fever';
 import { MAX_SPEED, START_SPEED } from './pacing';
-import { renderRunner, runnerViewport } from './render';
+import { renderRunner, runnerViewport, slotKickPulse } from './render';
 import {
   clearJumpInput,
   createRunner,
@@ -14,6 +15,7 @@ import {
   startRunner,
   stepRunner,
 } from './simulation';
+import { platformsJoin, supportingPlatform } from './terrain';
 import { FIXED_DT, PIXELS_PER_METRE, type RunnerState } from './types';
 import './runner.css';
 
@@ -43,7 +45,29 @@ function initialSeed() {
     : newSeed();
 }
 function snapshot(state: RunnerState) {
+  // Read-only geometry lets input replays follow the actual build-aware route.
+  // A road is the entire joined island, rather than one slope segment.
+  const support = state.player.grounded ? supportingPlatform(state) : undefined;
+  let roadEnd = 0,
+    nextRoadX = 0,
+    nextRoadTop = 0;
+  if (support) {
+    let index = state.platforms.indexOf(support);
+    while (
+      index + 1 < state.platforms.length &&
+      platformsJoin(state.platforms[index]!, state.platforms[index + 1]!)
+    )
+      index++;
+    const end = state.platforms[index]!;
+    const next = state.platforms[index + 1];
+    roadEnd = end.x + end.width;
+    nextRoadX = next?.x ?? 0;
+    nextRoadTop = next?.top ?? 0;
+  }
   return {
+    roadEnd,
+    nextRoadX,
+    nextRoadTop,
     status: state.status,
     score: Math.floor(state.score),
     scoreParts: {
@@ -65,6 +89,11 @@ function snapshot(state: RunnerState) {
     peakSpeed: state.peakSpeed,
     chestsOpened: state.chestsOpened,
     abilities: { ...state.fever.abilities },
+    awakening: { ...state.fever.awakening },
+    slotBoost: state.fever.slotBoost,
+    slotKickSerial: state.fever.slotKickSerial,
+    slotKickClock: state.fever.slotKickClock,
+    slotPulse: slotKickPulse(state.fever),
     freeze: state.fever.freeze,
     rushTime: state.fever.rushTime,
     hyperTime: state.fever.hyperTime,
@@ -152,7 +181,8 @@ export function RunnerApp() {
       previousTime = 0,
       accumulator = 0,
       uiTime = 0,
-      lastCut = false;
+      lastCut = false,
+      lastKick = 0;
     let width = 0,
       height = 0,
       lastEffect = 0;
@@ -352,10 +382,15 @@ export function RunnerApp() {
           );
           renderRunner(context, state, art, viewport, reducedMotion);
           const cut = state.status === 'running' && state.fever.freeze > 0;
-          if (cut !== lastCut || now - uiTime >= 60) {
+          if (
+            cut !== lastCut ||
+            state.fever.slotKickSerial !== lastKick ||
+            now - uiTime >= 60
+          ) {
             sync();
             uiTime = now;
             lastCut = cut;
+            lastKick = state.fever.slotKickSerial;
           }
           frame = requestAnimationFrame(tick);
         };
@@ -415,7 +450,17 @@ export function RunnerApp() {
       data-slam={view.abilities.slam}
       data-gold={view.abilities.gold}
       data-magnet={view.abilities.magnet}
+      data-slot-boost={view.slotBoost.toFixed(2)}
+      data-slot-kick={view.slotKickSerial}
+      data-slot-kick-clock={view.slotKickClock.toFixed(3)}
+      data-awakening-boost={view.awakening.boost.toFixed(3)}
+      data-awakening-slam={view.awakening.slam.toFixed(3)}
+      data-awakening-gold={view.awakening.gold.toFixed(3)}
+      data-awakening-magnet={view.awakening.magnet.toFixed(3)}
       data-world-x={view.worldX.toFixed(2)}
+      data-road-end={view.roadEnd.toFixed(2)}
+      data-next-road-x={view.nextRoadX.toFixed(2)}
+      data-next-road-top={view.nextRoadTop.toFixed(2)}
       data-speed={view.speed.toFixed(2)}
       data-y={view.y.toFixed(1)}
       data-grounded={view.grounded}
@@ -502,12 +547,26 @@ export function RunnerApp() {
                 <span
                   key={key}
                   className="runner-module"
+                  data-ability={key}
                   data-active={view.abilities[key] > 0}
-                  aria-label={`${label} レベル${view.abilities[key]}`}
-                  title={`${label} Lv.${view.abilities[key]}`}
+                  data-max={view.abilities[key] >= MAX_ABILITY_LEVEL}
+                  data-awakened={view.awakening[key] > 0}
+                  aria-label={`${label} レベル${view.abilities[key]}${view.awakening[key] > 0 ? ' 覚醒中' : ''}`}
+                  title={`${label} Lv.${view.abilities[key]}${view.awakening[key] > 0 ? ' 覚醒中' : ''}`}
                 >
                   <img src={ABILITY_ART[key]} alt="" />
-                  <b>{view.abilities[key]}</b>
+                  <b>
+                    {view.abilities[key] >= MAX_ABILITY_LEVEL
+                      ? 'MAX'
+                      : view.abilities[key]}
+                  </b>
+                  <i className="runner-awakening-fuse" aria-hidden="true">
+                    <i
+                      style={{
+                        transform: `scaleX(${Math.min(1, view.awakening[key] / MAX_AWAKENING_TIME)})`,
+                      }}
+                    />
+                  </i>
                 </span>
               ))}
             </div>
@@ -531,10 +590,18 @@ export function RunnerApp() {
               </span>
               <span
                 className="runner-speed"
+                data-surging={view.slotBoost > 0 || view.awakening.boost > 0}
+                data-kicking={view.slotPulse > 0}
                 aria-label={`速度 ${Math.round(view.speed)} px/s`}
               >
                 {Array.from({ length: 8 }, (_, i) => (
-                  <i key={i} data-lit={i <= pace * 7} />
+                  <i
+                    key={i}
+                    data-lit={i <= pace * 7}
+                    style={{
+                      transform: `scaleY(${1 + view.slotPulse * 0.35})`,
+                    }}
+                  />
                 ))}
               </span>
             </div>

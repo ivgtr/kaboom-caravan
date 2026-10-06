@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { collectPickup, landingBlast, stepCombat } from './combat';
 import {
+  AWAKENING_DURATION,
+  MAX_AWAKENING_TIME,
+  SLOT_BOOST_CAP,
+  SLOT_BOOST_DECAY,
+  stepFeverWorld,
   awardScore,
   JACKPOT_FREEZE,
   MAX_REEL_QUEUE,
@@ -11,7 +16,7 @@ import {
   stepFeverUI,
   updateMultiplier,
 } from './fever';
-import { getSpeed } from './pacing';
+import { getSpeed, jumpTempo, MAX_BURST_SPEED, MAX_SPEED } from './pacing';
 import {
   clearJumpInput,
   createRunner,
@@ -133,7 +138,7 @@ describe('real chest reels and a bounded cascade', () => {
     stepFeverUI(state, 0.4);
     expect(state.fever.reel).toBe(reel);
   });
-  it('keeps loot rolls independent from generation order and road geometry independent from boosts', () => {
+  it('keeps loot rolls independent from generation and never changes already-generated roads', () => {
     const a = arena(84),
       b = arena(84);
     // Terrain generation consumes its own stream and nextId, never loot entropy.
@@ -147,7 +152,7 @@ describe('real chest reels and a bounded cascade', () => {
     y.fever.abilities.gold = 20;
     for (let i = 0; i < 10; i++) openChest(y);
     expect(x.random).toBe(y.random);
-    generateTerrain(x, 20000);
+    const original = structuredClone(y.platforms);
     generateTerrain(y, 20000);
     const geometry = (s: RunnerState) =>
       s.platforms.map(({ x, width, top, endTop }) => ({
@@ -156,7 +161,10 @@ describe('real chest reels and a bounded cascade', () => {
         top,
         endTop,
       }));
-    expect(geometry(x)).toEqual(geometry(y));
+    expect(geometry(x)).toEqual(
+      original.map(({ x, width, top, endTop }) => ({ x, width, top, endTop })),
+    );
+    expect(y.platforms.slice(0, original.length)).toEqual(original);
   });
   it('merges saturated reward batches without dropping any rolled rewards', () => {
     const state = arena();
@@ -248,9 +256,10 @@ describe('synchronized jackpot freeze and input edges', () => {
 });
 
 describe('stacked real speed and stable faster jumps', () => {
-  it('accelerates actual travel beyond 1000 instead of just changing a label', () => {
+  it('keeps actual permanent speed growing after all twenty booster levels', () => {
     const state = arena();
-    state.fever.abilities.boost = 6;
+    state.fever.abilities.boost = 20;
+    state.distance = 60000;
     advance(state, 2);
     expect(state.speed).toBeGreaterThan(1000);
     const before = state.distance;
@@ -277,11 +286,11 @@ describe('stacked real speed and stable faster jumps', () => {
     state.fever.abilities.boost = 12;
     requestJump(state);
     const tempo = state.player.jumpTempo;
-    expect(tempo).toBe(1.45);
+    expect(tempo).toBe(jumpTempo(12));
     expect(state.player.vy ** 2 / (2 * GRAVITY * tempo ** 2)).toBeCloseTo(
       JUMP_VELOCITY ** 2 / (2 * GRAVITY),
     );
-    advance(state, 0.4);
+    advance(state, 0.45);
     expect(state.player.grounded).toBe(true);
   });
 });
@@ -425,5 +434,121 @@ describe('destruction, gold and multiplier feedback', () => {
     expect(state.distance).toBeGreaterThan(120000);
     expect(state.chestsOpened).toBeGreaterThan(70);
     expect(Number.isFinite(state.score)).toBe(true);
+  });
+});
+
+describe('every reel stop kicks, including bounded MAX awakenings', () => {
+  function reveal(
+    state: RunnerState,
+    kind: 'boost' | 'slam' | 'gold' | 'magnet',
+    count = 1,
+  ) {
+    state.fever.reel = {
+      id: state.nextId++,
+      rewards: [{ kind, count }],
+      revealed: 0,
+      elapsed: 0,
+      revealInterval: 0.55,
+      jackpot: false,
+      merged: 1,
+    };
+    stepFeverUI(state, REEL_FIRST_REVEAL);
+  }
+  it('three visible slots produce three physical pulses and no invisible queue debt', () => {
+    const state = arena();
+    state.fever.reel = {
+      id: 99,
+      rewards: [
+        { kind: 'slam', count: 1 },
+        { kind: 'gold', count: 1 },
+        { kind: 'magnet', count: 1 },
+      ],
+      revealed: 0,
+      elapsed: 0,
+      revealInterval: 0.55,
+      jackpot: false,
+      merged: 1,
+    };
+    advance(state, REEL_FIRST_REVEAL);
+    for (let stop = 1; stop <= 3; stop++) {
+      expect(state.fever.slotKickSerial).toBe(stop);
+      expect(state.fever.slotBoost).toBeGreaterThan(180);
+      const before = state.speed;
+      advance(state, 0.15);
+      expect(state.speed).toBeGreaterThan(before + 35);
+      expect(state.fever.slotBoost).toBeLessThanOrEqual(SLOT_BOOST_CAP);
+      if (stop < 3) advance(state, 0.4);
+    }
+    advance(state, 4);
+    expect(state.fever.slotBoost).toBe(0);
+    expect(state.speed).toBeLessThan(getSpeed(state.distance) + 1);
+  });
+  it('crossing MAX, duplicate MAX and saturated merged counts all awaken without runaway timers', () => {
+    const state = arena();
+    state.fever.abilities.slam = 19;
+    reveal(state, 'slam', 3);
+    expect(state.fever.abilities.slam).toBe(20);
+    expect(state.fever.awakening.slam).toBeGreaterThan(AWAKENING_DURATION);
+    expect(state.fever.awakeningSerial.slam).toBe(1);
+    const before = state.fever.awakening.slam;
+    stepFeverWorld(state, 1);
+    reveal(state, 'slam', 999);
+    expect(state.fever.awakening.slam).toBeGreaterThan(before);
+    expect(state.fever.awakening.slam).toBe(MAX_AWAKENING_TIME);
+    expect(state.fever.awakeningSerial.slam).toBe(2);
+    expect(state.fever.slotBoost).toBeLessThanOrEqual(SLOT_BOOST_CAP);
+    stepFeverWorld(state, MAX_AWAKENING_TIME);
+    expect(state.fever.awakening.slam).toBe(0);
+    expect(state.fever.slotBoost).toBe(0);
+  });
+  it('can exceed permanent speed at MAX while keeping midair acceleration and braking smooth', () => {
+    const state = arena();
+    state.distance = 150000;
+    state.fever.abilities.boost = 20;
+    state.speed = getSpeed(state.distance, 20);
+    reveal(state, 'boost');
+    stepFeverWorld(state, 0.2);
+    expect(state.speed).toBeGreaterThan(MAX_SPEED);
+    expect(state.speed).toBeLessThanOrEqual(MAX_BURST_SPEED);
+    state.player.grounded = false;
+    const before = state.speed;
+    state.fever.slotBoost = SLOT_BOOST_CAP;
+    stepFeverWorld(state, FIXED_DT);
+    expect(Math.abs(state.speed - before)).toBeLessThanOrEqual(
+      220 * FIXED_DT + 1e-8,
+    );
+    state.fever.slotBoost = 0;
+    state.fever.awakening.boost = 0;
+    const fast = state.speed;
+    stepFeverWorld(state, FIXED_DT);
+    expect(fast - state.speed).toBeLessThanOrEqual(220 * FIXED_DT + 1e-8);
+    expect(Math.exp(-SLOT_BOOST_DECAY * 0.25)).toBeLessThan(0.26);
+  });
+  it('preserves bounded boost and awakening timers through FREEZE and pause', () => {
+    const state = arena();
+    state.fever.abilities.gold = 20;
+    reveal(state, 'gold');
+    const awake = state.fever.awakening.gold;
+    const boost = state.fever.slotBoost;
+    state.fever.freeze = 0.5;
+    advance(state, 0.4);
+    expect(state.fever.awakening.gold).toBe(awake);
+    expect(state.fever.slotBoost).toBe(boost);
+    pauseRunner(state);
+    advance(state, 1);
+    expect(state.fever.awakening.gold).toBe(awake);
+    resumeRunner(state);
+    advance(state, 1);
+    expect(state.fever.awakening.gold).toBeLessThan(awake);
+  });
+  it('caps simultaneous golden destruction at one chest and banks at most one next chest', () => {
+    const state = arena();
+    state.fever.abilities.gold = 20;
+    for (let i = 0; i < 100; i++) registerDestruction(state, i * 4, 20, true);
+    expect(state.pickups.filter((p) => p.kind === 'chest')).toHaveLength(1);
+    expect(state.fever.goldCharge).toBe(2);
+    stepFeverWorld(state, 0.7);
+    registerDestruction(state, 450, 20, true);
+    expect(state.pickups.filter((p) => p.kind === 'chest')).toHaveLength(2);
   });
 });

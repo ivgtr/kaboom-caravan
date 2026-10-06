@@ -149,28 +149,67 @@ function boundedHeight(value: number): number {
   return Math.max(TERRAIN_MIN_HEIGHT, Math.min(TERRAIN_MAX_HEIGHT, value));
 }
 
-/** Authored silhouettes, shuffled in six-phrase bags. Geometry only consumes the
- * course seed: earning a boost never moves a ledge that is already visible.
+/** The first six motifs retain their authored hill/encounter identities. The
+ * late mixes reuse those real slopes, with treasure and blast chains placed on
+ * the part of the silhouette that makes them useful. courseBag is recent history,
+ * not a bag: every unlocked motif remains possible on every new section.
  */
+export const COURSE_MOTIFS = [
+  'ridge-guard',
+  'blast-basin',
+  'staircase-duel',
+  'chase-hollow',
+  'twin-crest-cache',
+  'long-crest-convoy',
+  'downhill-blast',
+  'jump-vaults',
+] as const;
+const COURSE_SILHOUETTES = [0, 1, 2, 3, 4, 5, 0, 4];
+
+function courseEvolution(state: RunnerState): number {
+  return Math.min(
+    1,
+    Math.max(0, (state.time - 45) / 75, (state.distance - 30000) / 75000),
+  );
+}
+
 function nextCoursePhrase(state: RunnerState): number {
-  if (!state.courseBag.length) {
-    const previous = state.coursePhrase;
-    state.courseBag = [0, 1, 2, 3, 4, 5];
-    for (let i = state.courseBag.length - 1; i > 0; i--) {
-      const j = Math.floor(random(state) * (i + 1));
-      [state.courseBag[i], state.courseBag[j]] = [
-        state.courseBag[j]!,
-        state.courseBag[i]!,
-      ];
+  const { boost, slam, gold, magnet } = state.fever.abilities;
+  // Saturating bonuses gently favor a build without prescribing its route.
+  const affinity = (level: number) => level / (level + 3);
+  const biases = [
+    affinity(boost) + affinity(slam),
+    affinity(slam) + affinity(gold),
+    affinity(boost),
+    affinity(boost) + affinity(slam),
+    affinity(magnet),
+    affinity(gold),
+    affinity(slam) + affinity(gold),
+    affinity(magnet) + affinity(gold),
+  ];
+  const late = state.time >= 45 || state.distance >= 30000;
+  const mixWeight = late ? 0.55 + courseEvolution(state) * 0.8 : 0;
+  const bases = [1, 1, 0.9, 0.9, 1, 1, mixWeight, mixWeight];
+  const previousShape = COURSE_SILHOUETTES[state.coursePhrase];
+  const weights = bases.map((base, motif) => {
+    const recent = state.courseBag.includes(motif);
+    const repeat =
+      COURSE_SILHOUETTES[motif] === previousShape ? 0.2 : recent ? 0.58 : 1.25;
+    return base * repeat * (1 + 0.22 * biases[motif]!);
+  });
+  let draw = random(state) * weights.reduce((sum, weight) => sum + weight, 0);
+  let selected = weights.length - 1;
+  for (let motif = 0; motif < weights.length; motif++) {
+    draw -= weights[motif]!;
+    if (draw < 0) {
+      selected = motif;
+      break;
     }
-    if (state.courseBag[state.courseBag.length - 1] === previous)
-      [state.courseBag[0], state.courseBag[5]] = [
-        state.courseBag[5]!,
-        state.courseBag[0]!,
-      ];
   }
-  state.coursePhrase = state.courseBag.pop()!;
-  return state.coursePhrase;
+  state.coursePhrase = selected;
+  state.courseBag.push(selected);
+  if (state.courseBag.length > 4) state.courseBag.shift();
+  return selected;
 }
 
 export function generateTerrain(
@@ -181,7 +220,9 @@ export function generateTerrain(
     const edge = state.generatedUntil;
     const previous = state.platforms[state.platforms.length - 1]!;
     const top = platformTopAt(previous, edge);
-    const phrase = nextCoursePhrase(state);
+    const motif = nextCoursePhrase(state);
+    const phrase = COURSE_SILHOUETTES[motif]!;
+    const evolution = courseEvolution(state);
     const roll = random(state);
     const speed = getSpeed(edge);
     const landingDelta = [8, -28, 20, -36, 0, 12][phrase]!;
@@ -261,9 +302,9 @@ export function generateTerrain(
       const worldX = start + offset;
       addCrate(state, worldX, deckAt(worldX));
     };
-    const chest = (offset: number, lift = 27) => {
+    const chest = (offset: number, lift = 27, guaranteed = false) => {
       const worldX = start + offset;
-      if (state.chunk % 2 === 0)
+      if (guaranteed || state.chunk % 2 === 0)
         addPickup(state, worldX, deckAt(worldX) + lift, 'chest');
       else
         for (const dx of [-36, 0, 36])
@@ -283,7 +324,7 @@ export function generateTerrain(
     }
     // Crests guard jump-line treasure; troughs group volatile enemies; open
     // approaches give a charging buggy its warning window and an escape arc.
-    switch (phrase) {
+    switch (motif) {
       case 0:
         rival(550, 'heavy');
         crate(630);
@@ -316,13 +357,45 @@ export function generateTerrain(
         rival(930, 'basic', 65);
         crate(1035);
         break;
-      default:
+      case 5:
         rival(420, 'basic', 65);
         rival(635, 'heavy');
         crate(890);
         rival(980, 'bomber');
         crate(1055);
         chest(1190);
+        break;
+      case 6:
+        // A guarded crest leads into a bomber tucked among the downhill crates.
+        // Later runs extend the same chain into the low landing/loot apron.
+        rival(550, evolution >= 0.6 ? 'fortress' : 'heavy');
+        crate(815);
+        rival(875, 'bomber');
+        crate(950);
+        rival(1020, 'basic', 35);
+        if (evolution > 0.35) {
+          rival(1090, 'bomber');
+          crate(1145);
+        }
+        chest(1130, 32, true);
+        break;
+      case 7:
+        // Two genuine airborne treasure lines above separate crests. The
+        // connected valley between them remains a generous landing runway.
+        rival(400, 'heavy');
+        chest(485, 142, true);
+        crate(645);
+        rival(820, evolution >= 0.6 ? 'fortress' : 'heavy');
+        chest(905, 148, true);
+        rival(1100, 'bomber');
+        if (evolution > 0.35) {
+          crate(1160);
+          for (const offset of [525, 575, 855, 955]) {
+            const worldX = start + offset;
+            addPickup(state, worldX, deckAt(worldX) + 126, 'scrap');
+          }
+        }
+        break;
     }
     state.generatedUntil = x;
     state.chunk++;
@@ -806,19 +879,52 @@ function stepFixed(state: RunnerState, dt: number): void {
   generateTerrain(state);
   stepPhysics(state, dt, oldX);
   if (state.status !== 'running') return;
+  const f = state.fever;
+  if (f.awakeningSerial.magnet > f.awakeningSeen.magnet) {
+    // Consume the fresh reveal before touching any chest: a jackpot can pause
+    // collection mid-loop, but must neither miss the other pickups nor replay
+    // this impulse after thawing. Each repeat reaches a new real reward line.
+    f.awakeningSeen.magnet = f.awakeningSerial.magnet;
+    if (f.awakening.magnet > 0) {
+      for (const pickup of state.pickups) {
+        if (
+          pickup.taken ||
+          (pickup.kind !== 'scrap' && pickup.kind !== 'chest')
+        )
+          continue;
+        const dx = pickup.x - state.distance;
+        const dy = pickup.y - (state.player.y + PLAYER_HEIGHT / 2);
+        if (Math.hypot(dx, dy) >= 1600) continue;
+        pickup.x -= dx * 0.6;
+        pickup.y -= dy * 0.6;
+      }
+      addEffect(
+        state,
+        'pickup',
+        state.distance,
+        state.player.y + 24,
+        'MAX MAGNET',
+      );
+    }
+  }
   for (const pickup of state.pickups) {
     if (pickup.taken) continue;
-    const radius =
-      pickup.kind === 'chest' && pickup.earned
-        ? 220
-        : state.fever.abilities.magnet > 0 &&
-            (pickup.kind === 'scrap' || pickup.kind === 'chest')
-          ? 180 + state.fever.abilities.magnet * 35
-          : 0;
+    const awakenedMagnet = state.fever.awakening.magnet > 0;
+    const collectible = pickup.kind === 'scrap' || pickup.kind === 'chest';
+    // Earned chests keep their catch-up reach, but must not mask an awakened
+    // sweep. All pickups retain their identities and are collected only once.
+    const radius = Math.max(
+      pickup.kind === 'chest' && pickup.earned ? 220 : 0,
+      collectible && awakenedMagnet
+        ? 1250
+        : collectible && state.fever.abilities.magnet > 0
+          ? 180 + Math.min(20, state.fever.abilities.magnet) * 17
+          : 0,
+    );
     const dx = pickup.x - state.distance;
     const dy = pickup.y - (state.player.y + PLAYER_HEIGHT / 2);
     if (radius && Math.hypot(dx, dy) < radius) {
-      const pull = Math.min(1, dt * 14);
+      const pull = Math.min(1, dt * (awakenedMagnet ? 28 : 14));
       pickup.x -= dx * pull;
       pickup.y -= dy * pull;
     }

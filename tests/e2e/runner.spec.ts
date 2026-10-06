@@ -1,8 +1,6 @@
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { buildReplay } from '../runner-replay';
-import { createRunner, generateTerrain } from '../../src/runner/simulation';
-import { platformTopAt, platformsJoin } from '../../src/runner/terrain';
 
 async function openRun(page: Page, seed = 42) {
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
@@ -199,7 +197,7 @@ async function replay(
     x: button!.x + button!.width / 2,
     y: button!.y + button!.height / 2,
   };
-  const checkpoints = [2.2, 2.8, 7.6, 15, 24, 32, 39].filter(
+  const checkpoints = [2.2, 2.8, 7.6, 15, 24, 32, 39, 60, 80, 100, 119].filter(
     (t) => t < seconds,
   );
   const events = [
@@ -235,9 +233,16 @@ async function replay(
         'running',
       );
       if (event.checkpoint === 32) {
-        expect(await number(page, 'speed')).toBeGreaterThan(800);
+        const expectedSpeed = buildReplay(42, 32).state.speed;
+        expect(
+          Math.abs((await number(page, 'speed')) - expectedSpeed),
+        ).toBeLessThan(35);
         expect(await number(page, 'score')).toBeGreaterThan(10000);
         expect(await number(page, 'chests')).toBeGreaterThan(5);
+      }
+      if (event.checkpoint === 119) {
+        expect(await number(page, 'speed')).toBeGreaterThan(1200);
+        expect(await number(page, 'slot-kick')).toBeGreaterThan(100);
       }
       await capture(page, info, `${name}-${event.checkpoint}s`);
     }
@@ -347,17 +352,15 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
       jumpButton!.x + jumpButton!.width / 2,
       jumpButton!.y + jumpButton!.height / 2,
     );
-    // Use visible live position for this wall-clock movie. A prerecorded schedule
-    // drifts under CI load and could otherwise press Space after death (a retry).
-    const route = createRunner(1);
-    generateTerrain(route, 100000);
+    // Read the actual generated island: build-weighted future sections can differ
+    // from an unplayed route. Controls remain ordinary physical pointer input.
     let held = false;
     let airborneSeen = false;
     let previousX = 0;
     let frozen = false;
     const freezeTransitions: { kind: string; at: number; worldX: number }[] =
       [];
-    while (Date.now() - start < 24000) {
+    while (Date.now() - start < 110000) {
       const observed = await live.getByTestId('runner').evaluate((element) => ({
         status: element.getAttribute('data-status'),
         x: Number(element.getAttribute('data-world-x')),
@@ -365,6 +368,7 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
         speed: Number(element.getAttribute('data-speed')),
         grounded: element.getAttribute('data-grounded') === 'true',
         freeze: Number(element.getAttribute('data-freeze')),
+        roadEnd: Number(element.getAttribute('data-road-end')),
       }));
       if (observed.status !== 'running') break;
       expect(observed.x).toBeGreaterThanOrEqual(previousX);
@@ -387,26 +391,14 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
           await live.mouse.up();
           held = false;
         }
-        let index = route.platforms.findIndex(
-          (road) =>
-            observed.x + 22 > road.x &&
-            observed.x - 22 < road.x + road.width &&
-            Math.abs(platformTopAt(road, observed.x) - observed.y) < 4,
-        );
-        if (index >= 0) {
-          while (
-            route.platforms[index + 1] &&
-            platformsJoin(route.platforms[index]!, route.platforms[index + 1]!)
-          )
-            index++;
-          const road = route.platforms[index]!;
-          if (road.x + road.width - observed.x < observed.speed * 0.18) {
-            // The on-screen control disappears on death. Unlike Space here,
-            // a physical pointer at this position cannot trigger auto-retry.
-            await live.mouse.down();
-            held = true;
-            airborneSeen = false;
-          }
+        if (
+          observed.roadEnd > 0 &&
+          observed.roadEnd - observed.x < observed.speed * 0.14
+        ) {
+          // A physical pointer at this position cannot trigger an accidental retry.
+          await live.mouse.down();
+          held = true;
+          airborneSeen = false;
         }
       }
       await live.waitForTimeout(12);
@@ -462,7 +454,7 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
       JSON.stringify(
         {
           seconds: gameplaySeconds,
-          targetSeconds: 24,
+          targetSeconds: 110,
           seed: 1,
           freezeTransitions,
           automatedPhysicalInput: true,
@@ -493,9 +485,11 @@ async function captureNormalSpeed(page: Page, info: TestInfo) {
 test('real keyboard replay chains chests, inflation and high-speed landing destruction', async ({
   page,
 }, info) => {
-  test.setTimeout(180000);
+  test.setTimeout(360000);
   await openRun(page);
-  await replay(page, info, 'desktop-course', 40);
+  await replay(page, info, 'desktop-course', 120);
+  expect(await number(page, 'slot-kick')).toBeGreaterThan(60);
+  expect(await number(page, 'boost')).toBe(20);
   expect(await number(page, 'multiplier')).toBeGreaterThan(10);
   if (process.env.CAPTURE_UI_REVIEW) await captureNormalSpeed(page, info);
 });
@@ -511,7 +505,11 @@ for (const viewport of [
     }, info) => {
       test.setTimeout(180000);
       await openRun(page);
-      await replay(page, info, `touch-${viewport.name}`, 40, true);
+      await replay(page, info, `touch-${viewport.name}`, 120, true);
+      expect(await number(page, 'slot-kick')).toBeGreaterThan(60);
+      await expect(
+        page.locator('.runner-module[data-awakened="true"]').first(),
+      ).toBeVisible();
       const runner = page.getByTestId('runner');
       await page.getByRole('button', { name: '一時停止', exact: true }).tap();
       await page.getByRole('button', { name: '最初から', exact: true }).tap();

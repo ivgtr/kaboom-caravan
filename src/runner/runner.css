@@ -256,6 +256,55 @@ button:disabled {
 .runner-module[data-active='false'] b {
   color: #b0c2b8;
 }
+/* MAX is permanent; the bright painted silhouette and its short fuse are not. */
+.runner-module[data-max='true'] b {
+  font-size: 14px;
+  letter-spacing: -0.035em;
+}
+.runner-module {
+  --awakening-color: #a7f1ff;
+}
+.runner-module[data-ability='slam'] {
+  --awakening-color: #ffc191;
+}
+.runner-module[data-ability='gold'] {
+  --awakening-color: #ffe48c;
+}
+.runner-module[data-ability='magnet'] {
+  --awakening-color: #a1ffda;
+}
+.runner-module[data-awakened='true'] img {
+  transform: translateY(-2px);
+  filter: brightness(1.16) saturate(1.12)
+    drop-shadow(0 0 4px var(--awakening-color));
+}
+.runner-module[data-awakened='true'] b {
+  color: #fffbd2;
+  text-shadow:
+    0 2px 0 #153744,
+    0 0 6px var(--awakening-color);
+}
+.runner-awakening-fuse {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: -5px;
+  height: 3px;
+  background: #173947;
+  transform: skewX(-17deg);
+  opacity: 0;
+}
+.runner-module[data-awakened='true'] .runner-awakening-fuse {
+  opacity: 1;
+}
+.runner-awakening-fuse > i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  background: var(--awakening-color);
+  box-shadow: 0 0 4px var(--awakening-color);
+}
 .runner-equipment-line {
   display: flex;
   align-items: center;
@@ -310,6 +359,7 @@ button:disabled {
   transform: skewX(-17deg);
 }
 .runner-speed i {
+  transform-origin: bottom;
   width: 5px;
   height: 8px;
   background: #d3e4d42e;
@@ -332,6 +382,12 @@ button:disabled {
 }
 .runner-speed i:nth-child(n + 7)[data-lit='true'] {
   background: #ff9769;
+}
+.runner-speed[data-surging='true'] i[data-lit='true'] {
+  box-shadow: 0 0 4px #ffd98c99;
+}
+.runner-speed[data-kicking='true'] i[data-lit='true'] {
+  background: #fff3b3;
 }
 .runner-bottom {
   position: absolute;
@@ -632,6 +688,9 @@ h1 span {
   .runner-module b {
     font-size: 18px;
   }
+  .runner-module[data-max='true'] b {
+    font-size: 12px;
+  }
   .runner-equipment-line {
     gap: 9px;
     margin-top: 6px;
@@ -733,6 +792,13 @@ h1 span {
   }
   .runner-module b {
     font-size: 17px;
+  }
+  .runner-module[data-max='true'] b {
+    font-size: 11px;
+  }
+  .runner-awakening-fuse {
+    bottom: -3px;
+    height: 2px;
   }
   .runner-equipment-line {
     height: 21px;
@@ -849,6 +915,10 @@ h1 span {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .runner-module[data-awakened='true'] img,
+  .runner-speed i {
+    transform: none !important;
+  }
   * {
     transition: none !important;
   }

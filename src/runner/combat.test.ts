@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   awardScrap,
+  AWAKENED_BOOST_PULSE_RADIUS,
+  AWAKENED_BOOST_RADIUS,
   BOMBER_BLAST_DAMAGE,
   BOMBER_BLAST_RADIUS,
   collectPickup,
@@ -12,11 +14,13 @@ import {
   stepCombat,
 } from './combat';
 import { RIVALS, WEAPONS, WEAPON_ORDER } from './definitions';
+import { stepFeverWorld } from './fever';
 import { createRunner, startRunner, stepRunner } from './simulation';
 import { platformTopAt } from './terrain';
 import {
   FIXED_DT,
   PLAYER_WIDTH,
+  type AbilityId,
   type Obstacle,
   type Rival,
   type RunnerState,
@@ -518,5 +522,286 @@ describe('real-time combat windows', () => {
       WEAPONS.scatter.breachCadence! / 1.42,
       8,
     );
+  });
+});
+
+function awaken(state: RunnerState, ability: AbilityId): void {
+  state.fever.abilities[ability] = 20;
+  state.fever.awakening[ability] = 3;
+  state.fever.awakeningSerial[ability]++;
+}
+
+describe('temporary MAX reward combat awakenings', () => {
+  it('gives BOOST real ahead-of-contact reach, with a bounded height and distance', () => {
+    const state = arena();
+    state.speed = 480;
+    state.fever.abilities.boost = 20;
+    const front = rival(state, 400, 0, 100);
+    const high = rival(state, 400, 310, 100);
+    const far = crate(state, 600, 100);
+    stepCombat(state, FIXED_DT);
+    expect(front.hp).toBe(100);
+    awaken(state, 'boost');
+    stepCombat(state, FIXED_DT);
+    expect(front.defeated).toBe(true);
+    expect(high.hp).toBe(100);
+    expect(far.hp).toBe(100);
+    expect(state.player.invulnerable).toBe(0);
+    expect(
+      state.effects.some(
+        (effect) => effect.radius === AWAKENED_BOOST_PULSE_RADIUS,
+      ),
+    ).toBe(true);
+    const sustained = crate(state, 280, 100);
+    stepCombat(state, FIXED_DT);
+    expect(sustained.destroyed).toBe(true);
+    expect(
+      state.effects.some((effect) => effect.radius === AWAKENED_BOOST_RADIUS),
+    ).toBe(true);
+  });
+
+  it('retriggers a fresh BOOST pulse once per MAX draw and removes extra reach at expiry', () => {
+    const state = arena();
+    awaken(state, 'boost');
+    stepCombat(state, FIXED_DT);
+    const nextGroup = rival(state, 420, 0, 100);
+    stepCombat(state, FIXED_DT);
+    expect(nextGroup.defeated).toBe(false);
+    state.fever.awakeningSerial.boost++;
+    stepCombat(state, FIXED_DT);
+    expect(nextGroup.defeated).toBe(true);
+    const score = state.score;
+    stepCombat(state, FIXED_DT);
+    expect(state.score).toBe(score);
+    stepFeverWorld(state, 3.1);
+    const after = crate(state, 280, 100);
+    stepCombat(state, FIXED_DT);
+    expect(after.destroyed).toBe(false);
+    expect(state.fever.awakening.boost).toBe(0);
+  });
+
+  it('keeps the rusher telegraph and defers awakening pulses through FREEZE', () => {
+    const state = arena();
+    awaken(state, 'boost');
+    const rushing = rival(state, 250, 0, 3);
+    rushing.kind = 'rusher';
+    rushing.age = 0;
+    const front = crate(state, 420);
+    state.fever.freeze = 0.3;
+    stepCombat(state, 0.3);
+    expect(front.destroyed).toBe(false);
+    expect(state.fever.awakeningSeen.boost).toBe(0);
+    state.fever.freeze = 0;
+    stepCombat(state, FIXED_DT);
+    expect(front.destroyed).toBe(true);
+    expect(rushing.defeated).toBe(false);
+    stepCombat(state, RIVAL_WARNING_TIME);
+    expect(rushing.defeated).toBe(true);
+  });
+
+  it('does not let awakened BOOST survive a real missing-road fall', () => {
+    const state = arena();
+    awaken(state, 'boost');
+    state.platforms = [{ id: 1, x: -100, width: 500, top: 0 }];
+    state.generatedUntil = 100000;
+    state.speed = 1400;
+    for (let frame = 0; frame < 300 && state.status === 'running'; frame++)
+      stepRunner(state, FIXED_DT);
+    expect(state.status).toBe('over');
+    expect(state.reason).toBe('gap');
+  });
+
+  it('adds actual forward SLAM blast points while damaging each overlapping body only once', () => {
+    const state = arena();
+    state.fever.abilities.slam = 20;
+    const distant = rival(state, 1100, 0, 20);
+    const high = rival(state, 1100, 600, 20);
+    landingBlast(state);
+    expect(distant.defeated).toBe(false);
+    state.effects = [];
+    const overlap = rival(state, 500, 0, 1000);
+    awaken(state, 'slam');
+    landingBlast(state);
+    expect(distant.defeated).toBe(true);
+    expect(high.defeated).toBe(false);
+    expect(overlap.hp).toBeCloseTo(1000 - 46 * 1.8, 8);
+    const blasts = state.effects.filter((effect) => effect.kind === 'slam');
+    expect(blasts).toHaveLength(4);
+    expect(new Set(blasts.map((blast) => blast.x)).size).toBe(4);
+    expect(state.fever.chain).toBe(1);
+  });
+
+  it('charges one extra physical SLAM echo per fresh MAX reveal and consumes it only on landing', () => {
+    const state = arena();
+    awaken(state, 'slam');
+    const firstEcho = crate(state, 1600);
+    const beyond = crate(state, 1900);
+    stepCombat(state, FIXED_DT);
+    expect(firstEcho.destroyed).toBe(false);
+    expect(state.fever.awakeningSeen.slam).toBe(0);
+    landingBlast(state);
+    expect(firstEcho.destroyed).toBe(true);
+    expect(beyond.destroyed).toBe(false);
+    expect(state.fever.awakeningSeen.slam).toBe(1);
+    state.effects = [];
+    const secondEcho = crate(state, 1600);
+    landingBlast(state);
+    expect(secondEcho.destroyed).toBe(false);
+    expect(
+      state.effects.filter((effect) => effect.kind === 'slam'),
+    ).toHaveLength(3);
+    // The duration remains unchanged: this draw has a distinct physical benefit
+    // even if the temporary effect was already at its maximum duration.
+    state.fever.awakening.slam = 6;
+    state.fever.awakeningSerial.slam++;
+    stepCombat(state, FIXED_DT);
+    expect(secondEcho.destroyed).toBe(false);
+    expect(state.fever.awakeningSeen.slam).toBe(1);
+    state.effects = [];
+    landingBlast(state);
+    expect(secondEcho.destroyed).toBe(true);
+    expect(beyond.destroyed).toBe(false);
+    expect(
+      state.effects.filter((effect) => effect.kind === 'slam'),
+    ).toHaveLength(4);
+    expect(state.fever.awakeningSeen.slam).toBe(2);
+    expect(state.fever.chain).toBe(2);
+    const thirdEcho = crate(state, 1600);
+    state.effects = [];
+    landingBlast(state);
+    expect(thirdEcho.destroyed).toBe(false);
+    expect(
+      state.effects.filter((effect) => effect.kind === 'slam'),
+    ).toHaveLength(3);
+  });
+
+  it('expires SLAM chains and never rewards an already-destroyed chain twice', () => {
+    const state = arena();
+    awaken(state, 'slam');
+    const a = crate(state, 950),
+      b = crate(state, 1150);
+    landingBlast(state);
+    expect(a.destroyed && b.destroyed).toBe(true);
+    const score = state.score;
+    const scrap = state.scrap;
+    landingBlast(state);
+    expect(state.score).toBe(score);
+    expect(state.scrap).toBe(scrap);
+    stepFeverWorld(state, 3.1);
+    state.effects = [];
+    const after = crate(state, 1100);
+    landingBlast(state);
+    expect(after.destroyed).toBe(false);
+    expect(
+      state.effects.filter((effect) => effect.kind === 'slam'),
+    ).toHaveLength(1);
+  });
+
+  it('converts a real GOLD group immediately on every MAX draw, with bounded sustained spread', () => {
+    const state = arena();
+    state.fever.abilities.gold = 20;
+    const ordinary = crate(state, 800);
+    const sustained = crate(state, 1000);
+    const pulse = crate(state, 1600);
+    const far = crate(state, 1900);
+    stepCombat(state, FIXED_DT);
+    expect(ordinary.golden).toBe(true);
+    expect(sustained.golden).not.toBe(true);
+    awaken(state, 'gold');
+    stepCombat(state, FIXED_DT);
+    expect(sustained.golden).toBe(true);
+    expect(pulse.golden).toBe(true);
+    expect(far.golden).not.toBe(true);
+    const nextGroup = crate(state, 1600);
+    stepCombat(state, FIXED_DT);
+    expect(nextGroup.golden).not.toBe(true);
+    state.fever.awakeningSerial.gold++;
+    stepCombat(state, FIXED_DT);
+    expect(nextGroup.golden).toBe(true);
+    expect(state.obstacles).toHaveLength(5);
+    expect(state.pickups).toHaveLength(0);
+    stepFeverWorld(state, 3.1);
+    const after = crate(state, 1000);
+    stepCombat(state, FIXED_DT);
+    expect(after.golden).not.toBe(true);
+  });
+
+  it('applies a fresh GOLD group transformation before a same-tick landing can destroy it', () => {
+    const state = arena();
+    state.fever.abilities.slam = 20;
+    awaken(state, 'gold');
+    const landingTarget = crate(state, 500);
+    const pulseTarget = crate(state, 1600);
+    landingBlast(state);
+    expect(landingTarget.destroyed).toBe(true);
+    expect(landingTarget.golden).toBe(true);
+    expect(pulseTarget.golden).toBe(true);
+    expect(state.fever.goldCharge).toBe(1);
+    expect(state.fever.awakeningSeen.gold).toBe(
+      state.fever.awakeningSerial.gold,
+    );
+  });
+
+  it('makes awakened GOLD kills infect farther existing bodies without generating new ones', () => {
+    for (const awakened of [false, true]) {
+      const state = arena();
+      state.fever.abilities.gold = 20;
+      if (awakened) {
+        awaken(state, 'gold');
+        // This group enters after the initial pulse, isolating kill infection.
+        state.fever.awakeningSeen.gold = state.fever.awakeningSerial.gold;
+      }
+      const first = rival(state, 40, 0, 1);
+      first.golden = true;
+      const next = rival(state, 900, 0, 2);
+      const beyond = crate(state, 1200);
+      landingBlast(state);
+      expect(first.defeated).toBe(true);
+      expect(next.golden === true).toBe(awakened);
+      expect(beyond.golden).not.toBe(true);
+      expect(state.rivals).toHaveLength(2);
+      expect(state.obstacles).toHaveLength(1);
+      expect(state.fever.chain).toBe(1);
+    }
+  });
+
+  it('bounds an awakened GOLD plus SLAM clear to one earned chest and no deferred kill flood', () => {
+    const state = arena();
+    awaken(state, 'gold');
+    awaken(state, 'slam');
+    for (let index = 0; index < 40; index++) crate(state, 40 + index * 25);
+    landingBlast(state);
+    expect(state.obstacles.every((body) => body.destroyed && body.golden)).toBe(
+      true,
+    );
+    expect(state.fever.chain).toBe(40);
+    expect(state.pickups.filter((pickup) => pickup.earned)).toHaveLength(1);
+    expect(state.fever.goldCharge).toBeLessThanOrEqual(2);
+    const scrap = state.scrap;
+    stepFeverWorld(state, 1);
+    landingBlast(state);
+    expect(state.scrap).toBe(scrap);
+    expect(state.obstacles).toHaveLength(40);
+    expect(state.pickups.filter((pickup) => pickup.earned)).toHaveLength(1);
+  });
+
+  it('resolves a large bomber chain without recursion, duplicate rewards, or body spawning', () => {
+    const state = arena('machine');
+    const count = 600;
+    for (let index = 0; index < count; index++) {
+      const target = rival(state, 200 + index * 150, 0, index === 0 ? 1 : 3);
+      target.kind = 'bomber';
+    }
+    stepCombat(state, FIXED_DT);
+    expect(state.defeated).toBe(count);
+    expect(state.fever.chain).toBe(count);
+    expect(state.scrap).toBe(count * RIVALS.bomber.scrap);
+    expect(state.rivals).toHaveLength(count);
+    expect(state.pickups).toHaveLength(0);
+    expect(state.effects.length).toBeLessThanOrEqual(64);
+    expect(Number.isFinite(state.score)).toBe(true);
+    const score = state.score;
+    stepCombat(state, FIXED_DT);
+    expect(state.score).toBe(score);
   });
 });
