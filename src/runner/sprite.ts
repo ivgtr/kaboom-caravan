@@ -48,11 +48,14 @@ export function drawPaintedSprite(
     Math.abs(m.a * m.c + m.b * m.d) > sx * sy * 0.000001
   )
     return direct();
-  // Only the soft halo is quantized (size within 2px, blur within 0.25px).
-  // The original painted sprite retains its exact bounds and source sampling.
-  const pw = Math.max(4, Math.round((width * sx) / 4) * 4);
-  const ph = Math.max(4, Math.round((height * sy) / 4) * 4);
-  const blur = Math.round(ctx.shadowBlur * 2) / 2;
+  // Only soft halos are quantized; the original sprite keeps exact sampling.
+  // Large cabinet glows need wider buckets to avoid a new canvas every frame
+  // while they spring into view (up to 8px size / 1px blur tolerance).
+  const bucket = Math.max(width * sx, height * sy) > 256 ? 16 : 4;
+  const blurBucket = bucket === 16 ? 2 : 0.5;
+  const pw = Math.max(bucket, Math.round((width * sx) / bucket) * bucket);
+  const ph = Math.max(bucket, Math.round((height * sy) / bucket) * bucket);
+  const blur = Math.round(ctx.shadowBlur / blurBucket) * blurBucket;
   if (blur === 0) return direct();
   const padding = Math.ceil(blur * 3 + 2);
   const pixels = 2 * (pw + padding * 2) * (ph + padding * 2);

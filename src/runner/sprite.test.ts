@@ -135,6 +135,10 @@ describe('painted sprite glow cache', () => {
     expect(create).toHaveBeenCalledTimes(1);
     draw(23, 30);
     expect(create).toHaveBeenCalledTimes(2);
+    draw(600, 240);
+    ctx.shadowBlur = 8.8;
+    draw(604, 243);
+    expect(create).toHaveBeenCalledTimes(3);
   });
 
   it('reuses a halo while applying changing alpha separately to shadow and source', () => {
