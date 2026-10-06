@@ -379,12 +379,12 @@ function renderExhaust(
   if (boost > 0 || surge > 0 || kick > 0) {
     const pulse = reducedMotion ? 1 : 0.94 + Math.sin(state.time * 35) * 0.06;
     const width =
-      (48 +
-        Math.min(8, boost) * 10 +
-        (state.fever.hyperTime > 0 ? 30 : 0) +
-        surge * 34 +
-        awakened * 48 +
-        (reducedMotion ? 0 : kick * 68)) *
+      (36 +
+        Math.min(8, boost) * 4 +
+        (state.fever.hyperTime > 0 ? 12 : 0) +
+        surge * 14 +
+        awakened * 16 +
+        (reducedMotion ? 0 : kick * 24)) *
       pulse;
     ctx.save();
     // The painted trail's bright nozzle is its RIGHT tip. Leave the image
@@ -392,17 +392,11 @@ function renderExhaust(
     ctx.translate(-23, -32);
     // A reel stop pushes through the existing painted exhaust, never a screen
     // shake: the next landing and the jump button remain completely steady.
-    const thickness = 0.26 + (reducedMotion ? 0 : kick * 0.06);
+    const height = (width * art.fever.trail.height) / art.fever.trail.width;
     ctx.globalAlpha =
       (reducedMotion ? 0.72 : 0.95) *
       (boost > 0 ? 1 : Math.min(1, surge * 3 + kick));
-    ctx.drawImage(
-      art.fever.trail,
-      -width,
-      (-width * thickness) / 2,
-      width,
-      width * thickness,
-    );
+    ctx.drawImage(art.fever.trail, -width, -height / 2, width, height);
     ctx.restore();
     return;
   }
@@ -982,24 +976,24 @@ export function renderRunner(
   }
   for (const shot of state.shots)
     renderShot(ctx, shot, ground, camera, reducedMotion);
-  // The painted landing blast reaches the actual attack radius, below the car.
-  // Keep its height low so a fast slam never hides the next takeoff silhouette.
+  // Draw each impact at its own center, including every MAX landing echo.
+  // Attack radius belongs to combat; stretching the art across it flattens
+  // round coins and explosions. Bound both dimensions with one uniform scale.
   for (const effect of state.effects) {
     const chainBlast = effect.kind === 'burst' && effect.radius !== undefined;
     if (effect.kind !== 'slam' && !chainBlast) continue;
     const fraction = Math.max(0, effect.life / effect.maxLife);
-    const diameter = (effect.radius ?? 150) * 2;
-    const size = diameter * (reducedMotion ? 1 : 0.58 + (1 - fraction) * 0.42);
-    const blastHeight = Math.min(
-      chainBlast ? 140 : 88,
-      size * (chainBlast ? 0.4 : 0.2),
-    );
+    const image = chainBlast ? art.effects.burst : art.fever.burst;
+    const size =
+      Math.min(chainBlast ? 140 : 170, 96 + (effect.radius ?? 150) * 0.1) *
+      (reducedMotion ? 1 : 0.78 + (1 - fraction) * 0.22);
+    const blastHeight = (size * image.height) / image.width;
     ctx.save();
     ctx.globalAlpha = fraction * (reducedMotion ? 0.45 : 0.72);
     ctx.drawImage(
-      chainBlast ? art.effects.burst : art.fever.burst,
+      image,
       sx(effect.x) - size / 2,
-      ground - effect.y - blastHeight * 0.74,
+      ground - effect.y - blastHeight * (chainBlast ? 0.5 : 0.8),
       size,
       blastHeight,
     );
@@ -1073,13 +1067,17 @@ export function renderRunner(
         0,
       ) * 0.008,
     );
+  // The painted exhaust scales uniformly, independently of the body's squash.
+  ctx.save();
+  ctx.scale(growth, growth);
+  renderExhaust(ctx, state, art, reducedMotion);
+  ctx.restore();
   // A small foot-anchored compression sells the kick without moving collision
   // geometry, the camera, or any input target. Pausing also holds this frame.
   ctx.scale(
     (1 + squash * 0.07 + kick * 0.13) * growth,
     (1 - squash * 0.1 - kick * 0.08) * growth,
   );
-  renderExhaust(ctx, state, art, reducedMotion);
   // A soft grace-period pulse keeps the body and wheel contact legible.
   // The guard spark and HUD already communicate the hit; never hide the car.
   ctx.globalAlpha =
@@ -1124,7 +1122,7 @@ export function renderRunner(
       effect.kind === 'slam' ||
       (effect.kind === 'burst' && effect.radius !== undefined)
     ) {
-      // Area attacks already show their actual painted reach behind the car.
+      // Area impacts were drawn behind the car without stretching the artwork.
     } else if (effect.kind === 'gold') {
       const size = 54 + (1 - fraction) * 36;
       ctx.globalAlpha = fraction * 0.85;
